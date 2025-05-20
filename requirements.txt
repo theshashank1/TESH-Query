@@ -10,3 +10,4 @@ SQLAlchemy
 rich
 logfire
 pre-commit
+python-dotenv
