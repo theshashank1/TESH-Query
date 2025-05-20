@@ -15,15 +15,18 @@ app = typer.Typer(
 )
 
 
-@app.callback(invoke_without_command=True)
+@app.callback(invoke_without_command=True, no_args_is_help=True)
 def __main__(
     version: Optional[bool] = typer.Option(
-        None, "--version", "-v", help="Show the application's version and exit."
+        False, "--version", "-v", help="Show the application's version and exit."
     ),
     author: Optional[bool] = typer.Option(
-        None, "--author", "-a", help="Show the application's author and exit."
+        False, "--author", "-a", help="Show the application's author and exit."
     ),
 ):
+    """
+    These are Global Options
+    """
     if version:
         print("version 0.1.0")
         raise typer.Exit()
