@@ -2,6 +2,8 @@ from typing import Optional
 
 import typer
 
+from cli import config
+
 app = typer.Typer(
     name="TESH Query",
     help=(
@@ -20,8 +22,8 @@ def __main__(
     version: Optional[bool] = typer.Option(
         False, "--version", "-v", help="Show the application's version and exit."
     ),
-    author: Optional[bool] = typer.Option(
-        False, "--author", "-a", help="Show the application's author and exit."
+    developer: Optional[bool] = typer.Option(
+        False, "--developer", "-d", help="Show the application's author and exit."
     ),
 ):
     """
@@ -31,9 +33,12 @@ def __main__(
         print("version 0.1.0")
         raise typer.Exit()
 
-    if author:
-        print("Author: Shashank")
+    if developer:
+        print("Developer: Shashank")
         raise typer.Exit()
+
+
+app.add_typer(config.app)
 
 
 @app.command()
