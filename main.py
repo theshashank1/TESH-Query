@@ -1,22 +1,36 @@
+from typing import Optional
+
 import typer
 
 app = typer.Typer(
-    name="NL2SQL CLI",
+    name="TESH Query",
     help=(
         "A CLI tool that converts natural language queries into SQL and "
         "executes them on your database."
     ),
     short_help=(
-        "A CLI tool that converts natural language queries into SQL and " "executes"
+        "A CLI tool that converts natural language queries into SQL and executes"
     ),
     epilog="For more info, visit: https://github.com/theshashank1/TESH-Query",
 )
 
 
-@app.command(name="version")
-def version():
-    """Show the current version."""
-    typer.echo("Version: 0.1.0")
+@app.callback(invoke_without_command=True)
+def __main__(
+    version: Optional[bool] = typer.Option(
+        None, "--version", "-v", help="Show the application's version and exit."
+    ),
+    author: Optional[str] = typer.Option(
+        None, "--author", "-a", help="Show the application's author and exit."
+    ),
+):
+    if version:
+        print("version 0.1.0")
+        raise typer.Exit()
+
+    if author is not None:
+        print("Author: Shashank")
+        raise typer.Exit()
 
 
 @app.command()
