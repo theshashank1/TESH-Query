@@ -11,3 +11,5 @@ rich
 logfire
 pre-commit
 python-dotenv
+psycopg2
+psycopg2-binary
