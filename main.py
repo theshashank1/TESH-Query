@@ -28,7 +28,7 @@ def __main__(
         print("version 0.1.0")
         raise typer.Exit()
 
-    if author is not None:
+    if author:
         print("Author: Shashank")
         raise typer.Exit()
 
