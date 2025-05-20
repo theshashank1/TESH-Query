@@ -1,0 +1,25 @@
+# Byte-compiled files
+*.pyc
+__pycache__/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Editor and IDE specific files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+*.tmp
+*.swp
