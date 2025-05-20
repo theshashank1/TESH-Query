@@ -2,7 +2,7 @@ from typing import Optional
 
 import typer
 
-from cli import config
+from cli import config, db
 
 app = typer.Typer(
     name="TESH Query",
@@ -39,6 +39,7 @@ def __main__(
 
 
 app.add_typer(config.app)
+app.add_typer(db.app)
 
 
 @app.command()
