@@ -20,7 +20,7 @@ def __main__(
     version: Optional[bool] = typer.Option(
         None, "--version", "-v", help="Show the application's version and exit."
     ),
-    author: Optional[str] = typer.Option(
+    author: Optional[bool] = typer.Option(
         None, "--author", "-a", help="Show the application's author and exit."
     ),
 ):
