@@ -47,7 +47,7 @@ teshq query "List all customers who made a purchase last month"
 
 ## 👤 Made By
 
-**[Shashank Gundas](https://github.com/theshashank1)** — Building intelligent tools for developers.
+**[Shashank](https://github.com/theshashank1)** — Building intelligent tools for developers.
 
 ## ⭐ Stay in the Loop
 
