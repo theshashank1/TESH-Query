@@ -33,5 +33,5 @@ teshq = "main:app"
 
 # Add explicit package configuration
 [tool.setuptools]
-packages = ["cli", "core"]
+packages = ["cli", "core", "utils"]
 py-modules = ["main", "test"]
