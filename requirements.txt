@@ -2,16 +2,19 @@
 pip
 autopep8
 
+pip install -U langchain langchain-core langchain-google-genai
 
 # Core App
-langchain-core>=0.1.50,<0.2
-langchain-google-genai>=1.0,<2.0
-typer>=0.9,<1.0
-SQLAlchemy>=2.0,<3.0
-rich>=13.7,<14.0
+langchain
+langchain-core
+langchain-google-genai
+typer
+SQLAlchemy
+rich
 logfire>=1.0,<2.0
 python-dotenv>=1.0,<2.0
 psycopg2-binary>=2.9,<3.0
+tabulate
 
 pre_commit
 
