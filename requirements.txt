@@ -2,14 +2,18 @@
 pip
 autopep8
 
-# App
-langchain_core
-langchain-google-genai # This package contains the LangChain integrations for the Gemini API.
-typer
-SQLAlchemy
-rich
-logfire
-pre-commit
-python-dotenv
-psycopg2
-psycopg2-binary
+
+# Core App
+langchain-core>=0.1.50,<0.2
+langchain-google-genai>=1.0,<2.0
+typer>=0.9,<1.0
+SQLAlchemy>=2.0,<3.0
+rich>=13.7,<14.0
+logfire>=1.0,<2.0
+python-dotenv>=1.0,<2.0
+psycopg2-binary>=2.9,<3.0
+
+pre_commit
+
+# Testing
+pytest>=7.0,<8.0
