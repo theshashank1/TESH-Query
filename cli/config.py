@@ -38,6 +38,10 @@ def update_env_file(data_to_save: dict):
         for key, value in env_vars.items():
             f.write(f"{key}={value}\n")
     typer.echo(f"✅ Configuration updated in `{ENV_FILE}`")
+    typer.secho(
+        "🔒 Your configuration is saved locally on your system to ensure your data remains secure. ",
+        fg=typer.colors.YELLOW,
+    )
 
 
 def update_json_config(data_to_save: dict):
@@ -62,6 +66,10 @@ def update_json_config(data_to_save: dict):
     with open(JSON_CONFIG_FILE, "w") as f:
         json.dump(current_config, f, indent=4)
     typer.echo(f"✅ Configuration updated in `{JSON_CONFIG_FILE}`")
+    typer.secho(
+        "🔒 Your configuration is saved locally on your system to ensure your data remains secure. ",
+        fg=typer.colors.YELLOW,
+    )
 
 
 @app.command()
@@ -94,10 +102,10 @@ def config(
     # Control flags
     save: bool = typer.Option(True, "--save/--no-save", help="Save the config to .env and config.json files"),
     force_configure_db: bool = typer.Option(
-        False, "--configure-db", help="Interactively configure database settings, even if some options are provided."
+        False, "--config-db", help="Interactively configure database settings, even if some options are provided."
     ),
     force_configure_gemini: bool = typer.Option(
-        False, "--configure-gemini", help="Interactively configure Gemini API settings, even if some options are provided."
+        False, "--config-gemini", help="Interactively configure Gemini API settings, even if some options are provided."
     ),
 ):
     """
