@@ -23,7 +23,7 @@ def __main__(
     """
     if version:
         try:
-            __version__ = importlib.metadata.version("tesh-query")
+            __version__ = importlib.metadata.version("teshq")
             print(f"TESH Query Version: {__version__}")
         except importlib.metadata.PackageNotFoundError:
             print("TESH Query Version: Unknown (Package not installed)")
