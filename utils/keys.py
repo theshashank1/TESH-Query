@@ -82,38 +82,37 @@ def get_gemini_credentials() -> tuple[str | None, str]:
     """
     api_key = os.getenv("GEMINI_API_KEY") or None
     model_name = os.getenv("GEMINI_MODEL_NAME") or None
-    final_model_name = DEFAULT_GEMINI_MODEL
 
     if model_name:
-        final_model_name = model_name
-        console.log(f"[bold green]Using GEMINI_MODEL_NAME[/] '{final_model_name}' from environment variables.")
-    else:  # noqa: E501
-        console.log("[yellow]GEMINI_MODEL_NAME not found in environment variables. Checking config.json...[/]")  # noqa: E501
-        try:  # noqa: E501
+        console.log(f"[bold green]Using GEMINI_MODEL_NAME[/] '{model_name}' from environment variables.")
+    else:
+        console.log("[yellow]GEMINI_MODEL_NAME not found in environment variables. Checking config.json...[/]")
+        try:
             with open(JSON_CONFIG_FILE, "r") as f:
                 config_data = json.load(f)
-                model_name_json = config_data.get("GEMINI_MODEL_NAME")
-                if model_name_json:
-                    final_model_name = model_name_json
-                    console.log(
-                        f"[bold green]Using GEMINI_MODEL_NAME[/] '{final_model_name}' from {JSON_CONFIG_FILE}."
-                    )  # noqa: E501
+                model_name = config_data.get("GEMINI_MODEL_NAME")
+                if model_name:
+                    console.log(f"[bold green]Using GEMINI_MODEL_NAME[/] '{model_name}' from {JSON_CONFIG_FILE}.")
                 else:
-                    console.log(  # noqa: E501
+                    console.log(
                         f"[bold yellow]GEMINI_MODEL_NAME not found in {JSON_CONFIG_FILE}. Using default: '{DEFAULT_GEMINI_MODEL}'.[/]"  # noqa: E501
-                    )  # noqa: E501
+                    )
+                    model_name = DEFAULT_GEMINI_MODEL
         except FileNotFoundError:
             console.log(
-                f"[bold yellow]Warning:[/] {JSON_CONFIG_FILE} not found. Using default model: '{DEFAULT_GEMINI_MODEL}'."  # noqa: E501
+                f"[bold yellow]Warning:[/] {JSON_CONFIG_FILE} not found. Using default model: '{DEFAULT_GEMINI_MODEL}'."
             )
+            model_name = DEFAULT_GEMINI_MODEL
         except json.JSONDecodeError:
-            console.log(  # noqa: E501
+            console.log(
                 f"[bold yellow]Warning:[/] {JSON_CONFIG_FILE} is not a valid JSON file. Using default model: '{DEFAULT_GEMINI_MODEL}'."  # noqa: E501
             )
+            model_name = DEFAULT_GEMINI_MODEL
         except Exception as e:
             console.log(
                 f"[bold yellow]Warning:[/] An unexpected error occurred while reading {JSON_CONFIG_FILE}: {e}. Using default model."  # noqa: E501
             )
+            model_name = DEFAULT_GEMINI_MODEL
 
     if not api_key:
         console.log(
@@ -121,7 +120,7 @@ def get_gemini_credentials() -> tuple[str | None, str]:
             "Configure it using 'teshq config --gemini-api-key YOUR_KEY' or 'teshq config --config-gemini'."
         )
 
-    return api_key, final_model_name
+    return api_key, model_name
 
 
 if __name__ == "__main__":
