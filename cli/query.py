@@ -10,10 +10,6 @@ from utils.keys import get_db_url, get_gemini_credentials
 
 app = typer.Typer()
 
-gemini_api_key, gemini_model = get_gemini_credentials()
-
-generator = SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model)
-
 
 @app.command(
     name="query",
@@ -23,6 +19,10 @@ def process_nl_query(natural_language_request: str):
     """
     Processes a natural language query, generates SQL, executes it, and prints the results.
     """
+
+    gemini_api_key, gemini_model = get_gemini_credentials()
+    generator = SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model)
+
     schema_dir = Path("db_schema")
     schema_file_path = schema_dir / "schema.txt"
 
