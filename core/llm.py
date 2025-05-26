@@ -1,7 +1,8 @@
 import json
 import os
 import re  # Moved import to top level
-from pathlib import Path
+
+# from pathlib import Path
 from typing import Any, Dict
 
 from langchain_core.exceptions import OutputParserException  # Added for specific exception handling
@@ -100,73 +101,3 @@ class SQLQueryGenerator:
                 raise Exception(
                     f"Could not parse response or find JSON in content after Pydantic failure. Content: {response.content}"
                 )
-
-
-def main():
-    """Example usage"""
-
-    # Define schema path
-    schema_dir = Path("db_schema")
-    schema_file_path = schema_dir / "schema.txt"
-
-    # Create sample schema.txt if it doesn't exist
-    if not schema_file_path.exists():
-        schema_dir.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
-        sample_schema = """Table: employees
-Columns:
-- id (INTEGER)
-- name (TEXT)
-- department (TEXT)
-- salary (INTEGER)
-- hire_date (DATE)
-
-Table: departments
-Columns:
-- id (INTEGER)
-- name (TEXT)
-- budget (INTEGER)"""
-
-        with open(schema_file_path, "w") as f:
-            f.write(sample_schema)
-        print(f"Created sample schema at {schema_file_path}")
-
-    try:
-        # Initialize generator
-        # Note: The API key "AIzaSy..." is a placeholder.
-        # Ensure a valid GOOGLE_API_KEY is set in your environment or passed here.
-        # You can also specify a model here, e.g., model_name="gemini-1.5-flash-latest"
-        generator = SQLQueryGenerator(api_key="AIzaSyC1l44qiKYj******9FXJgHjdZHQhtSTtI")
-
-        # Load schema
-        schema = generator.load_schema(str(schema_file_path))  # Pass the correct path as string
-
-        # Test queries
-        test_requests = [
-            "Get all employees in the Engineering department with salary above 60000",
-            "Find employees hired after 2020",
-            "Get average salary by department",
-            "List employees with salary between 50000 and 80000",
-        ]
-
-        print("SQL Query Generator Results:")
-        print("=" * 50)
-
-        for request in test_requests:
-            print(f"\nRequest: {request}")
-            print("-" * 40)
-
-            try:
-                result = generator.generate_sql(request, schema)
-                print(json.dumps(result, indent=2))
-            except Exception as e:
-                print(f"Error generating SQL for '{request}': {e}")
-
-    except Exception as e:
-        print(f"Setup error: {e}")
-        print("Make sure GOOGLE_API_KEY is set in your environment or passed correctly,")
-        # Use the class attribute for the default model name in the error message
-        print(f"and that the model name (e.g., '{SQLQueryGenerator.DEFAULT_MODEL_NAME}') is accessible with your key.")
-
-
-if __name__ == "__main__":
-    main()

@@ -15,9 +15,7 @@ load_dotenv()
 @app.command()
 def database(
     connect: bool = typer.Option(False, "--connect", help="Connect to the database"),
-    disconnect: bool = typer.Option(
-        False, "--disconnect", help="Disconnect from the database (after connection)"
-    ),
+    disconnect: bool = typer.Option(False, "--disconnect", help="Disconnect from the database (after connection)"),
 ):
     """
     Manage database connection lifecycle: connect and optionally disconnect.
@@ -32,19 +30,13 @@ def database(
                 config_data = json.load(f)
                 db_url = config_data.get("DATABASE_URL")
                 if db_url:
-                    typer.secho(
-                        "Using DATABASE_URL from config.json", fg=typer.colors.CYAN
-                    )
+                    typer.secho("Using DATABASE_URL from config.json", fg=typer.colors.CYAN)
                 else:
-                    typer.secho(
-                        "DATABASE_URL not found in config.json.", fg=typer.colors.RED
-                    )
+                    typer.secho("DATABASE_URL not found in config.json.", fg=typer.colors.RED)
         except FileNotFoundError:
             typer.secho("Error: config.json not found.", fg=typer.colors.RED)
         except json.JSONDecodeError:
-            typer.secho(
-                "Error: config.json is not a valid JSON file.", fg=typer.colors.RED
-            )
+            typer.secho("Error: config.json is not a valid JSON file.", fg=typer.colors.RED)
 
     if not db_url:
         typer.secho(
