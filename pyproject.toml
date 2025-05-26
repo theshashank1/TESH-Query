@@ -4,24 +4,46 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tesh-query"
-version = "0.1.0"
+version = "0.3.1"
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
-requires-python = ">=3.8"
-license = { text = "MIT" }  # Updated to use text instead of file
+requires-python = ">=3.9" # Good change, aligns with dependencies
+license = { text = "MIT" }
 keywords = ["sql", "cli", "database", "natural language", "AI", "LLM"]
 authors = [
   { name = "Shashank", email = "shashankgundas1@gmail.com" },
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9", # Adjusted to match requires-python
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "typer[all]>=0.9.0",
-    "SQLAlchemy>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "psycopg2-binary>=2.9.0",
+    "SQLAlchemy~=2.0.41",            # CORRECTED from ^
+    "python-dotenv~=1.1.0",          # CORRECTED from ^
+    "psycopg2-binary~=2.9.10",       # CORRECTED from ^
+    "langchain~=0.3.25",             # CORRECTED from ^
+    "langchain-core~=0.3.61",        # CORRECTED from ^
+    "langchain-google-genai~=2.1.4", # CORRECTED from ^
+    "typer[all]~=0.15.4",            # CORRECTED from ^
+    "rich~=14.0.0",                  # CORRECTED from ^
+    "logfire~=3.16.0",               # CORRECTED from ^
+    "tabulate~=0.9.0",               # CORRECTED from ^
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3.5",                 # CORRECTED from ^
+    "autopep8~=2.3.2",               # CORRECTED from ^
+    "pre-commit~=4.2.0",             # CORRECTED from ^
+    "flake8~=6.1.0",                 # CORRECTED from ^ (newly added)
+    "isort~=5.13.2",                 # CORRECTED from ^ (newly added)
+    # "ruff", # Consider using ruff, it can replace flake8 and isort
+    # "mypy", # For type checking
+    # "coverage", # For test coverage
 ]
 
 [project.urls]
@@ -31,7 +53,19 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 [project.scripts]
 teshq = "main:app"
 
-# Add explicit package configuration
 [tool.setuptools]
+# Assumes 'cli', 'core', 'utils' are directories at the project root containing your packages.
 packages = ["cli", "core", "utils"]
-py-modules = ["main", "test"]
+# Assumes 'main.py' is a top-level module at the project root.
+# This makes 'main' importable and helps setuptools find the script target.
+py-modules = ["main"]
+
+# Example: If you move your code into a 'src' directory, you would use:
+# [tool.setuptools.packages.find]
+# where = ["src"]
+# exclude = ["tests*"] # Ensure tests are not packaged
+# And 'py-modules' would be relative to 'src', or 'main.py' might be part of a package in 'src'.
+
+# Ensure test files are not included in the distribution
+# This can also be achieved with a MANIFEST.in file or more explicit find configurations.
+# e.g., using find with exclude as shown in the comment above is a common way.
