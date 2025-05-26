@@ -23,10 +23,12 @@ def __main__(
     """
     if version:
         try:
-            __version__ = importlib.metadata.version("teshq")
-            print(f"TESH Query Version: {__version__}")
+            from teshq import __version__
+
+            base_version = __version__.split(".dev")[0]
+            print(f"teshq v{base_version}")
         except importlib.metadata.PackageNotFoundError:
-            print("TESH Query Version: Unknown (Package not installed)")
+            print("teshq: Unknown (Package not installed)")
         raise typer.Exit()
 
     if developer:
