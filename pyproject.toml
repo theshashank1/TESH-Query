@@ -60,7 +60,7 @@ teshq = "main:app"
 
 [tool.setuptools]
 # Your current package discovery setup
-packages = ["cli", "core", "utils"]
+packages = ["cli", "core", "utils", "teshq"]
 py-modules = ["main"]
 # If you create a 'teshq' package for the version file (see below), add it here:
 # packages = ["teshq", "cli", "core", "utils"]
