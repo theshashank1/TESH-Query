@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from utils.db import get_db_url
+from utils.keys import get_db_url
 
 
 def execute_sql_query(

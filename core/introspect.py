@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import MetaData, create_engine, func, inspect, select
 
-from utils.db import get_db_url
+from utils.keys import get_db_url
 
 # from sqlalchemy.engine.reflection import Inspector
 
