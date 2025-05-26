@@ -1,13 +1,18 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = [
+    "setuptools>=61.0",
+    "setuptools-scm>=8.0"  # Add setuptools-scm
+]
 build-backend = "setuptools.build_meta"
+# backend-path = ["."] # Usually not needed if setuptools-scm is installed from PyPI
 
 [project]
 name = "teshq"
-version = "0.3.1"
+# version = "0.3.1"  # REMOVE this line
+dynamic = ["version"]  # ADD this line to indicate dynamic versioning
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
-requires-python = ">=3.9" # Good change, aligns with dependencies
+requires-python = ">=3.9"
 license = { text = "MIT" }
 keywords = ["sql", "cli", "database", "natural language", "AI", "LLM"]
 authors = [
@@ -15,35 +20,36 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9", # Adjusted to match requires-python
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "SQLAlchemy~=2.0.41",            # CORRECTED from ^
-    "python-dotenv~=1.1.0",          # CORRECTED from ^
-    "psycopg2-binary~=2.9.10",       # CORRECTED from ^
-    "langchain~=0.3.25",             # CORRECTED from ^
-    "langchain-core~=0.3.61",        # CORRECTED from ^
-    "langchain-google-genai~=2.1.4", # CORRECTED from ^
-    "typer[all]~=0.15.4",            # CORRECTED from ^
-    "rich~=14.0.0",                  # CORRECTED from ^
-    "logfire~=3.16.0",               # CORRECTED from ^
-    "tabulate~=0.9.0",               # CORRECTED from ^
+    "SQLAlchemy~=2.0.41",
+    "python-dotenv~=1.1.0",
+    "psycopg2-binary~=2.9.10",
+    "langchain~=0.3.25",
+    "langchain-core~=0.3.61",
+    "langchain-google-genai~=2.1.4",
+    "typer[all]~=0.15.4",
+    "rich~=14.0.0",
+    "logfire~=3.16.0",
+    "tabulate~=0.9.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest~=8.3.5",                 # CORRECTED from ^
-    "autopep8~=2.3.2",               # CORRECTED from ^
-    "pre-commit~=4.2.0",             # CORRECTED from ^
-    "flake8~=6.1.0",                 # CORRECTED from ^ (newly added)
-    "isort~=5.13.2",                 # CORRECTED from ^ (newly added)
-    # "ruff", # Consider using ruff, it can replace flake8 and isort
-    # "mypy", # For type checking
-    # "coverage", # For test coverage
+    "pytest~=8.3.5",
+    "autopep8~=2.3.2",
+    "pre-commit~=4.2.0",
+    "flake8~=6.1.0",
+    "isort~=5.13.2",
+    "build", # Add 'build' for easy local package building
+    # "ruff",
+    # "mypy",
+    # "coverage",
 ]
 
 [project.urls]
@@ -54,18 +60,30 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 teshq = "main:app"
 
 [tool.setuptools]
-# Assumes 'cli', 'core', 'utils' are directories at the project root containing your packages.
+# Your current package discovery setup
 packages = ["cli", "core", "utils"]
-# Assumes 'main.py' is a top-level module at the project root.
-# This makes 'main' importable and helps setuptools find the script target.
 py-modules = ["main"]
+# If you create a 'teshq' package for the version file (see below), add it here:
+# packages = ["teshq", "cli", "core", "utils"]
 
 # Example: If you move your code into a 'src' directory, you would use:
 # [tool.setuptools.packages.find]
 # where = ["src"]
-# exclude = ["tests*"] # Ensure tests are not packaged
-# And 'py-modules' would be relative to 'src', or 'main.py' might be part of a package in 'src'.
+# exclude = ["tests*"]
 
-# Ensure test files are not included in the distribution
-# This can also be achieved with a MANIFEST.in file or more explicit find configurations.
-# e.g., using find with exclude as shown in the comment above is a common way.
+# Configuration for setuptools-scm
+[tool.setuptools_scm]
+# This will write the version to a file, e.g., teshq/_version.py
+# Adjust the path based on your project structure.
+# If 'teshq' is your main package, this is a good place.
+# You'll need to create a `teshq` directory with an `__init__.py` if it doesn't exist
+# and you want to use it as a package.
+# If your project is named "teshq", it's conventional to have a top-level package
+# also named "teshq".
+# Let's assume you'll create a minimal `teshq` package for this.
+write_to = "teshq/_version.py"
+# Example: write_to = "cli/_version.py" # If you prefer to put it in 'cli'
+
+# You can customize the version scheme if needed, but defaults are often fine.
+# e.g., version_scheme = "guess-next-dev"
+# e.g., local_scheme = "node-and-date"
