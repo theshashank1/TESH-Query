@@ -5,12 +5,14 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from core.llm import SQLQueryGenerator
 from core.query import execute_sql_query
-from utils.db import get_db_url
 from utils.formater import print_query_table
+from utils.keys import get_db_url, get_gemini_credentials
 
 app = typer.Typer()
 
-generator = SQLQueryGenerator(api_key="AIzaSyC1l44qiKYjdn*****FXJgHjdZHQhtSTtI")
+gemini_api_key, gemini_model = get_gemini_credentials()
+
+generator = SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model)
 
 
 @app.command(
