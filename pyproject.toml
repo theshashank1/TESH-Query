@@ -81,6 +81,7 @@ py-modules = ["main"]
 # also named "teshq".
 # Let's assume you'll create a minimal `teshq` package for this.
 write_to = "teshq/_version.py"
+local_scheme = "no-local-version"
 # Example: write_to = "cli/_version.py" # If you prefer to put it in 'cli'
 
 # You can customize the version scheme if needed, but defaults are often fine.

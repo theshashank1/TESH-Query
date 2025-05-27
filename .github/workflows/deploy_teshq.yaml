@@ -3,7 +3,7 @@ name: Publish TESH Query to PyPI
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers only on version tags like v0.3.1
+      - 'v*'  # Triggers only on version tags like v0.3.1
 
 jobs:
   publish:
