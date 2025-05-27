@@ -3,7 +3,7 @@ name: Publish TESH Query to PyPI
 on:
   push:
     tags:
-      - 'v*'  # Triggers this workflow only on version tags like v1.2.3, v2.0.0, etc.
+      - 'v*'  # Only runs on annotated tags like v1.2.3
 
 jobs:
   publish:
@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Ensure tags are available for setuptools-scm
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,14 +32,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install build pre-commit setuptools_scm
 
+      - name: Debug Git presence
+        run: |
+          git status
+          git tag --contains
+          ls -al .git
+
       - name: Run pre-commit
         run: pre-commit run --all-files
 
       - name: Build package
         run: python -m build
 
-      - name: Show derived version  # Optional debugging step
+      - name: Show derived version
         run: python -m setuptools_scm
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        # No skip_existing: true, because only unique, tagged versions should be published!
