@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/teshq)](https://pypi.org/project/teshq/)
 [![Python Support](https://img.shields.io/pypi/pyversions/teshq)](https://pypi.org/project/teshq/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/theshashank1/TESH-Query/blob/main/LICENSE)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/theshashank1/TESH-Query/.github/workflows/deploy_teshq.yaml?branch=main)](https://github.com/theshashank1/TESH-Query/actions/deploy_teshq/status)
+[![CI/CD](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml/badge.svg)](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 
