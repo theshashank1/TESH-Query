@@ -6,6 +6,7 @@
 [![CI/CD](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml/badge.svg)](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
+[![Sponsor me on GitHub](https://img.shields.io/badge/Sponsor%20Me-black?style=flat-square&logo=github&logoColor=white)](https://github.com/sponsors/theshashank1)
 
 <!-- Add a compelling header image or logo here for visual impact -->
 <!-- ![TESH-Query Header](link-to-your-header-image.png) -->
@@ -350,6 +351,9 @@ This project is licensed under the **MIT License**. See the [LICENSE](https://gi
 ---
 
 ## 🌟 Show Your Support
+
+[![♡ Support Us](https://img.shields.io/badge/♡%20Support%20Us-orange?style=social&logo=heart&colour=pink)](https://github.com/sponsors/theshashank1)
+[![Sponsore](https://img.shields.io/badge/Sponsor%20Us-blueviolet?style=flat-square&logo=heart&logoColor=white)](https://github.com/sponsors/theshashank1)
 
 Like TESH-Query? Please consider:
 
