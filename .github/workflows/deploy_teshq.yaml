@@ -23,12 +23,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.10'  # Now matches your local version
+          python-version: '3.11.10'
 
       - name: Install dependencies for build & pre-commit
         run: |
           python -m pip install --upgrade pip
-          pip install build pre-commit
+          pip install build pre-commit setuptools_scm
 
       - name: Run pre-commit
         run: pre-commit run --all-files
@@ -38,4 +38,3 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # No need to specify username or password when using Trusted Publishing
