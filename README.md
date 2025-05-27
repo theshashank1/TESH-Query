@@ -93,19 +93,25 @@ teshq --version
 
 ### 2. Configuration (One-Time Setup)
 
-Run the interactive configuration wizards to set up your database connection and AI key:
+Run the interactive configuration wizards to set up your database connection and Gemini API key:
 
 ```bash
 # Configure database connection details
 teshq config --config-db
+# you can also use `teshq config --db-url postgresql://myuser:********@localhost:5432/mydatabase`
 
 # Configure your Google Gemini API key
 teshq config --config-gemini
 ```
-
 These commands will guide you through the necessary steps and securely store your credentials.
 
-### 3. Start Querying!
+### 3. Database schema Introspection
+```bash
+# Perform database schema introspection
+teshq introspect
+```
+
+### 4. Start Querying!
 
 Once configured, you can immediately start asking questions in natural language:
 
@@ -297,10 +303,10 @@ We welcome contributions! If you'd like to help improve TESH-Query, please follo
     ```bash
     pre-commit install
     ```
-5.  **Run Tests**: Ensure existing tests pass.
+<!-- 5.  **Run Tests**: Ensure existing tests pass.
     ```bash
     pytest
-    ```
+    ``` -->
 
 ### Contribution Workflow
 
@@ -322,7 +328,9 @@ Encountering issues? Here's some help:
 
 ### Common Issues
 
-*   **Connection Problems**: Use `teshq db --connect`. Check credentials, host, port, network.
+*   **Connection Problems**: Use `teshq config --config-db`. Check credentials, host, port, network.
+    * Otherway to solve is `teshq config --db-url <dialect>://<username>:<password>@<host>:<port>/<database>`
+    * Example `teshq config --db-url postgresql://myuser:123456789@localhost:5432/mydatabase`
 *   **AI Generation Issues**: Rephrase query, be specific, simplify requests.
 *   **Permission Errors**: Ensure database user has read access.
 
