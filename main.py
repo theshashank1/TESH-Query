@@ -23,10 +23,17 @@ def __main__(
     """
     if version:
         try:
-            from teshq import __version__
+            from importlib.metadata import PackageNotFoundError, version
 
-            base_version = __version__.split(".dev")[0]
-            print(f"teshq v{base_version}")
+            try:
+                __version__ = version("teshq")
+                base_version = __version__
+                print(f"teshq v{base_version}")
+            except PackageNotFoundError:
+                __version__ = "unknown"
+
+            # base_version = __version__.split(".dev")[0]
+            # print(f"teshq v{base_version}")
         except importlib.metadata.PackageNotFoundError:
             print("teshq: Unknown (Package not installed)")
         raise typer.Exit()

@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "teshq"
-dynamic = ["version"]
+version = "1.2.12"
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -55,9 +55,5 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 teshq = "main:app"
 
 [tool.setuptools]
-packages = ["cli", "core", "utils", "teshq"]
+packages = ["cli", "core", "utils"]
 py-modules = ["main"]
-
-[tool.setuptools_scm]
-write_to = "teshq/_version.py"
-local_scheme = "no-local-version"
