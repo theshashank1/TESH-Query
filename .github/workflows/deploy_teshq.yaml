@@ -1,5 +1,3 @@
-# .github/workflows/deploy_teshq.yaml
-
 name: Publish TESH Query to PyPI
 
 on:
@@ -11,22 +9,22 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # Required for PyPI Trusted Publishing
+      id-token: write
       contents: read
 
     environment:
-      name: pypi  # Optional: Define this environment in your GitHub repository settings for added security
+      name: pypi
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Ensures tags are available for setuptools-scm to determine the version
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.10' # You can adjust this to your preferred Python version
+          python-version: '3.11.10'
 
       - name: Install dependencies for build & pre-commit
         run: |
@@ -39,6 +37,8 @@ jobs:
       - name: Build package
         run: python -m build
 
+      - name: Show derived version  # Optional debugging step
+        run: python -m setuptools_scm
+
       - name: Publish to PyPI
-        # This action uses the PyPI_API_TOKEN from the configured environment secrets
         uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,14 +1,13 @@
 [build-system]
 requires = [
     "setuptools>=61.0",
-    "setuptools-scm>=8.0"  # Add setuptools-scm
+    "setuptools-scm>=8.0"
 ]
 build-backend = "setuptools.build_meta"
-# backend-path = ["."] # Usually not needed if setuptools-scm is installed from PyPI
 
 [project]
 name = "teshq"
-dynamic = ["version"]  # ADD this line to indicate dynamic versioning
+dynamic = ["version"]
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -45,10 +44,7 @@ dev = [
     "pre-commit~=4.2.0",
     "flake8~=6.1.0",
     "isort~=5.13.2",
-    "build", # Add 'build' for easy local package building
-    # "ruff",
-    # "mypy",
-    # "coverage",
+    "build",
 ]
 
 [project.urls]
@@ -59,31 +55,9 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 teshq = "main:app"
 
 [tool.setuptools]
-# Your current package discovery setup
 packages = ["cli", "core", "utils", "teshq"]
 py-modules = ["main"]
-# If you create a 'teshq' package for the version file (see below), add it here:
-# packages = ["teshq", "cli", "core", "utils"]
 
-# Example: If you move your code into a 'src' directory, you would use:
-# [tool.setuptools.packages.find]
-# where = ["src"]
-# exclude = ["tests*"]
-
-# Configuration for setuptools-scm
 [tool.setuptools_scm]
-# This will write the version to a file, e.g., teshq/_version.py
-# Adjust the path based on your project structure.
-# If 'teshq' is your main package, this is a good place.
-# You'll need to create a `teshq` directory with an `__init__.py` if it doesn't exist
-# and you want to use it as a package.
-# If your project is named "teshq", it's conventional to have a top-level package
-# also named "teshq".
-# Let's assume you'll create a minimal `teshq` package for this.
 write_to = "teshq/_version.py"
 local_scheme = "no-local-version"
-# Example: write_to = "cli/_version.py" # If you prefer to put it in 'cli'
-
-# You can customize the version scheme if needed, but defaults are often fine.
-# e.g., version_scheme = "guess-next-dev"
-# e.g., local_scheme = "node-and-date"
