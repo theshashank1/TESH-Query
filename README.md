@@ -9,11 +9,13 @@
 [![Sponsor](https://img.shields.io/github/sponsors/theshashank1?)](https://github.com/sponsors/theshashank1)
 
 <!-- Add a compelling header image or logo here for visual impact -->
-<!-- ![TESH-Query Header](link-to-your-header-image.png) -->
+<!-- ![TESH-Query](.idx/icon.png) -->
 
 **Transform natural language into SQL queries and get instant results** — No SQL knowledge required.
 
 TESH-Query (Text to Executable SQL Handler) is an AI-powered CLI tool that bridges the gap between human language and database queries, making data accessible to everyone on your team.
+
+Here is detailed documentation of configuration and usage information, see the [Detailed Documentation](https://www.notion.so/theshashank1/TESH-Query-20172c79e02080a287bcdff73f694a6b?source=copy_link).
 
 ---
 
@@ -124,7 +126,10 @@ teshq query "Find orders placed by 'customer_email@example.com'."
 
 TESH-Query takes your question, understands your database schema, generates the appropriate SQL, executes it, and displays the results in a formatted table.
 
+> Please be aware that TESH-Query is still under development and may occasionally return incorrect data. Exercise caution and prioritize its use for **data retrieval** rather than **data manipulation**.
 ---
+
+
 
 ## 📚 Command Reference
 
