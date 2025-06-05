@@ -1,8 +1,8 @@
 from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import Engine
 
 
-def connect_database(db_url: str) -> None:
+def connect_database(db_url: str) -> Engine | None:
     """
     Connect to a database using the provided URL.
 
@@ -15,21 +15,21 @@ def connect_database(db_url: str) -> None:
         print("✅ Database connection established.")
         return engine
 
-    except SQLAlchemyError as e:
+    except Exception as e:  # Catching a broader Exception for now for robustness
         print(f"[SQL ERROR] {e}")
 
 
-def disconnect_database(engine) -> None:
+def disconnect_database(engine: Engine) -> None:
     """
     Disconnect from the database.
 
     Args:
-        engine: The database engine.
+        engine (Engine): The database engine.
     """
     try:
         engine.dispose()
         print("✅ Database connection closed.")
-    except SQLAlchemyError as e:
+    except Exception as e:  # Catching a broader Exception for now for robustness
         print(f"[SQL ERROR] {e}")
 
 
