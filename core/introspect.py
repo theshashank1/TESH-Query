@@ -1,8 +1,9 @@
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast  # Added cast
 
-from sqlalchemy import MetaData, create_engine, func, inspect, select
+from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
+from sqlalchemy.engine import Connection  # Added import for Connection type hint
 
 from utils.keys import get_db_url
 
@@ -29,7 +30,7 @@ def introspect_db(
     Returns:
         Dict containing the complete schema information.
     """
-    if not db_url:
+    if db_url is None:
         db_url = get_db_url()
 
     if not db_url:
@@ -42,7 +43,7 @@ def introspect_db(
     try:
         # Reflect can fail if DB is not accessible or permissions are wrong
         with engine.connect() as connection:  # Ensure connection is possible before reflecting
-            metadata.reflect(bind=engine)
+            metadata.reflect(bind=connection)
     except Exception as e:
         # It's often better to let specific SQLAlchemy errors propagate
         # or wrap them in a custom exception.
@@ -131,7 +132,9 @@ def introspect_db(
             for i, constrained_col in enumerate(fk["constrained_columns"]):
                 # Defensive: Ensure referred_columns has corresponding entry.
                 # SQLAlchemy usually guarantees this for valid FKs.
-                referred_col = fk["referred_columns"][i] if i < len(fk["referred_columns"]) else fk["referred_columns"][0]
+                referred_col = (
+                    fk["referred_columns"][i] if i < len(fk["referred_columns"]) else fk["referred_columns"][0]
+                )  # type: ignore
                 schema_info["relationships"]["explicit"].append(
                     {
                         "from_table": table_name,
@@ -254,8 +257,8 @@ def detect_implicit_relationships(
 
 
 def collect_stats_and_samples(
-    connection,
-    metadata,
+    connection: Connection,
+    metadata: MetaData,
     all_tables: List[str],
     schema_info: Dict[str, Any],
     include_sample_data: bool,
@@ -277,10 +280,12 @@ def collect_stats_and_samples(
         if table_name not in metadata.tables:
             print(f"Warning: Table '{table_name}' not found in metadata for stats/sampling. Skipping.")
             continue
-        table_obj = metadata.tables[table_name]
+        table_obj = cast(Table, metadata.tables[table_name])  # Cast to Table type
         current_table_info = schema_info["tables"][table_name]
 
         # Get row count
+        # Row count can return an integer or potentially None if the query fails or the table is empty.
+        # We handle the None case by defaulting to 0, but the type hint should allow for None initially.
         try:
             # Using .label("row_count") for clarity if result was a Row object
             row_count_query = select(func.count().label("total_rows")).select_from(table_obj)
@@ -295,7 +300,8 @@ def collect_stats_and_samples(
         # Get sample data if requested
         # Check if row_count is an int and greater than 0
         if include_sample_data and isinstance(current_table_info["row_count"], int) and current_table_info["row_count"] > 0:
-            try:
+            try:  # Get sample data if requested
+                # Check if row_count is an int and greater than 0
                 sample_query = select(table_obj).limit(sample_size)
                 result = connection.execute(sample_query)
 
@@ -393,7 +399,7 @@ def generate_data_model_summary(all_tables: List[str], schema_info: Dict[str, An
         for rel in schema_info["relationships"]["implicit"]:
             relationships_summary_list.append(
                 f"  - {rel['from_table']}.{rel['from_column']} → {rel['to_table']}.{rel['to_column']} (Type: {rel.get('relationship_type', 'N/A')}, Confidence: {rel.get('confidence', 'N/A')})"  # noqa: E501
-            )
+            )  # noqa: E501
 
     if not relationships_summary_list:  # If both explicit and implicit are empty
         relationships_summary_list.append("\n  No relationships defined or detected.")
@@ -543,7 +549,7 @@ def save_schema_to_files(
             f.write(outputs["json_output"])
     except IOError as e:
         print(f"Error writing JSON file: {e}")
-        json_path = None
+        json_path = None  # type: ignore
 
     # Write text file
     try:
@@ -551,9 +557,9 @@ def save_schema_to_files(
             f.write(outputs["text_output"])
     except IOError as e:
         print(f"Error writing text file: {e}")
-        text_path = None
+        text_path = None  # type: ignore
 
-    return json_path, text_path
+    return json_path, text_path  # type: ignore
 
 
 def main(
