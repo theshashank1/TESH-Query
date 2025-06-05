@@ -14,11 +14,15 @@ DEFAULT_GEMINI_MODEL = "gemini-pro"
 
 # --- Custom Exceptions ---
 class DatabaseURLError(Exception):
-    """Custom exception for database URL retrieval errors."""
+    """Custom exception raised when the database URL cannot be retrieved."""
+
+    pass
 
 
 class GeminiCredentialsError(Exception):
-    """Custom exception for GeminiCredentials retrieval errors."""
+    """Custom exception raised when Gemini credentials cannot be retrieved."""
+
+    pass
 
 
 # Load environment variables from .env file
@@ -35,10 +39,10 @@ def get_db_url():
     Raises:
         DatabaseURLError: If DATABASE_URL is not found in either source.
     """
-    db_url = os.getenv("DATABASE_URL") or None
+    db_url: str | None = os.getenv("DATABASE_URL")
 
     if db_url:
-        console.log("[bold green]Using DATABASE_URL from environment variables.[/]")
+        console.log("[bold green]Using DATABASE_URL from environment variables.[/]")  # type: ignore
     else:
         # Fallback to config.json if not found in .env
         console.log("[yellow]DATABASE_URL not found in environment variables. Checking config.json...[/]")  # noqa: E501
@@ -46,13 +50,13 @@ def get_db_url():
             with open("config.json", "r") as f:
                 config_data = json.load(f)
                 db_url = config_data.get("DATABASE_URL")
-                if db_url:
+                if db_url:  # type: ignore
                     console.log("[bold green]Using DATABASE_URL from config.json.[/]")
                 else:
                     console.log("[bold yellow]DATABASE_URL not found in config.json.[/]")
         except FileNotFoundError:
             console.log("[bold red]Error:[/] config.json not found.")
-        except json.JSONDecodeError:
+        except json.JSONDecodeError:  # type: ignore
             console.log("[bold red]Error:[/] config.json is not a valid JSON file.")
         except Exception as e:
             console.log(f"[bold red]Unexpected error while reading config.json:[/] {e}")
@@ -80,18 +84,18 @@ def get_gemini_credentials() -> tuple[str | None, str]:
     Raises:
         GeminiCredentialsError: If the API key is explicitly required but not found.
     """
-    api_key = os.getenv("GEMINI_API_KEY") or None
-    model_name = os.getenv("GEMINI_MODEL_NAME") or None
+    api_key: str | None = os.getenv("GEMINI_API_KEY")
+    model_name: str | None = os.getenv("GEMINI_MODEL_NAME")
 
     if model_name:
-        console.log(f"[bold green]Using GEMINI_MODEL_NAME[/] '{model_name}' from environment variables.")
+        console.log(f"[bold green]Using GEMINI_MODEL_NAME[/] '{model_name}' from environment variables.")  # type: ignore
     else:
         console.log("[yellow]GEMINI_MODEL_NAME not found in environment variables. Checking config.json...[/]")
         try:
             with open(JSON_CONFIG_FILE, "r") as f:
                 config_data = json.load(f)
                 model_name = config_data.get("GEMINI_MODEL_NAME")
-                if model_name:
+                if model_name:  # type: ignore
                     console.log(f"[bold green]Using GEMINI_MODEL_NAME[/] '{model_name}' from {JSON_CONFIG_FILE}.")
                 else:
                     console.log(
@@ -104,7 +108,7 @@ def get_gemini_credentials() -> tuple[str | None, str]:
             )
             model_name = DEFAULT_GEMINI_MODEL
         except json.JSONDecodeError:
-            console.log(
+            console.log(  # type: ignore
                 f"[bold yellow]Warning:[/] {JSON_CONFIG_FILE} is not a valid JSON file. Using default model: '{DEFAULT_GEMINI_MODEL}'."  # noqa: E501
             )
             model_name = DEFAULT_GEMINI_MODEL
@@ -127,8 +131,8 @@ if __name__ == "__main__":
     try:
         db_url = get_db_url()
         gemini_api_key, gemini_model_name = get_gemini_credentials()
-        console.log(f"[bold blue]Database URL:[/] {db_url}")
-        console.log(f"[bold blue]Gemini API Key:[/] {gemini_api_key}")
-        console.log(f"[bold blue]Gemini Model Name:[/] {gemini_model_name}")
+        console.log(f"[bold blue]Database URL:[/] {db_url}")  # type: ignore
+        console.log(f"[bold blue]Gemini API Key:[/] {gemini_api_key}")  # type: ignore
+        console.log(f"[bold blue]Gemini Model Name:[/] {gemini_model_name}")  # type: ignore
     except DatabaseURLError as e:
         console.log(f"[bold red]Error:[/] {e}")
