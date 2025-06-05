@@ -3,15 +3,16 @@ from decimal import Decimal
 from tabulate import tabulate
 
 
-def print_query_table(request, query, params, results):
+def print_query_table(request: str, query: str, params: dict, results: list) -> None:
     """
-    Simple function to print query results as neat tables
+    Prints query results as neat tables, including the original request, query, and parameters.
 
     Args:
         request (str): The original request/question
         query (str): The SQL query executed
         params (dict): Query parameters
-        results (list): List of dictionaries containing query results
+        results (list): A list of dictionaries containing query results. Each dictionary represents a row.
+
     """
     print("\n" + "=" * 80)
     print(f"REQUEST: {request}")
@@ -50,13 +51,14 @@ def print_query_table(request, query, params, results):
 
 
 # Even simpler version if you just want the table
-def print_simple_table(results, title="Results"):
+def print_simple_table(results: list, title: str = "Results") -> None:
     """
-    Ultra-simple table printer - just results
+    Prints a simple table of results.
 
     Args:
-        results (list): List of dictionaries
+        results (list): A list of dictionaries containing the data to be displayed. Each dictionary represents a row.
         title (str): Optional title for the table
+
     """
     if not results:
         print(f"{title}: No data found.")
