@@ -53,7 +53,5 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 
 [project.scripts]
 teshq = "main:app"
-
 [tool.setuptools]
-packages = ["cli", "core", "utils"]
-py-modules = ["main"]
+packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils"]
