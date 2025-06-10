@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from core.llm import SQLQueryGenerator
-from core.query import execute_sql_query
-from utils.formater import print_query_table
-from utils.keys import get_db_url, get_gemini_credentials
+from teshq.core.llm import SQLQueryGenerator
+from teshq.core.query import execute_sql_query
+from teshq.utils.formater import print_query_table
+from teshq.utils.keys import get_db_url, get_gemini_credentials
 
 
 def main():
