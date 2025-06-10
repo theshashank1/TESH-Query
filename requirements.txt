@@ -1,17 +1,20 @@
 # Project Dependencies
 
 # Core Application
-SQLAlchemy~=2.0.41
-python-dotenv~=1.1.0
-psycopg2-binary~=2.9.10
 langchain~=0.3.25
 langchain-core~=0.3.61
 langchain-google-genai~=2.1.4
-# Includes extras like "rich" if installed via this file
+SQLAlchemy~=2.0.41
+psycopg2-binary~=2.9.10
+python-dotenv~=1.1.0
 typer[all]~=0.15.4
 rich~=14.0.0
 logfire~=3.16.0
 tabulate~=0.9.0
+
+# Data Export
+pandas~=2.2.2
+openpyxl~=3.1.2
 
 # Development Tools
 pip
@@ -22,6 +25,3 @@ isort~=5.13.2
 
 # Testing
 pytest~=8.3.5
-# coverage # Optional: for test coverage
-
-# Optional Features (add sections here if needed)
