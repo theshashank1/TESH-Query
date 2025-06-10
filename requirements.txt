@@ -19,6 +19,7 @@ openpyxl~=3.1.2
 # Development Tools
 pip
 autopep8
+mkdocs-material
 pre-commit~=4.2.0
 flake8~=6.1.0
 isort~=5.13.2
