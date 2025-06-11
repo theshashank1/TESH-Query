@@ -1,646 +1,810 @@
-# Enhanced UI utilities for TESH-Query CLI application.
-# Provides modular, reusable UI components using Typer and Rich integration.
+# Modern UI utilities for TESH-Query CLI application.
+# Contemporary design with sleek aesthetics and smooth interactions.
 
 import time
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Generator, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional  # Added Callable for validate
 
 import typer
+from rich import box
+from rich.align import Align
 from rich.console import Console as RichConsole
+
+# from rich.layout import Layout  # Not directly used in the final UIManager methods
+# from rich.live import Live  # Not directly used in the final UIManager methods
 from rich.panel import Panel
-from rich.progress import Progress, track  # , TaskID,   # TaskID is not used in the provided code
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn, track
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
 
-class MessageType(Enum):
-    """Enumeration for different message types with their styling."""
+class Theme(Enum):
+    """Modern color palette inspired by contemporary design systems."""
 
-    INFO = ("ℹ️", "INFO", typer.colors.BLUE)
-    SUCCESS = ("✅", "SUCCESS", typer.colors.GREEN)
-    WARNING = ("⚠️", "WARNING", typer.colors.YELLOW)
-    ERROR = ("❌", "ERROR", typer.colors.RED)
-    DEBUG = ("🐛", "DEBUG", typer.colors.MAGENTA)
+    # Primary colors
+    PRIMARY = "#6366F1"  # Indigo - modern and professional
+    SECONDARY = "#8B5CF6"  # Violet - complementary accent
+
+    # Status colors
+    SUCCESS = "#10B981"  # Emerald - clean success
+    WARNING = "#F59E0B"  # Amber - clear warning
+    ERROR = "#EF4444"  # Red - clear error
+    INFO = "#06B6D4"  # Cyan - friendly info
+
+    # Neutral colors
+    TEXT = "#111827"  # Dark gray - high contrast
+    MUTED = "#6B7280"  # Medium gray - subtle text
+    SUBTLE = "#9CA3AF"  # Light gray - borders/dividers
+    BACKGROUND = "#F9FAFB"  # Very light gray - backgrounds
+
+    # Accent colors
+    ACCENT = "#EC4899"  # Pink - highlights
+    GLOW = "#34D399"  # Mint - special emphasis
+
+
+class MessageType(Enum):
+    """Modern message types with sleek icons and consistent styling."""
+
+    INFO = ("● [INFO]", "info", Theme.INFO.value, "📘")
+    SUCCESS = ("● [SUCCESS]", "success", Theme.SUCCESS.value, "✅")
+    WARNING = ("● [WARNING]", "warning", Theme.WARNING.value, "⚠️")
+    ERROR = ("● [ERROR]", "error", Theme.ERROR.value, "❌")
+    DEBUG = ("○ [DEBUG]", "debug", Theme.MUTED.value, "🔍")
+    TIP = ("◆ [TIP]", "tip", Theme.ACCENT.value, "💡")
+    LOADING = ("◐ [LOADING]", "loading", Theme.PRIMARY.value, "⏳")
 
 
 class UIManager:
     """
-    Centralized UI manager for consistent styling and interaction across the CLI.
+    Modern UI manager with contemporary design and smooth interactions.
+    Inspired by modern web interfaces and design systems.
     """
 
-    def __init__(self, use_rich_console: bool = True):
-        """
-        Initialize the UI manager.
-
-        Args:
-            use_rich_console: Whether to use Rich console for advanced features like spinners
-        """
+    def __init__(self, use_rich_console: bool = True, quiet_mode: bool = False, theme_mode: str = "modern"):
         self._rich_console = RichConsole() if use_rich_console else None
+        self.quiet_mode = quiet_mode
+        self.theme_mode = theme_mode  # "modern" for text icons, other for emoji
 
-    # --- Message Printing Methods ---
+    # --- Modern Message System ---
 
-    def print_message(self, message: str, msg_type: MessageType, bold: bool = True):
-        """
-        Print a message with consistent styling.
+    def _format_message(self, message: str, msg_type: MessageType, prefix: str = "") -> str:
+        """Create beautifully formatted message with modern styling."""
+        icon_format, _label, _color, emoji_icon = msg_type.value
+        full_message = f"{prefix}{message}" if prefix else message
 
-        Args:
-            message: The message to display
-            msg_type: Type of message (INFO, SUCCESS, WARNING, ERROR, DEBUG)
-            bold: Whether to make the text bold
-        """
-        icon, label, color = msg_type.value
-        typer.secho(f"{icon} [{label}] {message}", fg=color, bold=bold)
+        if self.theme_mode == "modern":
+            return f"{icon_format} {full_message}"
+        else:
+            return f"{emoji_icon} {full_message}"
 
-    def info(self, message: str, bold: bool = True):
-        """Print an informational message."""
-        self.print_message(message, MessageType.INFO, bold)
+    def print_message(self, message: str, msg_type: MessageType, dim: bool = False, prefix: str = ""):
+        """Print message with modern styling and smooth visual hierarchy."""
+        if self.quiet_mode and msg_type == MessageType.DEBUG:
+            return
 
-    def success(self, message: str, bold: bool = True):
-        """Print a success message."""
-        self.print_message(message, MessageType.SUCCESS, bold)
+        formatted_message = self._format_message(message, msg_type, prefix)
+        _icon_format, _label, color, _emoji_icon = msg_type.value
 
-    def warning(self, message: str, bold: bool = True):
-        """Print a warning message."""
-        self.print_message(message, MessageType.WARNING, bold)
+        if self._rich_console:
+            style = color
+            if dim:
+                style += " dim"
 
-    def error(self, message: str, bold: bool = True):
-        """Print an error message."""
-        self.print_message(message, MessageType.ERROR, bold)
+            text = Text(formatted_message, style=style)
+            self._rich_console.print(text)
+        else:
+            # Clean fallback with better colors
+            color_map = {
+                Theme.INFO.value: typer.colors.CYAN,
+                Theme.SUCCESS.value: typer.colors.GREEN,
+                Theme.WARNING.value: typer.colors.YELLOW,
+                Theme.ERROR.value: typer.colors.RED,
+                Theme.MUTED.value: typer.colors.WHITE,  # Adjusted for Typer's palette
+                Theme.ACCENT.value: typer.colors.MAGENTA,
+                Theme.PRIMARY.value: typer.colors.BLUE,
+            }
+            typer.secho(formatted_message, fg=color_map.get(color, typer.colors.WHITE), dim=dim)
 
-    def debug(self, message: str, bold: bool = True):
-        """Print a debug message."""
-        self.print_message(message, MessageType.DEBUG, bold)
+    def info(self, message: str, dim: bool = False):
+        """Display info with modern styling."""
+        self.print_message(message, MessageType.INFO, dim)
 
-    # --- Code Display Methods ---
+    def success(self, message: str, dim: bool = False):
+        """Display success with modern styling."""
+        self.print_message(message, MessageType.SUCCESS, dim)
+
+    def warning(self, message: str, dim: bool = False):
+        """Display warning with modern styling."""
+        self.print_message(message, MessageType.WARNING, dim)
+
+    def error(self, message: str, dim: bool = False):
+        """Display error with modern styling."""
+        self.print_message(message, MessageType.ERROR, dim)
+
+    def debug(self, message: str, dim: bool = True):
+        """Display debug info (respects quiet mode)."""
+        self.print_message(message, MessageType.DEBUG, dim)
+
+    def tip(self, message: str, dim: bool = False):
+        """Display helpful tip with modern styling."""
+        self.print_message(message, MessageType.TIP, dim)
+
+    # --- Modern Code Display ---
 
     def print_code(
         self,
         code: str,
         language: str = "sql",
         title: Optional[str] = None,
-        line_numbers: bool = True,
-        theme: str = "monokai",
-        border_style: str = "green",
-        padding: tuple = (1, 2),
+        line_numbers: bool = False,
+        theme: str = "github-dark",  # Popular and clean theme
+        wrap: bool = True,
     ):
-        """
-        Display syntax-highlighted code in a panel.
+        """Display code with modern syntax highlighting and clean presentation."""
+        if not self._rich_console:
+            if title:
+                typer.secho(f"\n▸ {title}", fg=typer.colors.CYAN, bold=True)
+            typer.echo(code)
+            typer.echo()  # Add a blank line for spacing
+            return
 
-        Args:
-            code: The code to display
-            language: Programming language for syntax highlighting
-            title: Optional title for the code block
-            line_numbers: Whether to show line numbers
-            theme: Rich theme for syntax highlighting
-            border_style: Border color/style for the panel
-            padding: Padding (top/bottom, left/right)
-        """
-        # Remove "Code" suffix from default title
-        effective_title = title if title is not None else f"{language.upper()}"
-
-        syntax = Syntax(code, language, theme=theme, line_numbers=line_numbers, word_wrap=True)
-        panel = Panel(
-            syntax,
-            title=f"[bold white]{effective_title}[/]",  # Keep title bold white, let border define color
-            border_style=border_style,
-            padding=padding,
-            expand=False,
+        syntax = Syntax(
+            code.strip(),
+            language,
+            theme=theme,
+            line_numbers=line_numbers,
+            word_wrap=wrap,
+            background_color="default",  # Use terminal's default bg
+            padding=(1, 2),  # Consistent padding
         )
-        if self._rich_console:
+
+        if title:
+            panel = Panel(
+                syntax,
+                title=f"[bold {Theme.PRIMARY.value}]▸ {title}[/]",
+                border_style=Theme.SUBTLE.value,
+                box=box.ROUNDED,  # Modern rounded box
+                padding=(0, 1),  # Panel padding
+                expand=False,
+            )
+            self._rich_console.print()  # Space before panel
             self._rich_console.print(panel)
         else:
-            # Fallback if Rich console is not available
-            if title:  # Use the original title for fallback
-                typer.secho(title, bold=True, fg=typer.colors.CYAN)
-            typer.echo(code)
+            self._rich_console.print(syntax)
 
-    def print_sql(self, sql: str, title: str = "Generated SQL Query"):
-        """Convenience method for displaying SQL code."""
-        self.print_code(sql, "sql", title, border_style="blue")
+        self._rich_console.print()  # Space after code block
+
+    def print_sql(self, sql: str, title: str = "SQL Query"):
+        """Display SQL with modern styling."""
+        self.print_code(sql, "sql", title, theme="monokai")  # Monokai is good for SQL
 
     def print_python(self, code: str, title: str = "Python Code"):
-        """Convenience method for displaying Python code."""
-        self.print_code(code, "python", title, border_style="green")
+        """Display Python with modern styling."""
+        self.print_code(code, "python", title, theme="monokai")
 
-    # --- Table Display Methods ---
+    # --- Modern Tables ---
 
     def print_table(
         self,
-        title: str,
+        title: Optional[str],
         headers: List[str],
         rows: List[List[Any]],
         show_lines: bool = False,
-        border_style: str = "cyan",
-        header_style: str = "bold magenta",
-        **table_kwargs,
+        max_width: Optional[int] = None,
+        highlight_first_col: bool = False,
+        table_style: str = "modern",  # "modern" or "clean"
     ):
-        """
-        Display data in a formatted table.
+        """Display table with modern, clean design."""
+        if not self._rich_console:
+            if title:
+                typer.secho(f"\n▸ {title}", fg=typer.colors.CYAN, bold=True)
+            if headers:
+                typer.echo("  " + " │ ".join(headers))
+                typer.echo("  " + "─" * (len(" │ ".join(headers)) + len(headers) * 2))  # Basic separator
+            for row in rows:
+                typer.echo("  " + " │ ".join(str(item) for item in row))
+            typer.echo()
+            return
 
-        Args:
-            title: Table title
-            headers: Column headers
-            rows: Table data rows
-            show_lines: Whether to show row separators
-            border_style: Border color/style
-            header_style: Header row styling
-            **table_kwargs: Additional Rich Table arguments
-        """
         table = Table(
-            title=title,
-            show_header=True,
-            header_style=header_style,
-            border_style=border_style,
+            show_header=bool(headers),
+            header_style=f"bold {Theme.PRIMARY.value}",
+            border_style=Theme.SUBTLE.value,
             show_lines=show_lines,
-            **table_kwargs,
+            box=box.SIMPLE if table_style == "clean" else box.MINIMAL_DOUBLE_HEAD,
+            expand=False,  # Important for controlled width
+            width=max_width,
+            pad_edge=False,
         )
 
-        for header in headers:
-            table.add_column(header)
+        for i, header in enumerate(headers):
+            style = f"bold {Theme.ACCENT.value}" if i == 0 and highlight_first_col else "default"
+            table.add_column(header, style=style, no_wrap=False)  # Allow wrapping for content
 
         for row in rows:
-            # Ensure all row items are strings for Rich Table
             table.add_row(*(str(item) for item in row))
 
-        if self._rich_console:
-            self._rich_console.print(table)
-        else:
-            # Fallback if Rich console is not available
-            typer.secho(title, bold=True, fg=typer.colors.CYAN)
-            if headers:
-                typer.echo("\t".join(headers))
-            for row_data in rows:
-                typer.echo("\t".join(str(item) for item in row_data))
-
-    def print_query_results(self, headers: List[str], rows: List[List[Any]], query_info: Optional[str] = None):
-        """
-        Display database query results in a formatted table.
-
-        Args:
-            headers: Column names from the query
-            rows: Query result rows
-            query_info: Optional information about the query
-        """
-        title = "Query Results"
-        if query_info:
-            title += f" - {query_info}"
-
-        self.print_table(title=title, headers=headers, rows=rows, show_lines=True, border_style="bright_blue")
-
-    # --- Header and Separators ---
-
-    def print_header(self, text: str, style: str = "bold white on blue", expand: bool = True):
-        """
-        Print a prominent header.
-
-        Args:
-            text: Header text
-            style: Rich text styling
-            expand: Whether to expand to full terminal width
-        """
-        panel = Panel(
-            Text(
-                text, justify="center", style=style
-            ),  # Removed style from Text, Panel handles it. Re-added style to Text as Panel style is for border.
-            expand=expand,
-            # No border for a simple header unless desired, or style the panel itself
-            # border_style="dim", # Example if a border is wanted
-        )
-        if self._rich_console:
+        if title:
+            panel = Panel(
+                table,
+                title=f"[bold {Theme.PRIMARY.value}]▸ {title}[/]",
+                border_style=Theme.SUBTLE.value,
+                box=box.ROUNDED,
+                padding=(1, 2),
+            )
+            self._rich_console.print()
             self._rich_console.print(panel)
         else:
-            # Fallback if Rich console is not available
-            typer.secho(f"\n--- {text} ---", bold=True, fg=typer.colors.BLUE)
+            self._rich_console.print(table)
 
-    def print_separator(self, char: str = "─", length: int = 50):
-        """Print a separator line."""
-        if self._rich_console:
-            self._rich_console.print(char * length)
+        self._rich_console.print()
+
+    def print_query_results(
+        self, headers: List[str], rows: List[List[Any]], title: Optional[str] = None, summary: Optional[str] = None
+    ):
+        """Display query results with modern formatting and statistics."""
+        display_title = title or "Query Results"
+        if rows:
+            result_count = len(rows)
+            count_text = f"{result_count:,} row{'s' if result_count != 1 else ''}"
+            display_title = f"{display_title} • {count_text}"
+
+        self.print_table(
+            display_title,
+            headers,
+            rows,
+            show_lines=False,  # Cleaner for query results
+            highlight_first_col=True,
+            table_style="modern",
+        )
+
+        if summary:
+            self.info(summary, dim=True)
+
+    # --- Modern Layout ---
+
+    def print_header(self, text: str, level: int = 1):
+        """Print header with modern typography and visual hierarchy."""
+        if not self._rich_console:
+            prefix = "◆" if level == 1 else "▸"
+            color = typer.colors.CYAN if level == 1 else typer.colors.WHITE
+            typer.secho(f"\n{prefix} {text.upper() if level == 1 else text}", fg=color, bold=True)
+            if level == 1:
+                typer.secho("─" * (len(text) + 2), fg=typer.colors.BLUE)  # Simple underline
+            return
+
+        self._rich_console.print()  # Space before header
+        if level == 1:
+            self._rich_console.print(Text(text.upper(), style=f"bold {Theme.PRIMARY.value}"))
+            self._rich_console.print(Text("─" * (len(text) + 4), style=Theme.SUBTLE.value))  # Subtle underline
         else:
-            typer.echo(char * length)
+            self._rich_console.print(Text(text, style=f"bold {Theme.MUTED.value}"))
 
-    def print_blank_line(self, count: int = 1):
-        """Print blank lines for spacing."""
+    def print_divider(self, style: str = "subtle", char: str = "─", length: Optional[int] = None):
+        """Print modern divider with subtle styling. Spans console width if length is None."""
+        if self._rich_console:
+            color = Theme.SUBTLE.value if style == "subtle" else Theme.MUTED.value
+            if length is None:
+                self._rich_console.rule(style=color, characters=char)
+            else:
+                self._rich_console.print(f"[{color}]{char * length}[/]")
+        else:
+            console_width = 80  # Fallback width
+            typer.echo(char * (length or console_width))
+
+    def space(self, count: int = 1):
+        """Add clean spacing."""
         for _ in range(count):
             if self._rich_console:
                 self._rich_console.print()
             else:
                 typer.echo("")
 
-    # --- Progress and Status Methods ---
-
-    def track_progress(self, iterable, description: str = "Processing...", total: Optional[int] = None):
-        """
-        Track progress of an iterable operation.
-
-        Args:
-            iterable: The iterable to track
-            description: Description of the operation
-            total: Total items (if not determinable from iterable)
-
-        Returns:
-            Generator yielding items from the iterable
-        """
-        # track() uses Rich's global console by default, or one can be passed.
-        # This should work fine if Rich is usable.
+    def center_text(self, text: str, style: str = ""):
+        """Center text with modern styling."""
         if self._rich_console:
-            return track(iterable, description=description, total=total, console=self._rich_console)
+            centered = Align.center(Text(text, style=style))
+            self._rich_console.print(centered)
         else:
-            self.info(f"{description} (progress tracking unavailable)")
-            yield from iterable  # Simple yield if no rich console
+            # Basic centering for fallback
+            console_width = 80  # Fallback width
+            typer.echo(text.center(console_width))
+
+    # --- Modern Progress & Status ---
+
+    def track_progress(self, iterable, description: str = "Processing", total: Optional[int] = None):
+        """Modern progress tracking with sleek design."""
+        if self._rich_console:
+            return track(
+                iterable,
+                description=f"[{Theme.PRIMARY.value}]{description}[/]",
+                total=total,
+                console=self._rich_console,
+                transient=True,  # Clears progress on completion
+            )
+        else:
+            self.info(f"{description}...")
+            yield from iterable  # Simple yield for fallback
 
     @contextmanager
-    def status_spinner(
-        self, message: str, spinner: str = "dots", success_message: Optional[str] = None
-    ) -> Generator[Any, None, None]:  # Rich Status object or None
-        """
-        Context manager for displaying a status spinner.
-
-        Args:
-            message: Status message to display
-            spinner: Spinner style
-            success_message: Message to show on successful completion
-
-        Yields:
-            Rich status context for updating the message, or None if Rich is not used.
-        """
+    def status(
+        self, message: str, success_message: Optional[str] = None, spinner: str = "dots"  # Rich spinner name
+    ) -> Generator[Any, None, None]:
+        """Modern status indicator with smooth animations."""
         if not self._rich_console:
-            # Fallback for when Rich console is not available
-            self.info(message)
+            self.info(message)  # Print initial message
             yield None
             if success_message:
                 self.success(success_message)
             return
 
-        status_renderable = Text(message, style="bold green")
-        with self._rich_console.status(status_renderable, spinner=spinner) as status:  # Use Text object for styling
+        with self._rich_console.status(f"[{Theme.PRIMARY.value}]{message}[/]", spinner=spinner) as status_context:
             try:
-                yield status
+                yield status_context
                 if success_message:
-                    status.update(Text(success_message, style="bold green"))  # Use Text object
-                    time.sleep(0.5)  # Brief pause to show success message
-            except Exception:
-                status.update(Text("Operation failed", style="bold red"))  # Use Text object
-                time.sleep(0.5)
-                raise
-
-        # Add spacing after spinner if Rich is used.
-        self.print_blank_line()
+                    status_context.update(f"[{Theme.SUCCESS.value}]● {success_message}[/]")
+                    time.sleep(0.6)  # Brief pause to show success
+            except Exception as e:
+                status_context.update(f"[{Theme.ERROR.value}]● Operation Failed: {str(e)}[/]")
+                time.sleep(0.6)  # Brief pause to show error
+                raise  # Re-raise the exception
 
     @contextmanager
-    def progress_context(
-        self, description: str = "Processing..."
-    ) -> Generator[Optional[Progress], None, None]:  # Rich Progress object or None
-        """
-        Context manager for advanced progress tracking.
-
-        Args:
-            description: Default description for tasks
-
-        Yields:
-            Rich Progress instance for manual task management, or None if Rich is not used.
-        """
+    def progress(self, description: str = "Processing") -> Generator[Optional[Progress], None, None]:
+        """Modern progress context with beautiful design."""
         if not self._rich_console:
             self.info(description)
-            yield None  # Caller should check for None
+            yield None
             return
 
-        # Pass the RichConsole instance to Progress
-        with Progress(console=self._rich_console) as progress:
-            yield progress
+        # Comprehensive progress display
+        progress_columns = [
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(bar_width=None),  # Adapts to console width
+            TaskProgressColumn(),  # Percentage
+            TimeRemainingColumn(),
+        ]
+        with Progress(*progress_columns, console=self._rich_console, transient=True) as progress_context:
+            yield progress_context
 
-    # --- Interactive Methods ---
+    # --- Modern Input ---
 
     def prompt(
         self,
         text: str,
         default: Any = None,
-        hide_input: bool = False,
-        confirmation_prompt: bool = False,
-        type: Optional[type] = None,  # Shadowing built-in 'type'
-        style: str = "cyan",
+        password: bool = False,
+        validate: Optional[Callable[[Any], bool]] = None,
+        expected_type: Optional[type] = None,
     ) -> Any:
-        """
-        Prompt user for input with styling.
+        """Modern input prompt with clean design and type handling."""
+        prompt_text_display = f"[{Theme.PRIMARY.value}]◆[/] {text}"
+        if default is not None:
+            prompt_text_display += f" [dim]({default})[/]"
+        prompt_text_display += f"[{Theme.MUTED.value}] ›[/] "
 
-        Args:
-            text: Prompt text
-            default: Default value
-            hide_input: Whether to hide input (for passwords)
-            confirmation_prompt: Whether to ask for confirmation
-            type: Expected input type
-            style: Text styling
-
-        Returns:
-            User input
-        """
-        # Typer's prompt doesn't directly accept Rich Text objects for the main prompt text.
-        # It does its own styling. For more control, one might print with Rich then use input().
-        # However, for simplicity, typer.prompt is fine.
-        # The 'style' argument here is conceptual; typer.prompt has its own way.
-        # Let's assume 'text' is styled using Typer's fg/bg if needed before calling.
-        # Or, we can use Rich to print the prompt, then Python's input().
-        # For now, keeping as is, but noting 'style' isn't directly used by typer.prompt like this.
         if self._rich_console:
-            self._rich_console.print(Text(text, style=style), end=" ")
-            # typer.prompt will print its own prompt string, so this might duplicate.
-            # A better way for styled prompts is to print with Rich and then use input()
-            # or use Typer's prompt and accept its styling.
-            # Sticking to original for now:
-            styled_text_for_typer = typer.style(text, fg=typer.colors.CYAN if style == "cyan" else None)  # Basic mapping
+            self._rich_console.print(Text.from_markup(prompt_text_display), end="")
+            # Typer will print its own prompt, so we print ours without a newline
+            # and let Typer's prompt appear on the same line or next if empty.
+            # For a fully custom Rich prompt, one would use Rich's input and then parse.
+            # This is a hybrid approach.
+            prompt_for_typer = ""  # Typer prompt will handle the actual input
+        else:
+            # Fallback uses Typer's default prompt styling
+            prompt_for_typer = f"{text} ('{default}' if default else '')"
 
-        return typer.prompt(
-            styled_text_for_typer if self._rich_console else text,  # Use styled text if possible
-            default=default,
-            hide_input=hide_input,
-            confirmation_prompt=confirmation_prompt,
-            type=type,
-        )
+        while True:
+            try:
+                # Use Typer's prompt for actual input capture and type conversion
+                result = typer.prompt(
+                    prompt_for_typer,
+                    default=default,
+                    hide_input=password,
+                    type=expected_type,
+                    show_default=not self._rich_console,  # Show Typer's default only in fallback
+                )
+                if validate:
+                    if not validate(result):
+                        self.warning("Invalid input. Please try again.")
+                        if self._rich_console:  # Re-print prompt if rich
+                            self._rich_console.print(Text.from_markup(prompt_text_display), end="")
+                        continue
+                return result
+            except typer.Abort:
+                self.info("Operation cancelled.")
+                raise  # Or return a specific value indicating cancellation
 
-    def confirm(self, text: str, default: bool = False, style: str = "bold yellow") -> bool:  # Conceptual style
-        """
-        Ask user for confirmation.
+    def confirm(self, text: str, default: bool = False) -> bool:
+        """Modern confirmation prompt."""
+        suffix = " [Y/n]" if default else " [y/N]"
+        prompt_text_display = f"[{Theme.WARNING.value}]◆[/] {text}{suffix}[{Theme.MUTED.value}] ›[/] "
 
-        Args:
-            text: Confirmation text
-            default: Default response
-            style: Text styling (conceptual for typer.confirm)
+        if self._rich_console:
+            self._rich_console.print(Text.from_markup(prompt_text_display), end="")
+            prompt_for_typer = ""
+        else:
+            prompt_for_typer = f"{text}{suffix}"
 
-        Returns:
-            User's confirmation response
-        """
-        # Similar to prompt, typer.confirm handles its own styling.
-        # Applying basic styling via typer.style:
-        color_map = {
-            "bold yellow": (typer.colors.YELLOW, True),
-            # Add other mappings if needed
-        }
-        fg_color, is_bold = color_map.get(style, (None, False))
-        styled_text_for_typer = typer.style(text, fg=fg_color, bold=is_bold)
+        try:
+            return typer.confirm(prompt_for_typer, default=default, show_default=not self._rich_console)
+        except typer.Abort:
+            self.info("Confirmation aborted.")
+            return False  # Or re-raise based on desired behavior
 
-        return typer.confirm(styled_text_for_typer, default=default)
+    def select_option(self, prompt_text: str, options: List[str], default_idx: int = 0) -> str:
+        """Modern option selection with clean design."""
+        if not options:
+            raise ValueError("Options list cannot be empty.")
 
-    # --- Error Handling ---
+        self.info(prompt_text)
+        for i, option in enumerate(options):
+            marker = "●" if i == default_idx else "○"
+            style = f"bold {Theme.PRIMARY.value}" if i == default_idx else Theme.MUTED.value
+            if self._rich_console:
+                self._rich_console.print(f"  [{style}]{marker} {i + 1}. {option}[/]")
+            else:
+                typer.echo(f"  {marker} {i + 1}. {option}")
 
-    def handle_error(self, error: Exception, context: str = "Operation", show_traceback: bool = False):
-        """
-        Handle and display errors consistently.
+        while True:
+            try:
+                choice_num_str = self.prompt("Select option number", default=str(default_idx + 1), expected_type=str)
+                choice_num = int(choice_num_str)
+                if 1 <= choice_num <= len(options):
+                    return options[choice_num - 1]
+                else:
+                    self.warning(f"Please select a number between 1 and {len(options)}.")
+            except ValueError:
+                self.warning("Invalid input. Please enter a number.")
+            except typer.Abort:
+                self.info("Selection cancelled.")
+                raise  # Or return a specific value
 
-        Args:
-            error: The exception that occurred
-            context: Context where the error occurred
-            show_traceback: Whether to show full traceback
-        """
-        self.error(f"{context} failed: {str(error)}")  # Uses typer.secho
+    # --- Modern Error Handling ---
 
-        if show_traceback:
+    def handle_error(
+        self, error: Exception, context: str = "Operation", show_details: bool = False, suggest_fix: Optional[str] = None
+    ):
+        """Modern error display with helpful suggestions."""
+        self.error(f"{context} failed: {type(error).__name__} - {str(error)}")
+
+        if suggest_fix:
+            self.tip(f"Suggestion: {suggest_fix}")
+
+        if show_details and self._rich_console:
             import traceback
 
-            tb_str = traceback.format_exc()
-            if self._rich_console:
-                self.print_blank_line()
-                self._rich_console.print("Traceback:", style="bold red")
-                self._rich_console.print(tb_str)  # Rich will handle formatting
-            else:
-                typer.echo("Traceback:", err=True)
-                typer.echo(tb_str, err=True)
+            self._rich_console.print("\n[dim]Details:[/]")
+            tb_text = traceback.format_exc()
+            panel = Panel(
+                Text(tb_text, style=Theme.MUTED.value),  # Traceback text styled
+                title="[dim]Traceback[/]",
+                border_style=Theme.ERROR.value,  # Error border for traceback
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+            self._rich_console.print(panel)
+        elif show_details:  # Fallback for no rich console
+            import traceback
 
-    # --- Configuration Display ---
+            typer.echo(f"\nDetails:\n{traceback.format_exc()}", err=True)
 
-    def print_config_item(self, key: str, value: Any, mask: bool = False):
-        """
-        Display a configuration item.
+    # --- Modern Configuration Display ---
 
-        Args:
-            key: Configuration key
-            value: Configuration value
-            mask: Whether to mask sensitive values
-        """
-        display_value = "***masked***" if mask and value else str(value)
-        status_icon = "✅" if value else "❌"  # This logic might be too simple for general config values
+    def print_config(self, config: Dict[str, Any], title: str = "Configuration", mask_keys: Optional[List[str]] = None):
+        """Display configuration with modern formatting."""
+        mask_keys_lower = [k.lower() for k in (mask_keys or [])]
+
+        if title:
+            self.print_header(title, level=2)
 
         if self._rich_console:
-            self._rich_console.print(f"{status_icon} {key}: {display_value}")
+            table = Table(box=None, show_header=False, padding=(0, 1, 0, 1))
+            table.add_column(style=Theme.MUTED.value)  # Key column
+            table.add_column()  # Value column
+
+            for key, value in config.items():
+                display_value = "••••••••" if key.lower() in mask_keys_lower and value else str(value)
+                table.add_row(f"{key}:", display_value)
+            self._rich_console.print(table)
+        else:  # Fallback
+            for key, value in config.items():
+                display_value = "••••••••" if key.lower() in mask_keys_lower and value else str(value)
+                typer.echo(f"  {key}: {display_value}")
+        self.space()
+
+    # --- Utility Methods ---
+
+    def clear_screen(self):
+        """Clear console with modern transition (if supported)."""
+        if self._rich_console:
+            self._rich_console.clear()
         else:
-            typer.echo(f"{status_icon} {key}: {display_value}")
+            typer.clear()
+
+    def set_quiet_mode(self, quiet: bool):
+        """Toggle quiet mode (suppresses debug messages)."""
+        self.quiet_mode = quiet
+        self.debug(f"Quiet mode {'enabled' if quiet else 'disabled'}.")
 
 
-# --- Global UI Manager Instance ---
-ui = UIManager()
-
-# --- Convenience Functions for Direct Import (unchanged, they call ui methods) ---
-# ... (rest of the convenience functions and demo functions would go here)
-# Make sure they use the global 'ui' instance which now has the corrected methods.
+# --- Global Instance ---
+ui = UIManager(theme_mode="")
 
 
-def info(message: str, bold: bool = True) -> None:
-    """Print an informational message."""
-    ui.info(message, bold)
+# --- Modern Convenience Functions ---
+def info(message: str, dim: bool = False):
+    ui.info(message, dim)
 
 
-def success(message: str, bold: bool = True) -> None:
-    """Print a success message."""
-    ui.success(message, bold)
+def success(message: str, dim: bool = False):
+    ui.success(message, dim)
 
 
-def warning(message: str, bold: bool = True) -> None:
-    """Print a warning message."""
-    ui.warning(message, bold)
+def warning(message: str, dim: bool = False):
+    ui.warning(message, dim)
 
 
-def error(message: str, bold: bool = True) -> None:
-    """Print an error message."""
-    ui.error(message, bold)
+def error(message: str, dim: bool = False):
+    ui.error(message, dim)
 
 
-def debug(message: str, bold: bool = True) -> None:
-    """Print a debug message."""
-    ui.debug(message, bold)
+def debug(message: str, dim: bool = True):
+    ui.debug(message, dim)
 
 
-def print_sql(sql: str, title: str = "Generated SQL Query") -> None:
-    """Display SQL code with syntax highlighting."""
+def tip(message: str, dim: bool = False):
+    ui.tip(message, dim)
+
+
+def print_sql(sql: str, title: str = "SQL Query"):
     ui.print_sql(sql, title)
 
 
-def print_query_results(headers: List[str], rows: List[List[Any]], query_info: Optional[str] = None) -> None:
-    """Display database query results."""
-    ui.print_query_results(headers, rows, query_info)
+def print_python(code: str, title: str = "Python Code"):
+    ui.print_python(code, title)
 
 
-def track_progress(iterable, description: str = "Processing...", total: Optional[int] = None):
-    """Track progress of an operation."""
+def print_query_results(
+    headers: List[str], rows: List[List[Any]], title: Optional[str] = None, summary: Optional[str] = None
+):
+    ui.print_query_results(headers, rows, title, summary)
+
+
+def print_table(title: Optional[str], headers: List[str], rows: List[List[Any]], **kwargs):
+    ui.print_table(title, headers, rows, **kwargs)
+
+
+def print_config(config: Dict[str, Any], title: str = "Configuration", mask_keys: Optional[List[str]] = None):
+    ui.print_config(config, title, mask_keys)
+
+
+def print_header(text: str, level: int = 1):
+    ui.print_header(text, level)
+
+
+def print_divider(style: str = "subtle", char: str = "─", length: Optional[int] = None):
+    ui.print_divider(style, char, length)
+
+
+def space(count: int = 1):
+    ui.space(count)
+
+
+def center_text(text: str, style: str = ""):
+    ui.center_text(text, style)
+
+
+def track_progress(iterable, description: str = "Processing", total: Optional[int] = None):
     return ui.track_progress(iterable, description, total)
 
 
 @contextmanager
-def status_spinner(message: str, spinner: str = "dots", success_message: Optional[str] = None):
-    """Context manager for status spinner."""
-    # This function needs to be a context manager itself
-    # The original global function was not a context manager
-    # It should call ui.status_spinner
-    with ui.status_spinner(message, spinner, success_message) as status_context:
+def status(message: str, success_message: Optional[str] = None, spinner: str = "dots"):
+    with ui.status(message, success_message, spinner) as status_context:
         yield status_context
 
 
 @contextmanager
-def progress_context(description: str = "Processing..."):
-    """Context manager for advanced progress tracking."""
-    with ui.progress_context(description) as progress_instance:
+def progress(description: str = "Processing"):
+    with ui.progress(description) as progress_instance:
         yield progress_instance
 
 
 def prompt(
     text: str,
     default: Any = None,
-    hide_input: bool = False,
-    # 'type' parameter removed from here as it's in the class method
-    style: str = "cyan",
+    password: bool = False,
+    validate: Optional[Callable[[Any], bool]] = None,
+    expected_type: Optional[type] = None,
 ) -> Any:
-    """Prompt user for input."""
-    # Call the ui method. Note the 'type' parameter is part of the UIManager.prompt
-    return ui.prompt(text, default=default, hide_input=hide_input, style=style)
+    return ui.prompt(text, default, password, validate, expected_type)
 
 
-def confirm(text: str, default: bool = False, style: str = "bold yellow") -> bool:
-    """Ask user for confirmation."""
-    return ui.confirm(text, default=default, style=style)
+def confirm(text: str, default: bool = False) -> bool:
+    return ui.confirm(text, default)
 
 
-# --- Example Usage Functions (should work with the updated UIManager) ---
+def select_option(prompt_text: str, options: List[str], default_idx: int = 0) -> str:
+    return ui.select_option(prompt_text, options, default_idx)
 
 
-def demo_basic_messages():
-    """Demonstrate basic message types."""
-    ui.print_header("🚀 TESH-Query UI Demo - Basic Messages 🚀")
-    ui.print_blank_line()
+def clear_screen():
+    ui.clear_screen()
 
-    ui.info("Database connection established successfully")
-    ui.success("Query executed and results retrieved")
-    ui.warning("Large result set - consider adding LIMIT clause")
-    ui.error("Failed to connect to database")
-    ui.debug("SQL query generated: SELECT * FROM users")
-    ui.print_blank_line()
+
+def set_quiet_mode(quiet: bool):
+    ui.set_quiet_mode(quiet)
+
+
+# --- These are drivers for testing ---
+
+
+# --- Modern Demo Functions ---
+def demo_messages():
+    ui.print_header("Message System", level=1)
+    info("Database connection established.")
+    success("Query executed successfully (0.23s).")
+    warning("Large result set detected (15,000 rows).")
+    error("Connection timeout after 30 seconds.")
+    debug("SQL: SELECT * FROM users WHERE status = 'active'")
+    tip("Use `LIMIT` clause to improve performance for large queries.")
+    ui.print_message("Custom emoji message (theme_mode != 'modern')", MessageType.LOADING, prefix="Job XYZ: ")
+    space()
 
 
 def demo_code_display():
-    """Demonstrate code display capabilities."""
-    ui.print_header("Code Display Demo")
-    ui.print_blank_line()
-
+    ui.print_header("Code Display", level=1)
     sample_sql = """
     SELECT
+        u.id,
         u.name,
         u.email,
-        COUNT(o.id) as order_count
-    FROM users u
-    LEFT JOIN orders o ON u.id = o.user_id
-    WHERE u.created_at >= '2024-01-01'
-    GROUP BY u.id, u.name, u.email
-    ORDER BY order_count DESC
+        COUNT(o.id) as order_count,
+        SUM(o.total_amount) as total_spent
+    FROM customers u
+    LEFT JOIN orders o ON u.id = o.customer_id
+    WHERE u.registration_date >= DATE('now', '-1 year')
+      AND u.is_active = TRUE
+    GROUP BY 1, 2, 3
+    HAVING COUNT(o.id) > 0
+    ORDER BY total_spent DESC
     LIMIT 10;
     """
-
-    ui.print_sql(sample_sql.strip(), "User Orders Query")
-    ui.print_blank_line()
+    print_sql(sample_sql, "Customer Analytics Query")
+    print_python("class MyClass:\n    def __init__(self):\n        pass", "Sample Python Class")
 
 
 def demo_table_display():
-    """Demonstrate table display."""
-    ui.print_header("Table Display Demo")
-    ui.print_blank_line()
-
-    headers = ["User ID", "Name", "Email", "Orders", "Status"]
+    ui.print_header("Data Visualization", level=1)
+    headers = ["ID", "Product Name", "Category", "Stock", "Price"]
     rows = [
-        [1, "Alice Johnson", "alice@example.com", 15, "[green]Active[/]"],
-        [2, "Bob Smith", "bob@example.com", 8, "[green]Active[/]"],
-        [3, "Carol White", "carol@example.com", 0, "[yellow]Inactive[/]"],
-        [4, "David Brown", "david@example.com", 23, "[green]Active[/]"],
+        [1, "Laptop Pro X", "Electronics", 75, "$1299.99"],
+        [2, "Organic Coffee Beans", "Groceries", 250, "$18.50"],
+        [3, "Running Shoes V2", "Apparel", 120, "$89.95"],
+        [4, "Smart Home Hub", "Electronics", 40, "$149.00"],
     ]
+    print_query_results(headers, rows, "Inventory Overview", summary="Stock levels are healthy across major categories.")
+    print_table("Simple Table (Clean Style)", headers[:3], rows[:2], table_style="clean", show_lines=True)
 
-    ui.print_query_results(headers, rows, "Recent user activity")
-    ui.print_blank_line()
+
+def demo_interactive_elements():
+    ui.print_header("Interactive Elements", level=1)
+    try:
+        name = prompt("Enter your name", default="Guest", expected_type=str)
+        info(f"Hello, {name}!")
+
+        age = prompt("Enter your age", expected_type=int, validate=lambda x: x > 0)
+        success(f"Age confirmed: {age}")
+
+        db_options = ["PostgreSQL", "MySQL", "SQLite", "MongoDB"]
+        selected_db = select_option("Choose your database:", db_options, default_idx=1)
+        success(f"Database selected: {selected_db}")
+
+        if confirm("Proceed with data migration?", default=False):
+            success("Data migration initiated.")
+        else:
+            warning("Data migration cancelled by user.")
+    except typer.Abort:
+        error("Interactive demo aborted by user.")
+    except Exception as e:
+        ui.handle_error(e, "Interactive Demo", show_details=True)
+    space()
 
 
-def demo_progress_tracking():
-    """Demonstrate progress tracking."""
-    ui.print_header("Progress Tracking Demo")
-    ui.print_blank_line()
+def demo_progress_indicators():
+    ui.print_header("Progress Visualization", level=1)
+    info("Simulating file downloads:")
+    with progress("Downloading files") as p:
+        task1 = p.add_task("image.jpg", total=100)
+        task2 = p.add_task("archive.zip", total=150)
+        while not p.finished:
+            p.update(task1, advance=0.9)
+            p.update(task2, advance=0.6)
+            time.sleep(0.02)
+    success("Downloads complete.")
 
-    ui.info("Demonstrating simple progress tracking:")
     items = range(50)
-    processed = []
-    # track_progress is a generator, so iterate over it
-    for item in track_progress(items, "Processing database records..."):
-        time.sleep(0.05)  # Simulate work
-        processed.append(item)
+    for _item in track_progress(items, "Processing records", total=len(items)):
+        time.sleep(0.03)
+    success("Record processing complete.")
 
-    ui.success(f"Processed {len(processed)} records successfully")
-    ui.print_blank_line()
+    with status(
+        "Connecting to external API...", success_message="API Connection successful!", spinner="aesthetic"
+    ):  # Changed spinner
+        time.sleep(1.5)
+    space()
 
 
-def demo_status_spinner():
-    """Demonstrate status spinner."""
-    ui.print_header("Status Spinner Demo")
-    ui.print_blank_line()
-
-    ui.info("Demonstrating status spinner:")
-    # Use the global status_spinner context manager
-    with status_spinner("Connecting to database...", success_message="Connected successfully!"):
-        time.sleep(2)  # Simulate connection time
-
-    with status_spinner("Executing query...", success_message="Query completed!"):
-        time.sleep(1.5)  # Simulate query time
-
-    ui.success("All operations completed successfully")
-    # No need for ui.print_blank_line() here if status_spinner handles it
-    # The UIManager.status_spinner now adds a blank line if rich console is used.
+def demo_layout_and_config():
+    ui.print_header("Layout & Configuration", level=1)
+    center_text("✨ TESH-Query Enhanced UI ✨", style=f"bold {Theme.ACCENT.value}")
+    space()
+    print_divider(length=40)
+    print_header("System Configuration", level=2)
+    config_data = {
+        "username": "testuser",
+        "api_key": "dkf93kdf93kdfkd",
+        "timeout": 30,
+        "debug_mode": True,
+        "connection_string": "postgres://user:pass@host:port/db",
+    }
+    print_config(config_data, title=None, mask_keys=["api_key", "connection_string"])  # Title already printed by header
+    space()
 
 
 if __name__ == "__main__":
-    # Create a simple demo app
-    demo_app = typer.Typer()
+    # Create a simple Typer app to run demos
+    app = typer.Typer(
+        name="TESH-Query UI Demo",
+        help="Showcase of modern UI components.",
+        rich_markup_mode="rich",  # Enable Rich markup in Typer help
+    )
 
-    @demo_app.command()
-    def all():
+    @app.command()
+    def all(quiet: bool = typer.Option(False, "--quiet", "-q", help="Enable quiet mode.")):
         """Run all UI demos."""
-        if ui._rich_console:  # Clear only if we have a rich console.
-            ui._rich_console.clear()  # Using Rich console's clear.
-        else:
-            typer.clear()  # Fallback.
+        set_quiet_mode(quiet)
+        clear_screen()
+        center_text("🚀 TESH-Query UI Showcase 🚀", style=f"bold {Theme.PRIMARY.value}")
+        space(1)
 
-        demo_basic_messages()
+        demo_messages()
         demo_code_display()
         demo_table_display()
-        demo_progress_tracking()
-        demo_status_spinner()
-        ui.print_header("🎉 Demo Complete! 🎉", style="bold white on green")
+        demo_interactive_elements()
+        demo_progress_indicators()
+        demo_layout_and_config()
 
-    @demo_app.command()
+        print_divider(style="bold", char="═")
+        center_text("🎉 All Demos Complete! 🎉", style=f"bold {Theme.SUCCESS.value}")
+        space()
+
+    @app.command()
     def messages():
-        """Demo basic message types."""
-        demo_basic_messages()
+        demo_messages()
 
-    @demo_app.command()
+    @app.command()
     def code():
-        """Demo code display."""
         demo_code_display()
 
-    @demo_app.command()
+    @app.command()
     def table():
-        """Demo table display."""
         demo_table_display()
 
-    @demo_app.command()
-    def progress():
-        """Demo progress tracking."""
-        demo_progress_tracking()
+    @app.command()
+    def interactive():
+        demo_interactive_elements()
 
-    @demo_app.command()
-    def spinner():
-        """Demo status spinner."""
-        demo_status_spinner()
+    @app.command()
+    def progress_demo():
+        demo_progress_indicators()  # Renamed to avoid conflict
 
-    demo_app()
+    @app.command()
+    def layout():
+        demo_layout_and_config()
+
+    app()
