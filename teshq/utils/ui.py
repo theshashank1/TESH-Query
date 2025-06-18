@@ -928,15 +928,15 @@ The simplified UI system includes several **performance enhancements**:
 
             # Welcome message with current timestamp
             welcome_message = """
-## Welcome to the Interactive Demo
+                                ## Welcome to the Interactive Demo
 
-**User:** theshashank1
-**Timestamp:** 2025-06-18 13:57:42 UTC
-**Version:** Final Simplified Edition
+                                **User:** theshashank1
+                                **Timestamp:** 2025-06-18 13:57:42 UTC
+                                **Version:** Final Simplified Edition
 
-This comprehensive demo showcases all interactive UI capabilities including
-prompts, validations, confirmations, and selections with modern 2025 styling.
-"""
+                                This comprehensive demo showcases all interactive UI capabilities including
+                                prompts, validations, confirmations, and selections with modern 2025 styling.
+                                """
             print_markdown(welcome_message)
 
             # Basic input demonstrations
