@@ -1,7 +1,5 @@
 """
 Modern UI utilities for TESH-Query CLI application - Final Simplified Edition
-Author: theshashank1
-Date: 2025-06-18 13:57:42 UTC
 
 Ultra-clean, maintainable design with maximum simplicity and full functionality.
 Preserves complete 2025 design aesthetics while being easy to understand and modify.
