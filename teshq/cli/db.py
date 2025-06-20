@@ -1,14 +1,16 @@
-import json
-import os
-
 import typer
 from dotenv import load_dotenv
-from sqlalchemy import text
 
+from teshq.cli.ui import error, handle_error, print_footer, print_header, status, tip, warning
 from teshq.core.db import connect_database, disconnect_database
 from teshq.core.introspect import introspect_db
+from teshq.utils.config import get_database_url as get_configured_database_url
 
-app = typer.Typer()
+app = typer.Typer(
+    name="teshq",
+    help="TESH-Query: Convert natural language to SQL queries.",
+    add_completion=False,
+)
 load_dotenv()
 
 
@@ -20,52 +22,41 @@ def database(
     """
     Manage database connection lifecycle: connect and optionally disconnect.
     """
+    print_header("Database Connection Manager", level=2)
 
-    db_url = os.getenv("DATABASE_URL")
-
-    # Fallback to config.json if not found in .env
-    if not db_url:
-        try:
-            with open("config.json", "r") as f:
-                config_data = json.load(f)
-                db_url = config_data.get("DATABASE_URL")
-                if db_url:
-                    typer.secho("Using DATABASE_URL from config.json", fg=typer.colors.CYAN)
-                else:
-                    typer.secho("DATABASE_URL not found in config.json.", fg=typer.colors.RED)
-        except FileNotFoundError:
-            typer.secho("Error: config.json not found.", fg=typer.colors.RED)
-        except json.JSONDecodeError:
-            typer.secho("Error: config.json is not a valid JSON file.", fg=typer.colors.RED)
+    db_url = get_configured_database_url()
 
     if not db_url:
-        typer.secho(
-            "DATABASE_URL not set in either environment variables or config.json.",
-            fg=typer.colors.RED,
-        )
+        error("DATABASE_URL not set in environment variables or config.json.")
         raise typer.Exit(code=1)
-
     conn = None
-
     if connect:
-        typer.secho("Connecting to the database...", fg=typer.colors.YELLOW)
         try:
-            conn = connect_database(db_url)
-            typer.secho("✅ Connected to the database.", fg=typer.colors.GREEN)
+            with status(
+                "Connecting to the database...",
+                success_message="Database connection successful.",
+            ):
+                conn = connect_database(db_url)
         except Exception as e:
-            typer.secho(f"Failed to connect: {e}", fg=typer.colors.RED)
+            handle_error(
+                e,
+                "Database Connection",
+                suggest_action="Please check your DATABASE_URL and network settings.",
+            )
             raise typer.Exit(code=1)
 
         if disconnect:
-            typer.secho("Disconnecting...", fg=typer.colors.YELLOW)
             try:
-                disconnect_database(conn)
-                typer.secho("✅ Disconnected from the database.", fg=typer.colors.GREEN)
+                with status(
+                    "Disconnecting from database...",
+                    success_message="Database disconnection successful.",
+                ):
+                    disconnect_database(conn)
             except Exception as e:
-                typer.secho(f"Error while disconnecting: {e}", fg=typer.colors.RED)
+                handle_error(e, "Database Disconnection")
 
     elif disconnect and not connect:
-        typer.secho("Cannot disconnect without connecting first.", fg=typer.colors.RED)
+        warning("Cannot disconnect without an active connection. Use --connect.")
 
     return conn
 
@@ -81,22 +72,32 @@ def introspect(
         True,
         "--detect-relationships",
         "-r",
-        help="Whether to detect implicit relationships based on naming conventions",
+        help="Detect implicit relationships from naming conventions.",
     ),
 ):
     """
     Perform database schema introspection optimized for LLM query generation.
     """
-
-    if db_url:
-        introspect_db(db_url=db_url, detect_relationships=detect_relationships)
-
-    if not db_url:
-        introspect_db()
+    print_header("Database Schema Introspection", level=2)
+    try:  # Introspection logic handles db_url if None
+        with status(
+            "Performing database introspection...",
+            success_message="Introspection complete.",
+        ):
+            # introspect_db will handle finding the db_url if not provided
+            introspect_db(db_url=db_url, detect_relationships=detect_relationships)
+        tip("Schema details have been processed and are ready for use.")
+    except Exception as e:
+        handle_error(
+            e,
+            "Database Introspection",
+            suggest_action="Ensure the database is accessible and the schema is valid.",
+        )
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
-    conn = connect_database
-    conn.executes(text("SELECT * FROM employees;"))
-    disconnect_database(conn)
+    # This script runs as a Typer CLI application.
+    # Execute `python -m teshq.cli.main --help` to see commands.
     app()
+print_footer()
