@@ -1,38 +1,68 @@
+# .pre-commit-config.yaml - Comprehensive & Opinionated
+
+# Default language version for hooks where applicable.
 default_language_version:
   python: python3.11
 
+# Exclude patterns for files/paths that pre-commit should ignore globally.
+exclude: |
+  (?x)^(
+    \.git/.*|
+    \.venv/.*|
+    \.mypy_cache/.*|
+    \.pytest_cache/.*|
+    __pycache__/.*|
+    \.idea/.*|
+    \.vscode/.*|
+    dist/.*|
+    build/.*
+  )$
+
+# Define the repositories and their hooks.
 repos:
+  # General purpose hooks for common issues
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
 
+  # Python Code Formatting - Black
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        args: ["--line-length", "125"]
+
+  # Python Import Sorting - isort
   - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
+    rev: 6.0.1
     hooks:
       - id: isort
         name: isort (python)
         args: ["--profile", "black", "--line-length", "125"]
-        language_version: python3.11
 
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-        args: ["--line-length", "125"]
-        language_version: python3.11
-
+  # Python Code Linting - Flake8
   - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
+    rev: 7.2.0
     hooks:
       - id: flake8
         args: ["--max-line-length=125"]
-        language_version: python3.11
-        # Optional enhancements (add only if you want more checks)
-        # additional_dependencies:
-        #   - flake8-bugbear
-        #   - flake8-isort
-        #   - flake8-black
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-comprehensions
+          - flake8-unused-arguments
+
+  # Python Static Type Checking - Pyre
+  - repo: https://github.com/facebook/pyre-check
+    # Change the revision to a known working version.
+    # For example, v0.9.15 or v0.9.18 have been reported to work by some users.
+    rev: v0.9.18 # Try this version
+    hooks:
+      - id: pyre-check
