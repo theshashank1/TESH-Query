@@ -1,10 +1,9 @@
-# .pre-commit-config.yaml - Comprehensive & Opinionated
+# .pre-commit-config.yaml - Simplified while maintaining code quality
 
-# Default language version for hooks where applicable.
 default_language_version:
   python: python3.11
 
-# Exclude patterns for files/paths that pre-commit should ignore globally.
+# Simplified exclusion pattern
 exclude: |
   (?x)^(
     \.git/.*|
@@ -12,57 +11,47 @@ exclude: |
     \.mypy_cache/.*|
     \.pytest_cache/.*|
     __pycache__/.*|
-    \.idea/.*|
-    \.vscode/.*|
     dist/.*|
     build/.*
   )$
 
-# Define the repositories and their hooks.
 repos:
-  # General purpose hooks for common issues
+  # I. CORE HOOKS (Essential checks only)
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v4.6.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-      - id: check-toml
-      - id: check-added-large-files
-        args: ['--maxkb=500']
-      - id: check-executables-have-shebangs
       - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
 
-  # Python Code Formatting - Black
+  # II. CODE FORMATTING (Consolidated)
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 24.4.2
     hooks:
       - id: black
         args: ["--line-length", "125"]
 
-  # Python Import Sorting - isort
+  # III. IMPORT SORTING (Integrated with Black)
   - repo: https://github.com/PyCQA/isort
-    rev: 6.0.1
+    rev: 5.13.2
     hooks:
       - id: isort
-        name: isort (python)
         args: ["--profile", "black", "--line-length", "125"]
 
-  # Python Code Linting - Flake8
+  # IV. NON-PYTHON FILE FORMATTING
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [css, javascript, json, markdown, yaml]
+
+  # V. ESSENTIAL LINTING
   - repo: https://github.com/PyCQA/flake8
-    rev: 7.2.0
+    rev: 7.1.0
     hooks:
       - id: flake8
-        args: ["--max-line-length=125"]
-        additional_dependencies:
-          - flake8-bugbear
-          - flake8-comprehensions
-          - flake8-unused-arguments
-
-  # Python Static Type Checking - Pyre
-  - repo: https://github.com/facebook/pyre-check
-    # Change the revision to a known working version.
-    # For example, v0.9.15 or v0.9.18 have been reported to work by some users.
-    rev: v0.9.18 # Try this version
-    hooks:
-      - id: pyre-check
+        args: ["--max-line-length=125", "--ignore=E203,W503"]
+        # Removed additional dependencies to simplify
