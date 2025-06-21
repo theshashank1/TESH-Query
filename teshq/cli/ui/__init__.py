@@ -23,6 +23,7 @@ from teshq.utils.ui import (
     print_code,
     print_config,
     print_divider,
+    print_footer,
     print_header,
     print_json,
     print_list,
@@ -62,6 +63,7 @@ __all__ = [
     # Layout
     "space",
     "print_header",
+    "print_footer",
     "print_divider",
     # Code display
     "print_code",

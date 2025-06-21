@@ -223,6 +223,18 @@ class ModernUI:
         else:
             typer.echo(f"─── {text} ───" if text else "─" * 80)
 
+    def print_footer(self, text: str = "", style: str = "line"):
+        """Print styled footer message or divider"""
+        self.space()
+        if self.has_rich:
+            if style == "line":
+                self.console.rule(text or None, style=Colors.BORDER)
+            elif style == "dots":
+                self.console.print("•" * 40, style=Colors.MUTED, justify="center")
+        else:
+            typer.echo(f"─── {text} ───" if text else "─" * 80)
+        self.space()
+
     # --- Panel System ---
     def _create_panel(self, content: Any, title: str = "", subtitle: str = "") -> Panel:
         """Create modern 2025 styled panel"""
@@ -733,6 +745,7 @@ tip = ui.tip
 space = ui.space
 print_header = ui.print_header
 print_divider = ui.print_divider
+print_footer = ui.print_footer
 
 print_code = ui.print_code
 print_sql = ui.print_sql

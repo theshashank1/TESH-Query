@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.utils.keys import get_db_url
+from teshq.utils.config import get_database_url as get_db_url
 
 
 def execute_sql_query(

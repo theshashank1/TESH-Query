@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast  # Added cast
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 from sqlalchemy.engine import Connection  # Added import for Connection type hint
 
-from teshq.utils.keys import get_db_url
+from teshq.utils.config import get_database_url as get_db_url
 
 # from sqlalchemy.engine.reflection import Inspector
 

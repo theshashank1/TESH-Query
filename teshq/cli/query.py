@@ -6,8 +6,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.core.llm import SQLQueryGenerator
 from teshq.core.query import execute_sql_query
+from teshq.utils import get_database_url as get_db_url
+from teshq.utils import get_gemini_config as get_gemini_credentials
 from teshq.utils.formater import print_query_table
-from teshq.utils.keys import get_db_url, get_gemini_credentials
 from teshq.utils.ui import (  # print_config,; print_header,; progress,; prompt,
     error,
     info,
