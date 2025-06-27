@@ -20,7 +20,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history needed for setuptools_scm
+          fetch-depth: 0  # Full history needed for tag processing
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build wheel twine setuptools_scm
+          pip install build wheel twine
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
       - name: Build package
@@ -39,12 +39,12 @@ jobs:
       - name: Check package
         run: twine check dist/*
 
-      # FIXED: Changed the import name from teshquery to teshq
       - name: Test installation
         run: |
           python -m venv test_env
           source test_env/bin/activate
           pip install dist/*.whl
+          # FIXED: Changed from teshquery to teshq
           python -c "import teshq; print('Import successful')" || echo "Import test failed"
           deactivate
 
