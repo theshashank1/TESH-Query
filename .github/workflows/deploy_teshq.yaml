@@ -1,52 +1,50 @@
-name: Publish TESH Query to PyPI
+name: TESH-Query
 
 on:
   push:
     tags:
-      - 'v*'  # Only runs on annotated tags like v1.2.3
+      # This regex ensures the workflow runs on version tags like v1.2.3, v1.2.3-alpha.1, etc.
+      - ^v\d+\.\d+\.\d+(?:-[\w.]+)?(?:+\w+)?$
+
+  workflow_dispatch: # Allows for manual triggering of the workflow
 
 jobs:
-  publish:
+  build-and-publish:
+    name: Build and Publish to PyPI
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: read
+      id-token: write # Required for secure, passwordless publishing to PyPI using OIDC
 
     environment:
       name: pypi
+      url: https://pypi.org/p/teshq # Links the run to your PyPI project page
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # Fetch all history and tags so hatch-vcs can determine the project version
           fetch-depth: 0
-          # Ensure tags are available for setuptools-scm
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.10'
+          python-version: "3.12"
 
-      - name: Install dependencies for build & pre-commit
-        run: |
-          python -m pip install --upgrade pip
-          pip install build pre-commit setuptools_scm
+      - name: Install Hatch and versioning plugin
+        # hatch-vcs is needed to read the version from your git tags
+        run: pip install hatch hatch-vcs
 
-      - name: Debug Git presence
-        run: |
-          git status
-          git tag --contains
-          ls -al .git
-
-      - name: Run pre-commit
-        run: pre-commit run --all-files
+      - name: Run all quality checks
+        # This single command runs style checks, linter, and tests as defined
+        # in your pyproject.toml under [tool.hatch.envs.default.scripts]
+        run: hatch run all-checks
 
       - name: Build package
-        run: python -m build
-
-      - name: Show derived version
-        run: python -m setuptools_scm
+        # Hatch handles building both the sdist and wheel based on your config
+        run: hatch build
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        # No skip_existing: true, because only unique, tagged versions should be published!
+        # Hatch has built-in support for publishing with OIDC (trusted publishing)
+        # It automatically uses the permissions granted to the job
+        run: hatch publish
