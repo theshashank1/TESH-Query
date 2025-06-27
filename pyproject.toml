@@ -1,12 +1,14 @@
 [build-system]
-requires = ["hatchling", "hatch-fancy-pypi-readme"]
-build-backend = "hatchling.build"
+requires = [
+    "setuptools>=61.0",
+    "setuptools-scm>=8.0"
+]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "teshq"
-# The version will now be managed by hatch-vcs from git tags
-version = "2.0.0.dev"
-description = "A CLI tool that converts natural language queries into SQL and executes them on your database."
+version = "2.0.0-dev"
+description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -20,67 +22,36 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "SQLAlchemy>=2.0.41",
-    "python-dotenv>=1.0.1",
-    "psycopg2-binary>=2.9.10",
-    "langchain<=0.3.25",
-    "langchain-core<=0.3.65",
-    "langchain-google-genai>=2.1.5",
-    "typer[all]>=0.15.10",
-    "rich>=14.0.0",
-    "logfire>=3.21.1",
-    "tabulate>=0.9.0",
-    "pandas>=2.2.3",
-    "openpyxl>=3.1.5",
+    "SQLAlchemy~=2.0.41",
+    "python-dotenv~=1.1.0",
+    "psycopg2-binary~=2.9.10",
+    "langchain~=0.3.25",
+    "langchain-core~=0.3.61",
+    "langchain-google-genai~=2.1.4",
+    "typer[all]~=0.15.4",
+    "rich~=14.0.0",
+    "logfire~=3.16.0",
+    "tabulate~=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3.5",
+    "autopep8~=2.3.2",
+    "pre-commit~=4.2.0",
+    "flake8~=6.1.0",
+    "isort~=5.13.2",
+    "build",
 ]
 
 [project.urls]
 Homepage = "https://github.com/theshashank1/TESH-Query"
 "Bug Tracker" = "https://github.com/theshashank1/TESH-Query/issues"
-Repository = "https://github.com/theshashank1/TESH-Query.git"
 
 [project.scripts]
-teshq = "teshq.cli.main:app"
-
-# --- Hatch Configuration --
-
-[tool.hatch.build.targets.sdist]
-exclude = [
-  "/.github",
-  "/docs",
-  "/tests",
-]
-
-[tool.hatch.envs.default]
-python = "3.12"
-dependencies = [
-    "pytest>=8.3.0",
-    "black>=24.4.0",
-    "isort>=5.13.2",
-    "flake8>=7.1.0",
-    "flake8-bugbear",
-    "mkdocs-material>=9.5.0",
-]
-
-[tool.hatch.envs.default.scripts]
-# Scripts to run with `hatch run <script>`
-test = "pytest {args:tests/}"
-check-style = [
-  "black --check .",
-  "isort --check .",
-]
-format = [
-  "black .",
-  "isort .",
-  "echo 'Code formatting complete!'",
-]
-lint = "flake8 ."
-all-checks = [
-  "check-style",
-  "lint",
-  "test",
-]
+teshq = "main:app"
+[tool.setuptools]
+packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils"]
