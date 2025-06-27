@@ -1,9 +1,8 @@
 import os
 
+from core import db
 from dotenv import load_dotenv
 from sqlalchemy import text
-
-from core import db
 
 # Load environment variables
 load_dotenv()

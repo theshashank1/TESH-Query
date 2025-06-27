@@ -106,9 +106,11 @@ teshq config --config-db
 # Configure your Google Gemini API key
 teshq config --config-gemini
 ```
+
 These commands will guide you through the necessary steps and securely store your credentials.
 
 ### 3. Database schema Introspection
+
 ```bash
 # Perform database schema introspection
 teshq introspect
@@ -127,9 +129,8 @@ teshq query "Find orders placed by 'customer_email@example.com'."
 TESH-Query takes your question, understands your database schema, generates the appropriate SQL, executes it, and displays the results in a formatted table.
 
 > Please be aware that TESH-Query is still under development and may occasionally return incorrect data. Exercise caution and prioritize its use for **data retrieval** rather than **data manipulation**.
+
 ---
-
-
 
 ## 📚 Command Reference
 
@@ -226,9 +227,9 @@ TESH-Query simplifies data access through a robust process:
 
 The project is structured into key modules:
 
--   **`cli/`**: Handles command-line interface logic and user interaction (Typer).
--   **`core/`**: Contains core business logic, including AI interaction, SQL execution, and schema handling.
--   **`utils/`**: Provides shared utility functions (configuration, database helpers, formatting).
+- **`cli/`**: Handles command-line interface logic and user interaction (Typer).
+- **`core/`**: Contains core business logic, including AI interaction, SQL execution, and schema handling.
+- **`utils/`**: Provides shared utility functions (configuration, database helpers, formatting).
 
 ---
 
@@ -236,18 +237,18 @@ The project is structured into key modules:
 
 TESH-Query is built using the following technologies:
 
-| Component             | Technology                                          |
-|-----------------------|-----------------------------------------------------|
-| **Core Language**     | Python 3.9+                                         |
-| **CLI Framework**     | Typer, Rich                                         |\
-| **Database ORM/Kit**  | SQLAlchemy                                          |\
-| **Database Drivers**  | psycopg2-binary (PostgreSQL), mysql-connector-python (MySQL), sqlite3 (Built-in) |\
-| **AI/LLM Integration**| Langchain, langchain-google-genai (Google Gemini)   |\
-| **Configuration**     | python-dotenv, JSON                                 |\
-| **Data Display**      | Tabulate                                            |\
-| **Build & Packaging** | Setuptools, setuptools-scm, Build, Twine            |\
-| **Code Quality**      | Black, isort, Flake8 (enforced via pre-commit)      |\
-<!-- | **Testing Framework** | Pytest                                              | -->
+| Component              | Technology                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------- | ------ | --- |
+| **Core Language**      | Python 3.9+                                                                      |
+| **CLI Framework**      | Typer, Rich                                                                      | \      |
+| **Database ORM/Kit**   | SQLAlchemy                                                                       | \      |
+| **Database Drivers**   | psycopg2-binary (PostgreSQL), mysql-connector-python (MySQL), sqlite3 (Built-in) | \      |
+| **AI/LLM Integration** | Langchain, langchain-google-genai (Google Gemini)                                | \      |
+| **Configuration**      | python-dotenv, JSON                                                              | \      |
+| **Data Display**       | Tabulate                                                                         | \      |
+| **Build & Packaging**  | Setuptools, setuptools-scm, Build, Twine                                         | \      |
+| **Code Quality**       | Black, isort, Flake8 (enforced via pre-commit)                                   | \      |
+| <!--                   | **Testing Framework**                                                            | Pytest | --> |
 
 ---
 
@@ -257,31 +258,31 @@ TESH-Query is under active development with planned future enhancements.
 
 ### ✅ Implemented Features (v1.x)
 
-*   Robust CLI with Typer.
-*   Secure, interactive configuration.
-*   Database connection management (PostgreSQL, MySQL, SQLite).
-*   Core NLQ -> SQL -> Table pipeline with Gemini AI.
-*   Dynamic database schema introspection.
-*   Formatted tabular output.
-*   Git-based versioning (`setuptools-scm`).
-*   Automated PyPI publishing (GitHub Actions).
-*   Pre-commit hooks for code quality.
+- Robust CLI with Typer.
+- Secure, interactive configuration.
+- Database connection management (PostgreSQL, MySQL, SQLite).
+- Core NLQ -> SQL -> Table pipeline with Gemini AI.
+- Dynamic database schema introspection.
+- Formatted tabular output.
+- Git-based versioning (`setuptools-scm`).
+- Automated PyPI publishing (GitHub Actions).
+- Pre-commit hooks for code quality.
 
 ### 🚧 In Development (v2.x - Near-Term)
 
-*   Enhanced Error Handling.
-*   Query History & Bookmarks.
-*   Schema Caching for performance.
-*   More Complex Query Handling.
-*   Comprehensive Testing Expansion.
+- Enhanced Error Handling.
+- Query History & Bookmarks.
+- Schema Caching for performance.
+- More Complex Query Handling.
+- Comprehensive Testing Expansion.
 
 ### 🔮 Future Vision (v3.x+ - Long-Term)
 
-*   Interactive Query Refinement.
-*   Support for More Databases.
-*   Basic Data Visualization.
-*   User-Defined AI Prompts.
-*   Plugin Architecture.
+- Interactive Query Refinement.
+- Support for More Databases.
+- Basic Data Visualization.
+- User-Defined AI Prompts.
+- Plugin Architecture.
 
 ---
 
@@ -306,9 +307,9 @@ We welcome contributions! If you'd like to help improve TESH-Query, please follo
     pip install -e ".[dev]"
     ```
 4.  **Pre-commit Hooks**: Set up automated code quality checks.
-    ```bash
+`bash
     pre-commit install
-    ```
+    `
 <!-- 5.  **Run Tests**: Ensure existing tests pass.
     ```bash
     pytest
@@ -334,18 +335,18 @@ Encountering issues? Here's some help:
 
 ### Common Issues
 
-*   **Connection Problems**: Use `teshq config --config-db`. Check credentials, host, port, network.
-    * Otherway to solve is `teshq config --db-url <dialect>://<username>:<password>@<host>:<port>/<database>`
-    * Example `teshq config --db-url postgresql://myuser:123456789@localhost:5432/mydatabase`
-*   **AI Generation Issues**: Rephrase query, be specific, simplify requests.
-*   **Permission Errors**: Ensure database user has read access.
+- **Connection Problems**: Use `teshq config --config-db`. Check credentials, host, port, network.
+  - Otherway to solve is `teshq config --db-url <dialect>://<username>:<password>@<host>:<port>/<database>`
+  - Example `teshq config --db-url postgresql://myuser:123456789@localhost:5432/mydatabase`
+- **AI Generation Issues**: Rephrase query, be specific, simplify requests.
+- **Permission Errors**: Ensure database user has read access.
 
 ### Getting Help
 
-*   **Documentation**: `teshq --help` and command-specific help.
-*   **Bug Reports**: [Open a GitHub Issue](https://github.com/theshashank1/TESH-Query/issues).
-*   **Feature Requests**: [Start a GitHub Discussion](https://github.com/theshashank1/TESH-Query/discussions).
-*   **Direct Contact**: Reach out to the author ([@theshashank1](https://github.com/theshashank1)).
+- **Documentation**: `teshq --help` and command-specific help.
+- **Bug Reports**: [Open a GitHub Issue](https://github.com/theshashank1/TESH-Query/issues).
+- **Feature Requests**: [Start a GitHub Discussion](https://github.com/theshashank1/TESH-Query/discussions).
+- **Direct Contact**: Reach out to the author ([@theshashank1](https://github.com/theshashank1)).
 
 ---
 
@@ -358,7 +359,6 @@ This project is licensed under the **MIT License**. See the [LICENSE](https://gi
 ## 🌟 Show Your Support
 
 [![♡ Support Us](https://img.shields.io/badge/♡%20Support%20Us-orange?style=social&logo=heart&colour=pink)](https://github.com/sponsors/theshashank1)
-
 
 Like TESH-Query? Please consider:
 
@@ -373,4 +373,4 @@ Your support is greatly appreciated!
 
 **Made with ❤️ by [Shashank](https://github.com/theshashank1)**
 
-*Passionate about democratizing data access and building intelligent developer tools.*
+_Passionate about democratizing data access and building intelligent developer tools._
