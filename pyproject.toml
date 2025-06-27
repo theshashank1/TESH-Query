@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "teshq"
-version = "2.0.0-dev"
+version = "2.0.0-dev1"
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
