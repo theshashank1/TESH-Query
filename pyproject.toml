@@ -52,7 +52,7 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 "Bug Tracker" = "https://github.com/theshashank1/TESH-Query/issues"
 
 [project.scripts]
-teshq = "main:app"
+teshq = "teshq.cli.main:app"
 
 [tool.setuptools_scm]
 # This section is added to configure setuptools_scm
