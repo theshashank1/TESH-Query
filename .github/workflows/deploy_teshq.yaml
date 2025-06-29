@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # Required for PyPI trusted publishing
-      contents: read
+      contents: write # Required to create a GitHub Release
 
     environment:
       name: pypi
-      url: https://pypi.org/p/teshquery # Will link to the published package
+      url: https://pypi.org/p/teshq # Will link to the published package
 
     steps:
       - name: Checkout code
@@ -67,7 +67,7 @@ jobs:
           source test_env/bin/activate
           pip install dist/*.whl
           # Try importing the package - adjust the import name if needed
-          python -c "import teshquery; print('Import successful')" || echo "Import test failed"
+          python -c "import teshq; print('Import successful')" || echo "Import test failed"
           deactivate
 
       - name: Publish to PyPI
