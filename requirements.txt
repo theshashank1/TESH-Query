@@ -23,6 +23,7 @@ mkdocs-material
 pre-commit~=4.2.0
 flake8~=6.1.0
 isort~=5.13.2
+uv
 
 # Testing
 pytest~=8.3.5
