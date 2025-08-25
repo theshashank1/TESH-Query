@@ -43,8 +43,8 @@ def __main__(
         raise typer.Exit()
 
 
-app.add_typer(config.app, short_help="Configure database connection details")
 app.add_typer(db.app)
+app.add_typer(config.app, short_help="Configure database connection details")
 app.add_typer(query.app)
 
 
