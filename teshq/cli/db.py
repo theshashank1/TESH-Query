@@ -6,11 +6,7 @@ from teshq.core.db import connect_database, disconnect_database
 from teshq.core.introspect import introspect_db
 from teshq.utils.config import get_database_url as get_configured_database_url
 
-app = typer.Typer(
-    name="teshq",
-    help="TESH-Query: Convert natural language to SQL queries.",
-    add_completion=False,
-)
+app = typer.Typer()
 load_dotenv()
 
 
