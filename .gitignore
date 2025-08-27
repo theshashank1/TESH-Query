@@ -28,3 +28,9 @@ build/
 config.json
 
 db_schema
+
+
+hey.js
+hey.py
+package-lock.json
+package.json
