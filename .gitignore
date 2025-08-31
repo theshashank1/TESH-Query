@@ -34,3 +34,5 @@ hey.js
 hey.py
 package-lock.json
 package.json
+example.db
+examples_output/
