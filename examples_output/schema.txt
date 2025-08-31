@@ -1,0 +1,13 @@
+DATABASE SCHEMA
+==================================================
+
+DATABASE STRUCTURE SUMMARY
+Total tables: 0
+Tables: No tables found.
+
+TABLE DETAILS:
+  No table details available.
+
+  No relationships defined or detected.
+
+==================================================
