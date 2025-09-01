@@ -17,13 +17,27 @@ from urllib.parse import quote_plus
 import typer
 from sqlalchemy.engine.url import make_url
 
-from teshq.utils.config import (  # DEFAULT_FILE_STORE_PATH,; DEFAULT_OUTPUT_PATH,; get_config,
+from teshq.utils.config import (
     DEFAULT_GEMINI_MODEL,
     get_config_with_source,
     save_config,
 )
+from teshq.utils.validation import (
+    validate_database_url,
+    validate_gemini_api_key,
+    validate_model_name,
+    validate_file_path,
+    validate_config_data,
+    ValidationError,
+    test_database_connection
+)
+from teshq.utils.error_handling import (
+    handle_error,
+    ProgressContext,
+    graceful_exit
+)
 from teshq.utils.ui import print_config  # We'll implement our own fallback if this fails
-from teshq.utils.ui import (  # handle_error,
+from teshq.utils.ui import (
     clear_screen,
     confirm,
     error,
@@ -90,31 +104,36 @@ def configure_database_interactive() -> str:
     db_type = prompt("Database type", choices=SUPPORTED_DBS, default="postgresql").lower()
     if db_type == "sqlite":
         db_name = prompt("SQLite database file path", default="sqlite.db")
-        return f"sqlite:///{db_name}"
-
-    info(f"Configuring {db_type.upper()} connection...")
-    db_user = prompt("Database username")
-    while True:
-        db_password = getpass("Database password: ")
-        if not db_password:
-            if not confirm("Empty password – is this correct?"):
-                continue
-        break
-    db_host = prompt("Database host", default="localhost")
-    default_port = 5432 if db_type == "postgresql" else 3306
-    db_port = prompt("Database port", default=default_port, expected_type=int, validate=lambda p: 1 <= p <= 65535)
-    db_name = prompt("Database name")
-    safe_password = quote_plus(db_password)
-    db_url = f"{db_type}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
+        constructed_url = f"sqlite:///{db_name}"
+    else:
+        info(f"Configuring {db_type.upper()} connection...")
+        db_user = prompt("Database username")
+        while True:
+            db_password = getpass("Database password: ")
+            if not db_password:
+                if not confirm("Empty password – is this correct?"):
+                    continue
+            break
+        db_host = prompt("Database host", default="localhost")
+        default_port = 5432 if db_type == "postgresql" else 3306
+        db_port = prompt("Database port", default=default_port, expected_type=int, validate=lambda p: 1 <= p <= 65535)
+        db_name = prompt("Database name")
+        safe_password = quote_plus(db_password)
+        constructed_url = f"{db_type}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
 
     try:
-        url_obj = make_url(db_url)
-        masked_url = str(url_obj._replace(password="********")) if url_obj.password else db_url
+        # Validate the URL format first
+        validated_url = validate_database_url(constructed_url)
+        
+        # Display masked URL
+        url_obj = make_url(validated_url)
+        masked_url = str(url_obj._replace(password="********")) if url_obj.password else validated_url
         info(f"Database URL: {masked_url}")
-    except Exception:
-        info("Database URL configured successfully.")
-
-    return db_url
+        
+        return validated_url
+    except ValidationError as e:
+        handle_error(e, "Database URL Configuration")
+        raise
 
 
 def configure_gemini_interactive() -> tuple:
@@ -125,15 +144,36 @@ def configure_gemini_interactive() -> tuple:
     info("Setting up Gemini API configuration...")
     space()
 
+    api_key = None
     while True:
-        api_key = getpass("Gemini API Key (press Enter to skip): ")
-        if api_key:
-            break
+        input_key = getpass("Gemini API Key (press Enter to skip): ")
+        if input_key:
+            try:
+                api_key = validate_gemini_api_key(input_key)
+                break
+            except ValidationError as e:
+                handle_error(e, "API Key Validation")
+                if not confirm("Try again?", default=True):
+                    break
         elif confirm("Skip Gemini API configuration?", default=True):
-            api_key = None
             break
         else:
             warning("API key is required for Gemini functionality")
+
+    model_name = DEFAULT_GEMINI_MODEL
+    if api_key:
+        while True:
+            input_model = prompt("Gemini model name", default=DEFAULT_GEMINI_MODEL)
+            try:
+                model_name = validate_model_name(input_model)
+                break
+            except ValidationError as e:
+                handle_error(e, "Model Name Validation")
+                if not confirm("Try again?", default=True):
+                    model_name = DEFAULT_GEMINI_MODEL
+                    break
+
+    return api_key, model_name
     model_name = prompt("Gemini model name", default=DEFAULT_GEMINI_MODEL)
     return api_key, model_name
 
@@ -189,63 +229,136 @@ def config(
         if db_url:
             with section("Database Configuration"):
                 info("Using provided database URL.")
-                final_db_url_to_save = db_url
-                action_taken = True
+                try:
+                    # Validate the database URL
+                    final_db_url_to_save = validate_database_url(db_url)
+                    
+                    # Test connection if possible
+                    if confirm("Test database connection?", default=True):
+                        with ProgressContext("Testing database connection"):
+                            if test_database_connection(final_db_url_to_save):
+                                success("Database connection successful!")
+                            else:
+                                warning("Database connection failed. Check your URL and try again.")
+                    
+                    action_taken = True
+                except ValidationError as e:
+                    handle_error(e, "Database URL Validation")
+                    raise typer.Exit(1)
         elif force_configure_db:
             with section("Database Configuration"):
                 try:
                     final_db_url_to_save = configure_database_interactive()
+                    
+                    # Validate the constructed URL
+                    final_db_url_to_save = validate_database_url(final_db_url_to_save)
+                    
+                    # Test connection
+                    if confirm("Test database connection?", default=True):
+                        with ProgressContext("Testing database connection"):
+                            if test_database_connection(final_db_url_to_save):
+                                success("Database connection successful!")
+                            else:
+                                warning("Database connection failed. You can still save the configuration.")
+                    
                     action_taken = True
                 except KeyboardInterrupt:
                     warning("Database configuration cancelled.")
+                except ValidationError as e:
+                    handle_error(e, "Database Configuration")
+                    raise typer.Exit(1)
         elif db_options_provided:
             with section("Database Configuration"):
                 info("Constructing database URL from provided options...")
-                if not db_type_opt:
-                    error("--db-type is required with individual database options.")
-                    raise typer.Exit(1)
-                db_type = db_type_opt.lower()
-                if db_type not in SUPPORTED_DBS:
-                    error(f"Unsupported database type: {db_type}")
-                    raise typer.Exit(1)
-                if db_type == "sqlite":
-                    if not db_name_opt:
-                        error("--db-name is required for SQLite.")
+                try:
+                    if not db_type_opt:
+                        error("--db-type is required with individual database options.")
                         raise typer.Exit(1)
-                    final_db_url_to_save = f"sqlite:///{db_name_opt}"
-                else:
-                    required_opts = [db_user_opt, db_host_opt, db_name_opt]
-                    if not all(required_opts):
-                        error("--db-user, --db-host, and --db-name are required for non-SQLite databases.")
+                    db_type = db_type_opt.lower()
+                    if db_type not in SUPPORTED_DBS:
+                        error(f"Unsupported database type: {db_type}")
                         raise typer.Exit(1)
-                    password = db_password_opt if db_password_opt else getpass("Database password: ")
-                    host = db_host_opt or "localhost"
-                    port = db_port_opt or (5432 if db_type == "postgresql" else 3306)
-                    safe_password = quote_plus(password)
-                    final_db_url_to_save = f"{db_type}://{db_user_opt}:{safe_password}@{host}:{port}/{db_name_opt}"
-                success("Database URL constructed successfully.")
-                action_taken = True
+                    if db_type == "sqlite":
+                        if not db_name_opt:
+                            error("--db-name is required for SQLite.")
+                            raise typer.Exit(1)
+                        constructed_url = f"sqlite:///{db_name_opt}"
+                    else:
+                        required_opts = [db_user_opt, db_host_opt, db_name_opt]
+                        if not all(required_opts):
+                            error("--db-user, --db-host, and --db-name are required for non-SQLite databases.")
+                            raise typer.Exit(1)
+                        password = db_password_opt if db_password_opt else getpass("Database password: ")
+                        host = db_host_opt or "localhost"
+                        port = db_port_opt or (5432 if db_type == "postgresql" else 3306)
+                        safe_password = quote_plus(password)
+                        constructed_url = f"{db_type}://{db_user_opt}:{safe_password}@{host}:{port}/{db_name_opt}"
+                    
+                    # Validate the constructed URL
+                    final_db_url_to_save = validate_database_url(constructed_url)
+                    
+                    success("Database URL constructed and validated successfully.")
+                    action_taken = True
+                except ValidationError as e:
+                    handle_error(e, "Database URL Construction")
+                    raise typer.Exit(1)
 
         # Gemini configuration logic
         if force_configure_gemini:
             with section("Gemini API Configuration"):
                 try:
                     api_key, model_name = configure_gemini_interactive()
-                    actual_gemini_api_key_to_save = api_key
-                    actual_gemini_model_to_save = model_name
+                    
+                    # Validate API key and model if provided
+                    if api_key:
+                        actual_gemini_api_key_to_save = validate_gemini_api_key(api_key)
+                    else:
+                        actual_gemini_api_key_to_save = api_key
+                    
+                    if model_name:
+                        actual_gemini_model_to_save = validate_model_name(model_name)
+                    else:
+                        actual_gemini_model_to_save = model_name
+                    
                     action_taken = True
                 except KeyboardInterrupt:
                     warning("Gemini configuration cancelled.")
+                except ValidationError as e:
+                    handle_error(e, "Gemini Configuration")
+                    raise typer.Exit(1)
         elif gemini_options_provided:
             with section("Gemini API Configuration"):
                 info("Using provided Gemini API configuration.")
-                action_taken = True
+                try:
+                    # Validate provided Gemini configuration
+                    if gemini_api_key_opt:
+                        actual_gemini_api_key_to_save = validate_gemini_api_key(gemini_api_key_opt)
+                    
+                    if gemini_model_name_opt != DEFAULT_GEMINI_MODEL:
+                        actual_gemini_model_to_save = validate_model_name(gemini_model_name_opt)
+                    
+                    success("Gemini configuration validated successfully.")
+                    action_taken = True
+                except ValidationError as e:
+                    handle_error(e, "Gemini Configuration Validation")
+                    raise typer.Exit(1)
 
         # File Path Configuration
         if file_path_options_provided:
             with section("File Path Configuration"):
                 info("Using provided file store path(s).")
-                action_taken = True
+                try:
+                    # Validate file paths if provided
+                    if output_file_path:
+                        validate_file_path(output_file_path, check_parent_exists=False)
+                    if file_store_path:
+                        validate_file_path(file_store_path, check_parent_exists=False)
+                    
+                    success("File paths validated successfully.")
+                    action_taken = True
+                except ValidationError as e:
+                    handle_error(e, "File Path Validation")
+                    raise typer.Exit(1)
 
         # Handle the command logic based on actions taken
         if not action_taken:
@@ -266,8 +379,10 @@ def config(
 
                 # Gemini
                 if force_configure_gemini or gemini_options_provided:
-                    config_to_save["GEMINI_API_KEY"] = actual_gemini_api_key_to_save
-                    config_to_save["GEMINI_MODEL_NAME"] = actual_gemini_model_to_save
+                    if actual_gemini_api_key_to_save:
+                        config_to_save["GEMINI_API_KEY"] = actual_gemini_api_key_to_save
+                    if actual_gemini_model_to_save:
+                        config_to_save["GEMINI_MODEL_NAME"] = actual_gemini_model_to_save
 
                 # Resolve and validate output file path
                 if output_file_path:
@@ -281,18 +396,26 @@ def config(
                     os.makedirs(os.path.dirname(resolved_file_store_path), exist_ok=True)  # Create parent dir too
                     config_to_save["FILE_STORE_PATH"] = resolved_file_store_path
 
-                # Actually save to .env and config.json
-                if config_to_save:
-                    if save_config(config_to_save):
-                        print_divider("Configuration Complete")
-                        success("🎉 All configuration saved successfully!")
-                        with indent_context():
-                            tip("Run your TeshQ commands to start using the configured settings.")
+                # Validate the complete configuration before saving
+                try:
+                    validated_config = validate_config_data(config_to_save)
+                    
+                    # Actually save to .env and config.json
+                    if validated_config:
+                        with ProgressContext("Saving configuration files"):
+                            if save_config(validated_config):
+                                print_divider("Configuration Complete")
+                                success("🎉 All configuration saved successfully!")
+                                with indent_context():
+                                    tip("Run your TeshQ commands to start using the configured settings.")
+                            else:
+                                error("Some configuration files could not be saved.")
+                                raise typer.Exit(1)
                     else:
-                        error("Some configuration files could not be saved.")
-                        raise typer.Exit(1)
-                else:
-                    warning("No new configuration to save.")
+                        warning("No new configuration to save.")
+                except ValidationError as e:
+                    handle_error(e, "Configuration Validation")
+                    raise typer.Exit(1)
 
         else:
             with section("Configuration Preview"):
