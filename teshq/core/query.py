@@ -7,7 +7,10 @@ from teshq.utils.config import get_database_url as get_db_url
 
 
 def execute_sql_query(
-    db_url: Optional[str], query: str, parameters: Optional[Dict[str, Any]] = None, api_key: Optional[str] = None
+    db_url: Optional[str],
+    query: str,
+    parameters: Optional[Dict[str, Any]] = None,
+    api_key: Optional[str] = None,  # noqa: U100
 ) -> List[Dict[str, Any]]:
     """
     Executes a SQL query against the configured database, optionally using provided parameters.
@@ -16,11 +19,13 @@ def execute_sql_query(
         db_url: The database connection URL. If None, attempts to get it from configuration.
         query (str): SQL query with named parameters like `:param`.
         parameters (dict): Dictionary of parameters to safely bind.
+        api_key: API key (currently unused, reserved for future use)
     Returns:
         A list of dictionaries, where each dictionary represents a row from the query result.
     """
 
-    engine = create_engine(get_db_url())
+    database_url = db_url if db_url else get_db_url()
+    engine = create_engine(database_url)
     parameters = parameters or {}
 
     try:

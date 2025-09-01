@@ -415,7 +415,7 @@ class ModernUI:
                 typer.echo(f"  {key}: {display_value}{type_info}")
             self.space()
 
-    def print_list(self, items: List[Any], title: str = "", numbered: bool = False, columns: int = 1):
+    def print_list(self, items: List[Any], title: str = "", numbered: bool = False, columns: int = 1):  # noqa: U100
         """Display list with modern formatting"""
         if not items:
             if title:
