@@ -29,6 +29,11 @@ config.json
 
 db_schema
 
+# Test artifacts
+invalid.json
+test_output/
+teshq_output/
+teshq_files/
 
 hey.js
 hey.py
