@@ -137,4 +137,4 @@ config.json
 
 .env
 
-db_schema/
+db_schema/*
