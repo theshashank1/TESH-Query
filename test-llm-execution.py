@@ -3,7 +3,7 @@ from pathlib import Path
 from teshq.core.llm import SQLQueryGenerator
 from teshq.core.query import execute_sql_query
 from teshq.utils.formater import print_query_table
-from teshq.utils.keys import get_db_url, get_gemini_credentials
+from teshq.utils.config import get_database_url, get_gemini_config
 
 
 def main():
@@ -15,7 +15,7 @@ def main():
 
     try:
         # Initialize generator
-        gemini_api_key, gemini_model_name = get_gemini_credentials()
+        gemini_api_key, gemini_model_name = get_gemini_config()
         generator = SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model_name)
 
         schema = generator.load_schema(str(schema_file_path))
@@ -53,7 +53,7 @@ def main():
                     request,
                     result.get("query"),
                     result.get("parameters"),
-                    execute_sql_query(db_url=get_db_url(), query=result.get("query"), parameters=result.get("parameters")),
+                    execute_sql_query(db_url=get_database_url(), query=result.get("query"), parameters=result.get("parameters")),
                 )
 
             except Exception as e:
