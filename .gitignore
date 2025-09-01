@@ -127,3 +127,12 @@ cython_debug/
 tests/
 *.md
 *.sqlite
+
+REORGANIZATION.md
+repository_analysis.md
+PRODUCTION_DEPLOYMENT.md
+
+
+config.json
+
+.env

@@ -1,0 +1,48 @@
+DATABASE SCHEMA
+==================================================
+
+DATABASE STRUCTURE SUMMARY
+Total tables: 2
+Tables: orders, users
+
+TABLE DETAILS:
+- orders (4 cols, PK: id, ~4 rows)
+- users (5 cols, PK: id, ~3 rows)
+
+  Explicit Relationships:
+  - orders.user_id → users.id
+
+==================================================
+
+DETAILED TABLE INFORMATION:
+
+Table: orders
+-------------
+Row count: 4
+
+Columns:
+- id (INTEGER), Primary Key
+- user_id (INTEGER), NOT NULL
+- amount (DECIMAL(10, 2)), NOT NULL
+- order_date (DATE), NOT NULL
+
+Foreign Keys:
+- user_id → users(id)
+
+--------------------------------------------------
+
+Table: users
+------------
+Row count: 3
+
+Columns:
+- id (INTEGER), Primary Key
+- name (TEXT), NOT NULL
+- email (TEXT), NOT NULL
+- created_at (DATE), NOT NULL
+- is_active (BOOLEAN), Default: 1
+
+--------------------------------------------------
+
+EXPLICIT RELATIONSHIPS:
+- orders.user_id → users.id

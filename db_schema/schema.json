@@ -1,0 +1,116 @@
+{
+  "tables": {
+    "orders": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": true,
+          "comment": ""
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "comment": ""
+        },
+        {
+          "name": "amount",
+          "type": "DECIMAL(10, 2)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "comment": ""
+        },
+        {
+          "name": "order_date",
+          "type": "DATE",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "comment": ""
+        }
+      ],
+      "primary_keys": ["id"],
+      "foreign_keys": [
+        {
+          "constrained_columns": ["user_id"],
+          "referred_table": "users",
+          "referred_columns": ["id"],
+          "name": null
+        }
+      ],
+      "indexes": [],
+      "sample_data": [],
+      "row_count": 4,
+      "description": "Table 'orders' (approx. 4 rows)\n  Columns: id: INTEGER (PK); user_id: INTEGER NOT NULL; amount: DECIMAL(10, 2) NOT NULL; order_date: DATE NOT NULL\n  Foreign Keys (Explicit): user_id → users(id)"
+    },
+    "users": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": true,
+          "comment": ""
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "comment": ""
+        },
+        {
+          "name": "email",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "type": "DATE",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "comment": ""
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": "1",
+          "is_primary_key": false,
+          "comment": ""
+        }
+      ],
+      "primary_keys": ["id"],
+      "foreign_keys": [],
+      "indexes": [],
+      "sample_data": [],
+      "row_count": 3,
+      "description": "Table 'users' (approx. 3 rows)\n  Columns: id: INTEGER (PK); name: TEXT NOT NULL; email: TEXT NOT NULL; created_at: DATE NOT NULL; is_active: BOOLEAN (default: 1)"
+    }
+  },
+  "relationships": {
+    "explicit": [
+      {
+        "from_table": "orders",
+        "from_column": "user_id",
+        "to_table": "users",
+        "to_column": "id",
+        "relationship_type": "many-to-one"
+      }
+    ],
+    "implicit": []
+  },
+  "data_model_summary": "DATABASE STRUCTURE SUMMARY\nTotal tables: 2\nTables: orders, users\n\nTABLE DETAILS:\n- orders (4 cols, PK: id, ~4 rows)\n- users (5 cols, PK: id, ~3 rows)\n\n  Explicit Relationships:\n  - orders.user_id → users.id"
+}
