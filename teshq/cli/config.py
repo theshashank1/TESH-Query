@@ -37,7 +37,9 @@ from teshq.utils.ui import (  # handle_error,
     success,
     tip,
     warning,
+    handle_error,
 )
+from teshq.utils.validation import ConfigValidator, ValidationError, validate_production_readiness
 
 app = typer.Typer()
 SUPPORTED_DBS = ["postgresql", "mysql", "sqlite"]
@@ -305,13 +307,86 @@ def config(
                     info("File paths would be saved.")
 
     except Exception as e:
-        error(f"An unexpected error occurred: {str(e)}")
-        # Add more detailed debug info for troubleshooting
-        if "--debug" in sys.argv:
-            import traceback
+        handle_error(
+            e,
+            "Configuration Setup",
+            show_traceback="--debug" in sys.argv,
+            suggest_action="Check your input values and try again"
+        )
+        raise typer.Exit(1)
 
-            error("Debug traceback:")
-            print(traceback.format_exc())
+
+@app.command(name="validate", help="Validate current configuration for production readiness")
+def validate_config():
+    """Validate the current configuration for production deployment."""
+    try:
+        with section("Configuration Validation"):
+            info("Checking configuration for production readiness...")
+            
+            # Get current configuration
+            config, sources = get_config_with_source()
+            
+            if not config:
+                error("No configuration found")
+                tip("Run 'teshq config --interactive' to set up configuration")
+                raise typer.Exit(1)
+            
+            # Validate configuration
+            config_errors = ConfigValidator.validate_config(config)
+            
+            if config_errors:
+                error("Configuration validation failed:")
+                with indent_context():
+                    for err in config_errors:
+                        error(f"• {err}")
+                tip("Run 'teshq config --interactive' to fix configuration issues")
+                raise typer.Exit(1)
+            
+            # Test database connection
+            if "DATABASE_URL" in config:
+                with section("Database Connection Test"):
+                    info("Testing database connection...")
+                    is_connected, message = ConfigValidator.validate_database_connection(config["DATABASE_URL"])
+                    if is_connected:
+                        success(f"✅ {message}")
+                    else:
+                        error(f"❌ {message}")
+                        tip("Check your database server and connection details")
+                        raise typer.Exit(1)
+            
+            # Production readiness check
+            with section("Production Readiness Assessment"):
+                info("Evaluating production readiness...")
+                is_ready, issues = validate_production_readiness(config)
+                
+                if is_ready:
+                    success("🎉 Configuration is production-ready!")
+                else:
+                    warning("Configuration has production readiness issues:")
+                    with indent_context():
+                        for issue in issues:
+                            if issue.startswith("WARNING"):
+                                warning(f"• {issue}")
+                            else:
+                                error(f"• {issue}")
+                    
+                    if any(not issue.startswith("WARNING") for issue in issues):
+                        error("Critical issues must be resolved before production deployment")
+                        raise typer.Exit(1)
+                    else:
+                        warning("Consider addressing warnings for optimal production setup")
+            
+            success("✅ Configuration validation completed successfully")
+            
+    except typer.Exit:
+        raise
+    except Exception as e:
+        handle_error(
+            e,
+            "Configuration Validation",
+            show_traceback=True,
+            suggest_action="Check your configuration and try again"
+        )
         raise typer.Exit(1)
 
 
