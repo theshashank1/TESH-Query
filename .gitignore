@@ -136,3 +136,5 @@ PRODUCTION_DEPLOYMENT.md
 config.json
 
 .env
+
+db_schema/
