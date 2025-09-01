@@ -20,7 +20,12 @@ def execute_sql_query(
         A list of dictionaries, where each dictionary represents a row from the query result.
     """
 
-    engine = create_engine(get_db_url())
+    # Use provided db_url or get from configuration
+    connection_url = db_url or get_db_url()
+    if not connection_url:
+        raise ValueError("Database URL is required. Provide db_url or configure it.")
+    
+    engine = create_engine(connection_url)
     parameters = parameters or {}
 
     try:

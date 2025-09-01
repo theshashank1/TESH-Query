@@ -11,7 +11,8 @@ from teshq.utils.config import get_database_url as get_db_url
 from teshq.utils.config import get_gemini_config as get_gemini_credentials
 from teshq.utils.formater import print_query_table
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
-from teshq.utils.ui import error, info, print_divider, print_sql, status, success
+from teshq.utils.ui import error, info, print_divider, print_sql, status, success, handle_error
+from teshq.utils.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
 
@@ -99,28 +100,84 @@ def process_nl_query(
     """
     Processes a natural language query, generates SQL, executes it, and prints the results.
     """
-    with status("Initializing", "Initialization Complete"):
-        time.sleep(1)
-        generator = get_llm_generator()
-        db_url_val = get_db_url()
+    try:
+        # Validate natural language query
+        is_valid, validation_message = CLIValidator.validate_natural_language_query(natural_language_request)
+        if not is_valid:
+            handle_error(
+                ValidationError(validation_message, "natural_language_query"),
+                "Query Validation",
+                suggest_action="Please provide a valid natural language query (3-1000 characters)"
+            )
+            raise typer.Exit(1)
+        
+        # Validate save paths if provided
+        save_options = [
+            (save_csv, "csv"),
+            (save_excel, "excel"),
+            (save_sqlite, "sqlite")
+        ]
+        
+        for save_path, format_type in save_options:
+            if save_path:
+                is_valid, validation_message = CLIValidator.validate_save_path(save_path, format_type)
+                if not is_valid:
+                    handle_error(
+                        ValidationError(validation_message, f"save_{format_type}"),
+                        "Save Path Validation",
+                        suggest_action=f"Please provide a valid {format_type} file path"
+                    )
+                    raise typer.Exit(1)
+        
+        with status("Initializing", "Initialization Complete"):
+            time.sleep(1)
+            generator = get_llm_generator()
+            db_url_val = get_db_url()
 
-    schema_dir = Path("db_schema")
-    schema_file_path = schema_dir / "schema.txt"
-    schema = load_db_schema(generator, schema_file_path)
+        schema_dir = Path("db_schema")
+        schema_file_path = schema_dir / "schema.txt"
+        schema = load_db_schema(generator, schema_file_path)
 
-    sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)
-    print_sql(sql_query, title="Generated SQL Query")
-    if parameters:
-        info(f"🔧 Query parameters: {parameters}")
+        sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)
+        print_sql(sql_query, title="Generated SQL Query")
+        
+        if parameters:
+            info(f"🔧 Query parameters: {parameters}")
 
-    query_execution_result = run_sql_query(db_url_val, sql_query, parameters)
+        query_execution_result = run_sql_query(db_url_val, sql_query, parameters)
 
-    success("✅ SQL query executed successfully!")
-    print_divider()
-    print_query_table(natural_language_request, sql_query, parameters, query_execution_result)
+        success("✅ SQL query executed successfully!")
+        print_divider()
+        print_query_table(natural_language_request, sql_query, parameters, query_execution_result)
 
-    if query_execution_result:
-        df = pd.DataFrame(query_execution_result)
-        save_results(df, save_csv, save_excel, save_sqlite)
+        if query_execution_result:
+            df = pd.DataFrame(query_execution_result)
+            save_results(df, save_csv, save_excel, save_sqlite)
 
-    success("🎉 Query processed and result displayed.")
+        success("🎉 Query processed and result displayed.")
+        
+    except ValidationError as e:
+        # Validation errors are already handled above
+        raise
+    except SQLAlchemyError as e:
+        handle_error(
+            e,
+            "Database Query Execution",
+            suggest_action="Check your database connection and query syntax"
+        )
+        raise typer.Exit(1)
+    except FileNotFoundError as e:
+        handle_error(
+            e,
+            "File Operation",
+            suggest_action="Ensure all required files exist and schema is properly configured"
+        )
+        raise typer.Exit(1)
+    except Exception as e:
+        handle_error(
+            e,
+            "Query Processing",
+            show_traceback=True,
+            suggest_action="Please check your input and try again"
+        )
+        raise typer.Exit(1)
