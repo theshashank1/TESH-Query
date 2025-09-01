@@ -16,12 +16,14 @@ Both interfaces share the same configuration and provide access to all core func
 ### 1. New Public API Structure
 
 #### `teshq/__init__.py` - Main Package Interface
+
 - Exports the main `TeshQuery` class for programmatic use
 - Provides convenience functions `introspect()` and `query()`
 - Includes version information and comprehensive docstring
 - Clean, documented public API for easy import
 
 #### `teshq/api.py` - Core Programmatic Interface
+
 - **TeshQuery class**: Main client for all programmatic operations
 - **Database introspection**: Full schema analysis with relationship detection
 - **SQL generation**: Convert natural language to SQL using LLM
@@ -32,11 +34,13 @@ Both interfaces share the same configuration and provide access to all core func
 ### 2. Enhanced Core Modules
 
 #### `teshq/core/query.py` - Fixed Query Execution
+
 - Fixed to properly use provided `db_url` parameter
 - Maintains backward compatibility with existing CLI usage
 - Supports both programmatic and CLI access patterns
 
 #### Configuration Integration
+
 - Seamless sharing between CLI and programmatic interfaces
 - Support for environment variables, `.env` files, and `config.json`
 - Auto-save capabilities for programmatic configuration
@@ -44,6 +48,7 @@ Both interfaces share the same configuration and provide access to all core func
 ### 3. Comprehensive Documentation
 
 #### `docs/usage-guide.md` - Complete Usage Guide
+
 - Installation instructions for both pip and source
 - Configuration methods (CLI, environment variables, config files)
 - Detailed CLI usage examples
@@ -52,6 +57,7 @@ Both interfaces share the same configuration and provide access to all core func
 - Best practices and troubleshooting
 
 #### Example Files
+
 - **`examples.py`** - Detailed programmatic usage examples
 - **`demo.py`** - Integration demo showing CLI and API working together
 - **`test_api.py`** - API validation and testing
@@ -111,27 +117,32 @@ python -c "import teshq; print(teshq.TeshQuery().query('show me all users'))"
 ## Benefits of the Reorganization
 
 ### 1. **Dual Access Patterns**
+
 - **CLI**: Perfect for interactive use, testing, and scripting
 - **Programmatic**: Ideal for applications, automation, and integration
 - **Seamless switching**: Use whichever fits your current workflow
 
 ### 2. **Shared Configuration**
+
 - Configure once, use in both interfaces
 - Environment variables work for both CLI and programmatic access
 - Automatic configuration persistence and loading
 
 ### 3. **Full Feature Parity**
+
 - All CLI features available programmatically
 - All programmatic features accessible via CLI
 - No functionality gaps between interfaces
 
 ### 4. **Enhanced Integration**
+
 - Easy to embed in Python applications
 - Simple to use in Jupyter notebooks
 - Perfect for data analysis pipelines
 - Ideal for automated reporting systems
 
 ### 5. **Backward Compatibility**
+
 - All existing CLI commands work unchanged
 - Existing configurations continue to work
 - No breaking changes for current users
@@ -172,14 +183,14 @@ for question, df in results.items():
 ```python
 def generate_daily_report():
     client = teshq.TeshQuery()  # Uses environment config
-    
+
     # Get today's metrics
     metrics = {
         'new_users': client.query("count users who registered today"),
         'total_orders': client.query("count orders placed today"),
         'revenue': client.query("sum of today's order amounts")
     }
-    
+
     # Generate report
     report = f"""
     Daily Report - {datetime.now().date()}
@@ -187,7 +198,7 @@ def generate_daily_report():
     Orders: {metrics['total_orders'][0]['count']}
     Revenue: ${metrics['revenue'][0]['total']:.2f}
     """
-    
+
     return report
 ```
 
@@ -240,13 +251,15 @@ test_api.py            # API validation tests (NEW)
 ## Testing and Validation
 
 ### API Tests
+
 - ✅ Basic functionality tests
-- ✅ Database connection tests  
+- ✅ Database connection tests
 - ✅ Schema introspection tests
 - ✅ SQL execution tests
 - ✅ CLI integration tests
 
 ### Integration Validation
+
 - ✅ CLI commands work unchanged
 - ✅ Configuration sharing between interfaces
 - ✅ Error handling in both access patterns
@@ -255,9 +268,11 @@ test_api.py            # API validation tests (NEW)
 ## Migration Guide
 
 ### For Existing CLI Users
+
 No changes needed! All existing CLI commands work exactly as before.
 
 Optional: Start using programmatic access for automation:
+
 ```python
 import teshq
 client = teshq.TeshQuery()  # Uses your existing config
@@ -265,6 +280,7 @@ results = client.query("your natural language query")
 ```
 
 ### For New Users
+
 Choose your preferred interface or use both:
 
 ```bash
@@ -272,7 +288,7 @@ Choose your preferred interface or use both:
 teshq config --db --gemini --save
 teshq query "show me all users"
 
-# Programmatic approach  
+# Programmatic approach
 python -c "
 import teshq
 client = teshq.TeshQuery(db_url='...', gemini_api_key='...')
@@ -283,18 +299,21 @@ print(client.query('show me all users'))
 ## Best Practices
 
 ### Configuration Management
+
 1. **Use environment variables** for production deployments
 2. **Use CLI config** for development and testing
 3. **Auto-save config** when setting up programmatically
 4. **Validate configuration** before executing queries
 
 ### Performance Optimization
+
 1. **Reuse client instances** for multiple operations
 2. **Cache schema information** for repeated queries
 3. **Use connection pooling** for high-volume applications
 4. **Monitor API usage** for cost optimization
 
 ### Error Handling
+
 1. **Always test connections** before executing queries
 2. **Handle configuration errors** gracefully
 3. **Provide helpful error messages** to users
@@ -315,7 +334,7 @@ The reorganization provides a solid foundation for future enhancements:
 The TESH-Query reorganization successfully achieves the goal of providing seamless access through both CLI and programmatic interfaces. Users can:
 
 - **Start with CLI** for exploration and configuration
-- **Move to programmatic** for automation and integration  
+- **Move to programmatic** for automation and integration
 - **Use both together** as needed for their workflows
 - **Share configuration** seamlessly between interfaces
 - **Access all features** through either interface
@@ -324,4 +343,4 @@ This dual-access pattern makes TESH-Query suitable for a wide range of use cases
 
 ---
 
-*For detailed examples and usage instructions, see `docs/usage-guide.md`, `examples.py`, and `demo.py`.*
+_For detailed examples and usage instructions, see `docs/usage-guide.md`, `examples.py`, and `demo.py`._

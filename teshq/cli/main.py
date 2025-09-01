@@ -6,7 +6,10 @@ import typer
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.cli import config, db, query
-from teshq.utils.ui import handle_error, error as ui_error, info as ui_info
+
+# from teshq.utils.ui import error as ui_error
+from teshq.utils.ui import handle_error
+from teshq.utils.ui import info as ui_info
 
 app = typer.Typer(
     name="TESH Query",
@@ -74,46 +77,28 @@ def main():
         ui_info("Operation aborted")
         sys.exit(1)
     except ImportError as e:
-        handle_error(
-            e, 
-            "Module Import", 
-            suggest_action="Ensure all dependencies are installed with: pip install -e ."
-        )
+        handle_error(e, "Module Import", suggest_action="Ensure all dependencies are installed with: pip install -e .")
         sys.exit(1)
     except SQLAlchemyError as e:
         handle_error(
-            e, 
-            "Database Connection", 
-            suggest_action="Check your database configuration with: teshq config --interactive"
+            e, "Database Connection", suggest_action="Check your database configuration with: teshq config --interactive"
         )
         sys.exit(1)
     except FileNotFoundError as e:
-        handle_error(
-            e, 
-            "File Operation", 
-            suggest_action="Ensure all required files exist and paths are correct"
-        )
+        handle_error(e, "File Operation", suggest_action="Ensure all required files exist and paths are correct")
         sys.exit(1)
     except PermissionError as e:
-        handle_error(
-            e, 
-            "File Permissions", 
-            suggest_action="Check file permissions or run with appropriate privileges"
-        )
+        handle_error(e, "File Permissions", suggest_action="Check file permissions or run with appropriate privileges")
         sys.exit(1)
     except ConnectionError as e:
-        handle_error(
-            e, 
-            "Network Connection", 
-            suggest_action="Check your internet connection and API credentials"
-        )
+        handle_error(e, "Network Connection", suggest_action="Check your internet connection and API credentials")
         sys.exit(1)
     except Exception as e:
         handle_error(
-            e, 
-            "Unexpected Error", 
+            e,
+            "Unexpected Error",
             show_traceback=True,
-            suggest_action="If this persists, please report this issue at: https://github.com/theshashank1/TESH-Query/issues"
+            suggest_action="If this persists, please report this issue at:https://github.com/theshashank1/TESH-Query/issues",
         )
         sys.exit(1)
 

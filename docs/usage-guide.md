@@ -15,11 +15,13 @@ This guide demonstrates how to use TESH-Query both through the command-line inte
 ## Installation
 
 ### From PyPI (Recommended)
+
 ```bash
 pip install teshq
 ```
 
 ### From Source
+
 ```bash
 git clone https://github.com/theshashank1/TESH-Query.git
 cd TESH-Query
@@ -34,11 +36,12 @@ TESH-Query requires two main configurations:
 2. **Gemini API Key**: Google Gemini API key for natural language processing
 
 ### Method 1: Using CLI Configuration
+
 ```bash
 # Interactive database configuration
 teshq config --db
 
-# Interactive Gemini API configuration  
+# Interactive Gemini API configuration
 teshq config --gemini
 
 # Configure both at once
@@ -46,6 +49,7 @@ teshq config --db --gemini --save
 ```
 
 ### Method 2: Environment Variables
+
 ```bash
 export DATABASE_URL="postgresql://user:password@host:port/database"
 export GEMINI_API_KEY="your-gemini-api-key"
@@ -53,7 +57,9 @@ export GEMINI_MODEL_NAME="gemini-2.0-flash-lite"  # Optional
 ```
 
 ### Method 3: Configuration Files
+
 Create a `.env` file in your project root:
+
 ```env
 DATABASE_URL=postgresql://user:password@host:port/database
 GEMINI_API_KEY=your-gemini-api-key
@@ -65,11 +71,13 @@ GEMINI_MODEL_NAME=gemini-2.0-flash-lite
 ### Basic Commands
 
 #### 1. Test Database Connection
+
 ```bash
 teshq database connect
 ```
 
 #### 2. Introspect Database Schema
+
 ```bash
 # Basic introspection
 teshq introspect
@@ -79,6 +87,7 @@ teshq introspect --include-sample-data --sample-size 5 --output-dir ./schema_out
 ```
 
 #### 3. Execute Natural Language Queries
+
 ```bash
 # Simple query
 teshq query "show me all users"
@@ -88,6 +97,7 @@ teshq query "find top 10 customers by order amount" --save-csv results.csv --sav
 ```
 
 #### 4. Configuration Management
+
 ```bash
 # View current configuration
 teshq config
@@ -102,6 +112,7 @@ teshq config --gemini-api-key "your-key" --gemini-model "gemini-2.0-flash-lite" 
 ### Advanced CLI Usage
 
 #### Batch Processing
+
 ```bash
 # Save multiple query results
 teshq query "monthly sales report" --save-sqlite analytics.db
@@ -109,6 +120,7 @@ teshq query "user activity summary" --save-sqlite analytics.db
 ```
 
 #### Schema Management
+
 ```bash
 # Introspect with relationships
 teshq introspect --detect-relationships --include-indexes
@@ -144,6 +156,7 @@ client = teshq.TeshQuery(
 ### Core Operations
 
 #### 1. Database Introspection
+
 ```python
 # Basic introspection
 schema_info = client.introspect_database()
@@ -166,6 +179,7 @@ for table_name, table_info in schema_info['tables'].items():
 ```
 
 #### 2. SQL Generation
+
 ```python
 # Generate SQL from natural language
 sql_info = client.generate_sql("show me all active users")
@@ -188,6 +202,7 @@ sql_info = client.generate_sql(
 ```
 
 #### 3. Query Execution
+
 ```python
 # Execute SQL directly
 results = client.execute_query(
@@ -232,14 +247,14 @@ from datetime import datetime
 
 def generate_monthly_report(db_url, api_key):
     client = teshq.TeshQuery(db_url=db_url, gemini_api_key=api_key)
-    
+
     queries = [
         "count total users registered this month",
-        "calculate total revenue for current month", 
+        "calculate total revenue for current month",
         "find top 10 products by sales volume",
         "show customer satisfaction scores average"
     ]
-    
+
     report = {}
     for query in queries:
         try:
@@ -251,7 +266,7 @@ def generate_monthly_report(db_url, api_key):
             }
         except Exception as e:
             report[query] = {'error': str(e)}
-    
+
     return report
 
 # Usage
@@ -269,13 +284,13 @@ import json
 
 def generate_schema_docs(db_url, output_file):
     client = teshq.TeshQuery(db_url=db_url, gemini_api_key="dummy")
-    
+
     schema_info = client.introspect_database(
         detect_relationships=True,
         include_indexes=True,
         include_sample_data=True
     )
-    
+
     # Generate documentation
     docs = {
         'database_summary': {
@@ -285,7 +300,7 @@ def generate_schema_docs(db_url, output_file):
         },
         'tables': {}
     }
-    
+
     for table_name, table_info in schema_info.get('tables', {}).items():
         docs['tables'][table_name] = {
             'description': table_info.get('description'),
@@ -295,10 +310,10 @@ def generate_schema_docs(db_url, output_file):
             'indexes': table_info.get('indexes', {}),
             'sample_data': table_info.get('sample_data', [])
         }
-    
+
     with open(output_file, 'w') as f:
         json.dump(docs, f, indent=2, default=str)
-    
+
     return docs
 
 # Usage
@@ -320,19 +335,19 @@ class DataAnalyzer:
             db_url=db_url,
             gemini_api_key=gemini_api_key
         )
-    
+
     def analyze(self, questions):
         """Analyze data based on natural language questions."""
         results = {}
-        
+
         for question in questions:
             try:
                 # Get results
                 data = self.client.query(question)
-                
+
                 # Convert to DataFrame for analysis
                 df = pd.DataFrame(data)
-                
+
                 results[question] = {
                     'data': data,
                     'dataframe': df,
@@ -342,17 +357,17 @@ class DataAnalyzer:
                         'numeric_columns': df.select_dtypes(include=['number']).columns.tolist()
                     }
                 }
-                
+
             except Exception as e:
                 results[question] = {'error': str(e)}
-        
+
         return results
-    
+
     def export_results(self, results, output_dir="./analysis_output"):
         """Export analysis results to files."""
         import os
         os.makedirs(output_dir, exist_ok=True)
-        
+
         for i, (question, result) in enumerate(results.items()):
             if 'dataframe' in result:
                 df = result['dataframe']
@@ -380,12 +395,14 @@ analyzer.export_results(results)
 ## Best Practices
 
 ### 1. Configuration Management
+
 - Use environment variables in production
 - Store sensitive information (API keys) securely
 - Use the CLI config for development setup
 - Validate configuration before executing queries
 
 ### 2. Error Handling
+
 ```python
 import teshq
 
@@ -394,7 +411,7 @@ def safe_query(client, nl_query):
         # Test connection first
         if not client.test_connection():
             return {"error": "Database connection failed"}
-        
+
         # Execute query
         result = client.query(nl_query, return_sql=True)
         return {
@@ -403,7 +420,7 @@ def safe_query(client, nl_query):
             "results": result['results'],
             "row_count": len(result['results'])
         }
-        
+
     except ValueError as e:
         return {"error": f"Configuration error: {e}"}
     except Exception as e:
@@ -419,6 +436,7 @@ else:
 ```
 
 ### 3. Performance Optimization
+
 - Cache schema information when possible
 - Use the same client instance for multiple queries
 - Consider pagination for large result sets
@@ -439,6 +457,7 @@ for query in queries:
 ```
 
 ### 4. Schema Management
+
 - Keep schema files updated
 - Version your schema exports
 - Include sample data for better SQL generation
@@ -448,13 +467,13 @@ for query in queries:
 # Regular schema updates
 def update_schema_cache():
     client = teshq.TeshQuery(db_url=db_url, gemini_api_key="dummy")
-    
+
     schema_info = client.introspect_database(
         save_to_files=True,
         output_dir="./schema_cache",
         json_filename=f"schema_{datetime.now().strftime('%Y%m%d')}.json"
     )
-    
+
     return schema_info
 ```
 
@@ -463,6 +482,7 @@ def update_schema_cache():
 ### Common Issues
 
 #### 1. Import Errors
+
 ```python
 # If you get import errors, ensure proper installation
 try:
@@ -474,6 +494,7 @@ except ImportError as e:
 ```
 
 #### 2. Configuration Issues
+
 ```python
 # Check configuration
 client = teshq.TeshQuery()
@@ -492,17 +513,18 @@ except Exception as e:
 ```
 
 #### 3. Query Generation Issues
+
 ```python
 # Debug SQL generation
 def debug_query(client, nl_query, schema):
     try:
         print(f"Input: {nl_query}")
         print(f"Schema length: {len(schema)} characters")
-        
+
         result = client.generate_sql(nl_query, schema=schema)
         print(f"Generated SQL: {result['query']}")
         print(f"Parameters: {result['parameters']}")
-        
+
         return result
     except Exception as e:
         print(f"Error: {e}")
@@ -521,6 +543,7 @@ def debug_query(client, nl_query, schema):
 If you've been using TESH-Query only through CLI, here's how to migrate:
 
 ### Before (CLI only)
+
 ```bash
 teshq config --db --gemini --save
 teshq introspect
@@ -528,6 +551,7 @@ teshq query "show me all users" --save-csv users.csv
 ```
 
 ### After (Programmatic)
+
 ```python
 import teshq
 

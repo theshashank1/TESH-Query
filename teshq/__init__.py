@@ -47,7 +47,8 @@ from .api import TeshQuery, introspect, query
 
 # Import version information
 try:
-    from importlib.metadata import version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError, version
+
     try:
         __version__ = version("teshq")
     except PackageNotFoundError:
@@ -56,9 +57,4 @@ except ImportError:
     __version__ = "unknown"
 
 # Public API
-__all__ = [
-    "TeshQuery",
-    "introspect", 
-    "query",
-    "__version__"
-]
+__all__ = ["TeshQuery", "introspect", "query", "__version__"]

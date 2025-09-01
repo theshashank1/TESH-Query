@@ -11,7 +11,7 @@ from teshq.utils.config import get_database_url as get_db_url
 from teshq.utils.config import get_gemini_config as get_gemini_credentials
 from teshq.utils.formater import print_query_table
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
-from teshq.utils.ui import error, info, print_divider, print_sql, status, success, handle_error
+from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success
 from teshq.utils.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
@@ -107,17 +107,13 @@ def process_nl_query(
             handle_error(
                 ValidationError(validation_message, "natural_language_query"),
                 "Query Validation",
-                suggest_action="Please provide a valid natural language query (3-1000 characters)"
+                suggest_action="Please provide a valid natural language query (3-1000 characters)",
             )
             raise typer.Exit(1)
-        
+
         # Validate save paths if provided
-        save_options = [
-            (save_csv, "csv"),
-            (save_excel, "excel"),
-            (save_sqlite, "sqlite")
-        ]
-        
+        save_options = [(save_csv, "csv"), (save_excel, "excel"), (save_sqlite, "sqlite")]
+
         for save_path, format_type in save_options:
             if save_path:
                 is_valid, validation_message = CLIValidator.validate_save_path(save_path, format_type)
@@ -125,10 +121,10 @@ def process_nl_query(
                     handle_error(
                         ValidationError(validation_message, f"save_{format_type}"),
                         "Save Path Validation",
-                        suggest_action=f"Please provide a valid {format_type} file path"
+                        suggest_action=f"Please provide a valid {format_type} file path",
                     )
                     raise typer.Exit(1)
-        
+
         with status("Initializing", "Initialization Complete"):
             time.sleep(1)
             generator = get_llm_generator()
@@ -140,7 +136,7 @@ def process_nl_query(
 
         sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)
         print_sql(sql_query, title="Generated SQL Query")
-        
+
         if parameters:
             info(f"🔧 Query parameters: {parameters}")
 
@@ -155,29 +151,16 @@ def process_nl_query(
             save_results(df, save_csv, save_excel, save_sqlite)
 
         success("🎉 Query processed and result displayed.")
-        
-    except ValidationError as e:
-        # Validation errors are already handled above
-        raise
+
+    # except ValidationError as e:
+    #     # Validation errors are already handled above
+    #     raise
     except SQLAlchemyError as e:
-        handle_error(
-            e,
-            "Database Query Execution",
-            suggest_action="Check your database connection and query syntax"
-        )
+        handle_error(e, "Database Query Execution", suggest_action="Check your database connection and query syntax")
         raise typer.Exit(1)
     except FileNotFoundError as e:
-        handle_error(
-            e,
-            "File Operation",
-            suggest_action="Ensure all required files exist and schema is properly configured"
-        )
+        handle_error(e, "File Operation", suggest_action="Ensure all required files exist and schema is properly configured")
         raise typer.Exit(1)
     except Exception as e:
-        handle_error(
-            e,
-            "Query Processing",
-            show_traceback=True,
-            suggest_action="Please check your input and try again"
-        )
+        handle_error(e, "Query Processing", show_traceback=True, suggest_action="Please check your input and try again")
         raise typer.Exit(1)

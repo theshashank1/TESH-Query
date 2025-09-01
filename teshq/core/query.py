@@ -24,7 +24,7 @@ def execute_sql_query(
     connection_url = db_url or get_db_url()
     if not connection_url:
         raise ValueError("Database URL is required. Provide db_url or configure it.")
-    
+
     engine = create_engine(connection_url)
     parameters = parameters or {}
 

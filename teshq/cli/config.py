@@ -27,6 +27,7 @@ from teshq.utils.ui import (  # handle_error,
     clear_screen,
     confirm,
     error,
+    handle_error,
     indent_context,
     info,
     print_divider,
@@ -37,9 +38,8 @@ from teshq.utils.ui import (  # handle_error,
     success,
     tip,
     warning,
-    handle_error,
 )
-from teshq.utils.validation import ConfigValidator, ValidationError, validate_production_readiness
+from teshq.utils.validation import ConfigValidator, validate_production_readiness
 
 app = typer.Typer()
 SUPPORTED_DBS = ["postgresql", "mysql", "sqlite"]
@@ -311,7 +311,7 @@ def config(
             e,
             "Configuration Setup",
             show_traceback="--debug" in sys.argv,
-            suggest_action="Check your input values and try again"
+            suggest_action="Check your input values and try again",
         )
         raise typer.Exit(1)
 
@@ -322,18 +322,18 @@ def validate_config():
     try:
         with section("Configuration Validation"):
             info("Checking configuration for production readiness...")
-            
+
             # Get current configuration
             config, sources = get_config_with_source()
-            
+
             if not config:
                 error("No configuration found")
                 tip("Run 'teshq config --interactive' to set up configuration")
                 raise typer.Exit(1)
-            
+
             # Validate configuration
             config_errors = ConfigValidator.validate_config(config)
-            
+
             if config_errors:
                 error("Configuration validation failed:")
                 with indent_context():
@@ -341,7 +341,7 @@ def validate_config():
                         error(f"• {err}")
                 tip("Run 'teshq config --interactive' to fix configuration issues")
                 raise typer.Exit(1)
-            
+
             # Test database connection
             if "DATABASE_URL" in config:
                 with section("Database Connection Test"):
@@ -353,12 +353,12 @@ def validate_config():
                         error(f"❌ {message}")
                         tip("Check your database server and connection details")
                         raise typer.Exit(1)
-            
+
             # Production readiness check
             with section("Production Readiness Assessment"):
                 info("Evaluating production readiness...")
                 is_ready, issues = validate_production_readiness(config)
-                
+
                 if is_ready:
                     success("🎉 Configuration is production-ready!")
                 else:
@@ -369,23 +369,20 @@ def validate_config():
                                 warning(f"• {issue}")
                             else:
                                 error(f"• {issue}")
-                    
+
                     if any(not issue.startswith("WARNING") for issue in issues):
                         error("Critical issues must be resolved before production deployment")
                         raise typer.Exit(1)
                     else:
                         warning("Consider addressing warnings for optimal production setup")
-            
+
             success("✅ Configuration validation completed successfully")
-            
+
     except typer.Exit:
         raise
     except Exception as e:
         handle_error(
-            e,
-            "Configuration Validation",
-            show_traceback=True,
-            suggest_action="Check your configuration and try again"
+            e, "Configuration Validation", show_traceback=True, suggest_action="Check your configuration and try again"
         )
         raise typer.Exit(1)
 
