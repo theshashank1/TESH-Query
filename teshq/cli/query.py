@@ -81,9 +81,6 @@ def save_results(
             excel_path += ".xlsx"
         save_to_excel(df, excel_path)
     if sqlite_path:
-        if not sqlite_path:
-            error("❌ SQLite path cannot be empty.")
-            return
         save_to_sqlite(df, sqlite_path, sqlite_table)
 
 

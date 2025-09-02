@@ -208,6 +208,14 @@ class CLIValidator:
             r"/\*.*\*/",
             r"xp_cmdshell",
             r"sp_executesql",
+            r"'\s*(or|and)\s*'",  # Common SQL injection like '1'='1' or 'a'='a'
+            r"'\s*(or|and)\s*\d+\s*=\s*\d+",  # Patterns like ' OR 1=1
+            r"'\s*or\s+true\s*",  # ' OR true
+            r"union\s+select",  # UNION SELECT attacks
+            r"'\s*;\s*exec",  # Command execution attempts
+            r"'\s*;\s*declare",  # SQL Server specific attacks
+            r"into\s+outfile",  # MySQL file writing
+            r"load_file\s*\(",  # MySQL file reading
         ]
 
         for pattern in dangerous_patterns:
