@@ -45,7 +45,7 @@ def __main__(
         raise typer.Exit()
 
     if developer:
-        print("Developer: Shashank")
+        print("Developer: Shashank", "Linkedin: https://www.linkedin.com/in/gunda-shashank/ ")
         raise typer.Exit()
 
 
