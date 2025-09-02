@@ -101,12 +101,13 @@ def health():
 @app.command()
 def metrics():
     """Show performance metrics and monitoring data."""
+    import json
     from teshq.utils.health import get_metrics_summary
-    from teshq.utils.ui import print_json, info
+    from teshq.utils.ui import info
     
     try:
         metrics_data = get_metrics_summary()
-        print_json(metrics_data, "Performance Metrics")
+        print(json.dumps(metrics_data, indent=2))
         info("📊 Metrics data collected successfully")
         
     except Exception as e:
