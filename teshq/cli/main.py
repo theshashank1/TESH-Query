@@ -66,6 +66,54 @@ def help_text():
     typer.echo(f"Help: {app.info.help}")
 
 
+@app.command()
+def health():
+    """Check system health and connectivity."""
+    import json
+    from teshq.utils.health import get_health_status
+    from teshq.utils.ui import success, error, warning, info
+    
+    try:
+        health_status = get_health_status()
+        
+        # Print health status as formatted JSON
+        print(json.dumps(health_status, indent=2))
+        
+        # Summary message
+        if health_status["status"] == "healthy":
+            success("🎉 All systems are healthy and operational!")
+        elif health_status["status"] == "degraded":
+            warning("⚠️  System is operational but has some issues that should be addressed")
+        else:
+            error("❌ System has critical health issues that require immediate attention")
+            
+        # Exit with appropriate code
+        if health_status["status"] == "unhealthy":
+            raise typer.Exit(1)
+        elif health_status["status"] == "degraded":
+            raise typer.Exit(2)
+            
+    except Exception as e:
+        handle_error(e, "Health Check", suggest_action="Check system configuration and connectivity")
+        raise typer.Exit(1)
+
+
+@app.command()
+def metrics():
+    """Show performance metrics and monitoring data."""
+    from teshq.utils.health import get_metrics_summary
+    from teshq.utils.ui import print_json, info
+    
+    try:
+        metrics_data = get_metrics_summary()
+        print_json(metrics_data, "Performance Metrics")
+        info("📊 Metrics data collected successfully")
+        
+    except Exception as e:
+        handle_error(e, "Metrics Collection", suggest_action="Check system configuration")
+        raise typer.Exit(1)
+
+
 def main():
     """Main entry point with comprehensive error handling."""
     try:
