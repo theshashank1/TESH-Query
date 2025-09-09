@@ -3,7 +3,7 @@ import sqlite3
 
 import pandas as pd
 
-from teshq.utils.logging import logger, log_operation
+from teshq.utils.logging import log_operation, logger
 
 
 def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
@@ -23,20 +23,15 @@ def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
             if parent_dir:
                 os.makedirs(parent_dir, exist_ok=True)
             df.to_csv(filename, index=index, **kwargs)
-            
+
         logger.success(
             "Data successfully saved to CSV",
             file_path=filename,
             row_count=len(df),
-            file_size_bytes=os.path.getsize(filename)
+            file_size_bytes=os.path.getsize(filename),
         )
     except Exception as e:
-        logger.error(
-            "Error saving to CSV",
-            error=e,
-            file_path=filename,
-            row_count=len(df)
-        )
+        logger.error("Error saving to CSV", error=e, file_path=filename, row_count=len(df))
         raise
 
 
@@ -58,22 +53,16 @@ def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", i
             if parent_dir:
                 os.makedirs(parent_dir, exist_ok=True)
             df.to_excel(filename, sheet_name=sheet_name, index=index, **kwargs)
-            
+
         logger.success(
             "Data successfully saved to Excel",
             file_path=filename,
             sheet_name=sheet_name,
             row_count=len(df),
-            file_size_bytes=os.path.getsize(filename)
+            file_size_bytes=os.path.getsize(filename),
         )
     except Exception as e:
-        logger.error(
-            "Error saving to Excel",
-            error=e,
-            file_path=filename,
-            sheet_name=sheet_name,
-            row_count=len(df)
-        )
+        logger.error("Error saving to Excel", error=e, file_path=filename, sheet_name=sheet_name, row_count=len(df))
         raise
 
 
@@ -104,21 +93,15 @@ def save_to_sqlite(
 
             with sqlite3.connect(db_path) as conn:
                 df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
-            
+
         logger.success(
             "Data successfully saved to SQLite database",
             db_file_path=db_path,
             table_name=table_name,
             row_count=len(df),
             if_exists=if_exists,
-            file_size_bytes=os.path.getsize(db_path)
+            file_size_bytes=os.path.getsize(db_path),
         )
     except Exception as e:
-        logger.error(
-            "Error saving to SQLite",
-            error=e,
-            db_file_path=db_path,
-            table_name=table_name,
-            row_count=len(df)
-        )
+        logger.error("Error saving to SQLite", error=e, db_file_path=db_path, table_name=table_name, row_count=len(df))
         raise
