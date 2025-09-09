@@ -146,6 +146,17 @@ def process_nl_query(
         # Use the unified output system for consistent display
         result.print_query_table()
 
+        # Show token usage summary for this query
+        from teshq.utils.token_tracking import get_token_tracker
+        tracker = get_token_tracker()
+        session_summary = tracker.get_session_summary()
+        
+        if session_summary['queries'] > 0:
+            last_query = session_summary['queries_detail'][-1] if 'queries_detail' in session_summary else None
+            if last_query:
+                info(f"🏷️  Token usage: {last_query['tokens']:,} tokens, estimated cost: ${last_query['cost']:.4f}")
+            info(f"📊 Session total: {session_summary['total_tokens']:,} tokens, ${session_summary['total_cost']:.4f} (across {session_summary['queries']} queries)")
+
         # Save results if requested - use the normalized DataFrame
         if result and (save_csv or save_excel or save_sqlite):
             df = result.dataframe

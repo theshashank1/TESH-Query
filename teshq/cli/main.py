@@ -5,7 +5,7 @@ from typing import Optional
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.cli import config, db, query
+from teshq.cli import analytics, config, db, query
 
 # from teshq.utils.ui import error as ui_error
 from teshq.utils.ui import handle_error
@@ -52,6 +52,7 @@ def __main__(
 app.add_typer(db.app)
 app.add_typer(config.app, short_help="Configure database connection details")
 app.add_typer(query.app)
+app.add_typer(analytics.app, short_help="View LLM token usage analytics and costs")
 
 
 @app.command()

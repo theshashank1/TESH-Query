@@ -61,6 +61,10 @@ cassandra = [
     "cassandra-driver~=3.29.0",
     "cqlalchemy~=1.0.0",
 ]
+# Analytics and monitoring (optional)
+langsmith = [
+    "langsmith~=0.1.0",
+]
 # All database drivers
 all-databases = [
     "PyMySQL~=1.1.0",
@@ -69,6 +73,16 @@ all-databases = [
     "oracledb~=2.0.0",
     "cassandra-driver~=3.29.0",
     "cqlalchemy~=1.0.0",
+]
+# All optional features
+all-features = [
+    "PyMySQL~=1.1.0",
+    "mysql-connector-python~=8.4.0",
+    "cx_Oracle~=8.3.0",  
+    "oracledb~=2.0.0",
+    "cassandra-driver~=3.29.0",
+    "cqlalchemy~=1.0.0",
+    "langsmith~=0.1.0",
 ]
 
 [project.urls]

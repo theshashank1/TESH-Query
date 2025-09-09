@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from teshq.utils.logging import log_api_call, log_operation, logger
 from teshq.utils.retry import RetryableError, retry_api_call
+from teshq.utils.token_tracking import get_token_tracker
 
 
 class SQLQueryResponse(BaseModel):
@@ -136,16 +137,60 @@ class SQLQueryGenerator:
                             f"Could not parse response or find JSON in content after Pydantic failure. Content: {response.content}"  # noqa: E501
                         )
 
-                # Log successful API call
+                # Log successful API call with enhanced token tracking
                 execution_time = time.time() - start_time
 
-                # Estimate token usage (rough approximation)
-                estimated_tokens = len(user_request + schema + str(result)) // 4
+                # Get token tracker
+                tracker = get_token_tracker()
+                
+                # Extract token usage information from response
+                prompt_tokens = 0
+                completion_tokens = 0
+                total_tokens = 0
+                
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    # For Google Gemini models
+                    usage = response.usage_metadata
+                    prompt_tokens = usage.get('input_tokens', 0)
+                    completion_tokens = usage.get('output_tokens', 0)
+                    total_tokens = prompt_tokens + completion_tokens
+                elif hasattr(response, 'response_metadata') and response.response_metadata:
+                    # Alternative location for usage data
+                    usage = response.response_metadata.get('usage', {})
+                    prompt_tokens = usage.get('prompt_tokens', 0)
+                    completion_tokens = usage.get('completion_tokens', 0)
+                    total_tokens = usage.get('total_tokens', prompt_tokens + completion_tokens)
+                else:
+                    # Fallback: estimate tokens based on content length
+                    # Rough approximation: 1 token ≈ 4 characters
+                    prompt_text = user_request + schema
+                    prompt_tokens = len(prompt_text) // 4
+                    completion_tokens = len(str(result)) // 4
+                    total_tokens = prompt_tokens + completion_tokens
+                    
+                    logger.warning(
+                        "No usage metadata available, using token estimation",
+                        estimated_prompt_tokens=prompt_tokens,
+                        estimated_completion_tokens=completion_tokens
+                    )
 
+                # Track token usage with comprehensive analytics
+                execution_time_ms = execution_time * 1000
+                token_usage = tracker.track_usage(
+                    model=self.model_name,
+                    provider="google",  # Since we're using Google Gemini
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    natural_language_query=user_request,
+                    generated_sql=result.get("query"),
+                    execution_time_ms=execution_time_ms,
+                )
+
+                # Legacy logging for backward compatibility
                 log_api_call(
                     provider="google_genai",
                     model=self.model_name,
-                    tokens_used=estimated_tokens,
+                    tokens_used=total_tokens,
                     execution_time_seconds=execution_time,
                     request_length=len(user_request),
                     schema_length=len(schema),
@@ -153,9 +198,13 @@ class SQLQueryGenerator:
                 )
 
                 logger.success(
-                    "SQL query generated successfully",
+                    "SQL query generated successfully with comprehensive token tracking",
                     execution_time_seconds=execution_time,
-                    estimated_tokens=estimated_tokens,
+                    query_id=token_usage.query_id,
+                    total_tokens=total_tokens,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost_estimate=f"${token_usage.cost_estimate:.6f}" if token_usage.cost_estimate else "N/A",
                     query_length=len(result.get("query", "")),
                     has_parameters=bool(result.get("parameters")),
                 )
