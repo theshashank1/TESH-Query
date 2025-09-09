@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.pool import QueuePool, StaticPool
+from sqlalchemy.pool import Pool, QueuePool, StaticPool
 
 from teshq.utils.logging import log_operation, logger, metrics
 from teshq.utils.retry import retry_database_operation
@@ -49,31 +49,29 @@ class ConnectionManager:
     def __init__(self, config: Optional[ConnectionConfig] = None):
         self.config = config or ConnectionConfig()
         self._engines: Dict[str, Engine] = {}
-        self._setup_logging()
 
-    def _setup_logging(self):
-        """Set up SQLAlchemy event listeners for logging."""
+    def _setup_metrics_listeners(self, engine_name: str):
+        """Set up event listeners for metrics for a given engine."""
 
-        @event.listens_for(Engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            context._query_start_time = time.time()
-            logger.debug(
-                "Executing SQL query",
-                statement=statement[:200] + "..." if len(statement) > 200 else statement,
-                parameters=parameters if len(str(parameters)) < 500 else "...",
-            )
+        @event.listens_for(Pool, "connect")
+        def connect(dbapi_connection, connection_record):
+            metrics.increment_counter("db_connections_total", tags={"engine": engine_name})
 
-        @event.listens_for(Engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            total = time.time() - context._query_start_time
-            metrics.record_metric("db_query_execution_time", total)
+        @event.listens_for(Pool, "checkout")
+        def checkout(dbapi_connection, connection_record, connection_proxy):
+            metrics.increment_counter("db_checkouts_total", tags={"engine": engine_name})
+            pool = connection_proxy.dbapi_connection.pool
+            metrics.set_gauge("db_pool_connections", pool.size(), tags={"engine": engine_name})
+            metrics.set_gauge("db_pool_checkedout", pool.checkedout(), tags={"engine": engine_name})
 
-            if total > 1.0:  # Log slow queries
-                logger.warning(
-                    "Slow query detected",
-                    execution_time_seconds=total,
-                    statement=statement[:200] + "..." if len(statement) > 200 else statement,
-                )
+        @event.listens_for(Pool, "checkin")
+        def checkin(dbapi_connection, connection_record):
+            pool = dbapi_connection.pool
+            metrics.set_gauge("db_pool_checkedin", pool.checkedin(), tags={"engine": engine_name})
+
+        @event.listens_for(Pool, "soft_invalidate")
+        def soft_invalidate(dbapi_connection, connection_record, exception):
+            metrics.increment_counter("db_connection_invalidated_total", tags={"engine": engine_name})
 
     def get_engine(self, database_url: str, engine_name: str = "default") -> Engine:
         """Get or create a database engine with connection pooling."""
@@ -81,42 +79,54 @@ class ConnectionManager:
             return self._engines[engine_name]
 
         with log_operation("create_database_engine", engine_name=engine_name):
-            if database_url.startswith("sqlite"):
-                # For SQLite, use a StaticPool and only compatible arguments
-                engine = create_engine(
-                    database_url,
-                    poolclass=StaticPool,
-                    echo=self.config.echo,
-                    connect_args={"check_same_thread": False},
-                )
-                log_info = {"pool_class": "StaticPool"}
-            else:
-                # For other databases, use QueuePool with full pooling options
-                if "?" in database_url:
-                    db_url_with_timeout = f"{database_url}&connect_timeout={self.config.connect_timeout}"
-                else:
-                    db_url_with_timeout = f"{database_url}?connect_timeout={self.config.connect_timeout}"
+            is_sqlite = database_url.startswith("sqlite")
+            engine_args = self._get_engine_args(database_url)
 
-                engine = create_engine(
-                    db_url_with_timeout,
-                    poolclass=QueuePool,
-                    pool_size=self.config.pool_size,
-                    max_overflow=self.config.max_overflow,
-                    pool_timeout=self.config.pool_timeout,
-                    pool_recycle=self.config.pool_recycle,
-                    pool_pre_ping=self.config.pool_pre_ping,
-                    echo=self.config.echo,
-                )
-                log_info = {
-                    "pool_class": "QueuePool",
-                    "pool_size": self.config.pool_size,
-                    "max_overflow": self.config.max_overflow,
-                    "connect_timeout": self.config.connect_timeout,
-                }
-
+            engine = create_engine(database_url, **engine_args)
             self._engines[engine_name] = engine
-            logger.info("Database engine created", engine_name=engine_name, **log_info)
+
+            # Set up listeners only once per engine
+            self._setup_metrics_listeners(engine_name)
+
+            log_info = {
+                "pool_class": "StaticPool" if is_sqlite else "QueuePool",
+                "engine_name": engine_name,
+            }
+            if not is_sqlite:
+                log_info.update(
+                    {
+                        "pool_size": self.config.pool_size,
+                        "max_overflow": self.config.max_overflow,
+                        "connect_timeout": self.config.connect_timeout,
+                    }
+                )
+
+            logger.info("Database engine created", **log_info)
             return engine
+
+    def _get_engine_args(self, database_url: str) -> Dict[str, Any]:
+        """Get the appropriate arguments for creating a SQLAlchemy engine."""
+        if database_url.startswith("sqlite"):
+            return {
+                "poolclass": StaticPool,
+                "echo": self.config.echo,
+                "connect_args": {"check_same_thread": False},
+            }
+        else:
+            # Append connect_timeout to the URL for non-SQLite databases
+            if "?" not in database_url:
+                database_url += f"?connect_timeout={self.config.connect_timeout}"
+            else:
+                database_url += f"&connect_timeout={self.config.connect_timeout}"
+            return {
+                "poolclass": QueuePool,
+                "pool_size": self.config.pool_size,
+                "max_overflow": self.config.max_overflow,
+                "pool_timeout": self.config.pool_timeout,
+                "pool_recycle": self.config.pool_recycle,
+                "pool_pre_ping": self.config.pool_pre_ping,
+                "echo": self.config.echo,
+            }
 
     @contextmanager
     def get_connection(self, database_url: str, engine_name: str = "default"):
@@ -131,7 +141,7 @@ class ConnectionManager:
                     try:
                         connection.execute(text(f"SET statement_timeout = {self.config.query_timeout * 1000}"))
                     except SQLAlchemyError:
-                        pass
+                        pass  # Some dialects might not support this
                 yield connection
         except Exception as e:
             logger.error("Database connection error", error=e, engine_name=engine_name)
@@ -149,29 +159,30 @@ class ConnectionManager:
         start_time = time.time()
         with self.get_connection(database_url, engine_name) as conn:
             try:
-                if parameters:
-                    result = conn.execute(text(query), parameters)
-                else:
-                    result = conn.execute(text(query))
+                result = conn.execute(text(query), parameters or {})
                 rows = result.fetchall()
                 columns = result.keys() if hasattr(result, "keys") else []
                 execution_time = time.time() - start_time
+
+                tags = {"engine": engine_name, "status": "success"}
+                metrics.add_point("db_query_execution_time", execution_time, tags)
+                metrics.add_point("db_query_row_count", len(rows), tags)
+                metrics.increment_counter("db_queries_total", tags=tags)
+
                 logger.info(
                     "Query executed successfully",
                     execution_time_seconds=execution_time,
                     row_count=len(rows),
                     engine_name=engine_name,
                 )
-                metrics.record_metric("db_query_success", 1, {"engine": engine_name})
-                metrics.record_metric("db_query_execution_time", execution_time, {"engine": engine_name})
-                metrics.record_metric("db_query_row_count", len(rows), {"engine": engine_name})
                 return [dict(zip(columns, row)) for row in rows]
             except Exception as e:
                 execution_time = time.time() - start_time
+                tags = {"engine": engine_name, "status": "error"}
+                metrics.increment_counter("db_queries_total", tags=tags)
                 logger.error(
                     "Query execution failed", error=e, execution_time_seconds=execution_time, engine_name=engine_name
                 )
-                metrics.record_metric("db_query_error", 1, {"engine": engine_name})
                 raise
 
     def test_connection(self, database_url: str, engine_name: str = "default") -> bool:
@@ -179,8 +190,8 @@ class ConnectionManager:
         try:
             with self.get_connection(database_url, engine_name) as conn:
                 conn.execute(text("SELECT 1"))
-                logger.info("Database connection test successful", engine_name=engine_name)
-                return True
+            logger.info("Database connection test successful", engine_name=engine_name)
+            return True
         except Exception as e:
             logger.error("Database connection test failed", error=e, engine_name=engine_name)
             return False
@@ -189,19 +200,22 @@ class ConnectionManager:
         """Get connection pool information for monitoring."""
         if engine_name not in self._engines:
             return {"status": "not_connected"}
+
         engine = self._engines[engine_name]
         pool = engine.pool
-        info = {
+
+        if isinstance(pool, StaticPool):
+            return {"status": "connected", "pool_class": "StaticPool"}
+
+        return {
             "status": "connected",
+            "pool_class": "QueuePool",
             "pool_size": pool.size(),
             "checked_in": pool.checkedin(),
             "checked_out": pool.checkedout(),
             "overflow": pool.overflow(),
             "invalidated": pool.invalidated(),
         }
-        if hasattr(pool, "_pool"):
-            info["available_connections"] = pool._pool.qsize()
-        return info
 
     def close_all_connections(self):
         """Close all database connections and engines."""
