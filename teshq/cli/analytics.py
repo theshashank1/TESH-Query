@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.tree import Tree
 
+from teshq.utils.cli_logging import CLILogger
 from teshq.utils.token_tracking import get_token_tracker
 from teshq.utils.ui import error, success, info
 
@@ -20,17 +21,34 @@ console = Console()
 
 @app.command("session")
 def show_session_summary(
-    session_id: Optional[str] = typer.Option(None, "--session-id", help="Specific session ID to view")
+    session_id: Optional[str] = typer.Option(None, "--session-id", help="Specific session ID to view"),
+    log: bool = typer.Option(None, "--log", help="Enable logging to file (overrides config default)"),
 ):
     """Show current or specific session token usage summary."""
+    
+    # Initialize CLI logger
+    cli_logger = CLILogger("analytics_session")
+    logging_active = cli_logger.setup_file_logging(log)
+    
     try:
+        if logging_active:
+            cli_logger.log_command_start({"session_id": session_id})
+            
         tracker = get_token_tracker()
         
         if session_id and session_id != tracker.session_id:
+            if logging_active:
+                cli_logger.log_error(f"Session {session_id} not found in current tracker")
             error(f"Session {session_id} not found in current tracker")
             return
         
         summary = tracker.get_session_summary()
+        
+        if logging_active:
+            cli_logger.log_info("Session summary retrieved", 
+                              queries=summary['queries'],
+                              total_tokens=summary['total_tokens'],
+                              total_cost=summary['total_cost'])
         
         # Create session summary panel
         session_info = f"""[bold]Session ID:[/bold] {summary['session_id']}
@@ -67,8 +85,16 @@ def show_session_summary(
         
         success(f"Session summary displayed for {summary['queries']} queries")
         
+        if logging_active:
+            cli_logger.log_command_end(True, 0, queries_displayed=summary['queries'])
+        
     except Exception as e:
+        if logging_active:
+            cli_logger.log_command_end(False, 0, error=str(e))
         error(f"Failed to get session summary: {e}")
+    finally:
+        if logging_active:
+            cli_logger.cleanup()
 
 
 @app.command("global")
