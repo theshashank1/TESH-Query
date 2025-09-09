@@ -12,8 +12,8 @@ from langchain_core.prompts import ChatPromptTemplate  # Updated import
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 
-from teshq.utils.logging import logger, log_api_call, log_operation
-from teshq.utils.retry import retry_api_call, RetryableError
+from teshq.utils.logging import log_api_call, log_operation, logger
+from teshq.utils.retry import RetryableError, retry_api_call
 
 
 class SQLQueryResponse(BaseModel):
@@ -76,7 +76,7 @@ class SQLQueryGenerator:
     def generate_sql(self, user_request: str, schema: str) -> Dict[str, Any]:
         """Generate SQL query from user request and schema with retry logic and logging."""
         start_time = time.time()
-        
+
         try:
             with log_operation("generate_sql", model=self.model_name, request_length=len(user_request)):
                 # Format prompt
@@ -92,8 +92,10 @@ class SQLQueryGenerator:
                     response = self.llm.invoke(messages)
                 except Exception as e:
                     # Convert network/API errors to retryable errors
-                    if any(error_type in str(type(e).__name__).lower() for error_type in 
-                           ['connection', 'timeout', 'network', 'http']):
+                    if any(
+                        error_type in str(type(e).__name__).lower()
+                        for error_type in ["connection", "timeout", "network", "http"]
+                    ):
                         logger.warning(f"API call failed with retryable error: {e}")
                         raise RetryableError(f"API call failed: {e}") from e
                     else:
@@ -103,14 +105,14 @@ class SQLQueryGenerator:
                 try:
                     parsed = self.output_parser.parse(response.content)
                     result = {"query": parsed.query, "parameters": parsed.parameters}
-                    
+
                 except OutputParserException as e:  # More specific exception
                     logger.warning(
                         "PydanticOutputParser failed, falling back to regex JSON extraction",
                         error=e,
-                        response_content_preview=response.content[:200]
+                        response_content_preview=response.content[:200],
                     )
-                    
+
                     # Fallback: extract JSON manually
                     json_match = re.search(r"\{[\s\S]*\}", response.content)  # Improved regex for multiline JSON
                     if json_match:
@@ -120,7 +122,7 @@ class SQLQueryGenerator:
                             logger.error(
                                 "Could not parse response content as JSON after Pydantic failure",
                                 json_error=json_e,
-                                response_content=response.content
+                                response_content=response.content,
                             )
                             raise Exception(
                                 f"Could not parse response content as JSON after Pydantic failure. Content: {response.content}. Error: {json_e}"  # noqa: E501
@@ -128,18 +130,18 @@ class SQLQueryGenerator:
                     else:
                         logger.error(
                             "Could not find JSON in response content after Pydantic failure",
-                            response_content=response.content
+                            response_content=response.content,
                         )
                         raise Exception(
-                            f"Could not parse response or find JSON in content after Pydantic failure. Content: {response.content}"
+                            f"Could not parse response or find JSON in content after Pydantic failure. Content: {response.content}"  # noqa: E501
                         )
-                
+
                 # Log successful API call
                 execution_time = time.time() - start_time
-                
+
                 # Estimate token usage (rough approximation)
                 estimated_tokens = len(user_request + schema + str(result)) // 4
-                
+
                 log_api_call(
                     provider="google_genai",
                     model=self.model_name,
@@ -147,27 +149,27 @@ class SQLQueryGenerator:
                     execution_time_seconds=execution_time,
                     request_length=len(user_request),
                     schema_length=len(schema),
-                    response_length=len(str(result))
+                    response_length=len(str(result)),
                 )
-                
+
                 logger.success(
                     "SQL query generated successfully",
                     execution_time_seconds=execution_time,
                     estimated_tokens=estimated_tokens,
                     query_length=len(result.get("query", "")),
-                    has_parameters=bool(result.get("parameters"))
+                    has_parameters=bool(result.get("parameters")),
                 )
-                
+
                 return result
-                
+
         except Exception as e:
             execution_time = time.time() - start_time
-            
+
             logger.error(
                 "SQL generation failed",
                 error=e,
                 execution_time_seconds=execution_time,
                 model=self.model_name,
-                request_length=len(user_request)
+                request_length=len(user_request),
             )
             raise
