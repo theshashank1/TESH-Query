@@ -9,7 +9,7 @@ from teshq.cli import config, db, query
 
 # from teshq.utils.ui import error as ui_error
 from teshq.utils.ui import handle_error
-from teshq.utils.ui import info as ui_info
+from teshq.utils.ui import info as ui_info  # noqa: F401
 
 app = typer.Typer(
     name="TESH Query",
@@ -70,15 +70,16 @@ def help_text():
 def health():
     """Check system health and connectivity."""
     import json
+
     from teshq.utils.health import get_health_status
-    from teshq.utils.ui import success, error, warning, info
-    
+    from teshq.utils.ui import error, info, success, warning  # noqa: F401
+
     try:
         health_status = get_health_status()
-        
+
         # Print health status as formatted JSON
         print(json.dumps(health_status, indent=2))
-        
+
         # Summary message
         if health_status["status"] == "healthy":
             success("🎉 All systems are healthy and operational!")
@@ -86,13 +87,13 @@ def health():
             warning("⚠️  System is operational but has some issues that should be addressed")
         else:
             error("❌ System has critical health issues that require immediate attention")
-            
+
         # Exit with appropriate code
         if health_status["status"] == "unhealthy":
             raise typer.Exit(1)
         elif health_status["status"] == "degraded":
             raise typer.Exit(2)
-            
+
     except Exception as e:
         handle_error(e, "Health Check", suggest_action="Check system configuration and connectivity")
         raise typer.Exit(1)
@@ -102,14 +103,15 @@ def health():
 def metrics():
     """Show performance metrics and monitoring data."""
     import json
+
     from teshq.utils.health import get_metrics_summary
     from teshq.utils.ui import info
-    
+
     try:
         metrics_data = get_metrics_summary()
         print(json.dumps(metrics_data, indent=2))
         info("📊 Metrics data collected successfully")
-        
+
     except Exception as e:
         handle_error(e, "Metrics Collection", suggest_action="Check system configuration")
         raise typer.Exit(1)
