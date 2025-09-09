@@ -48,6 +48,28 @@ dev = [
     "isort~=5.13.2",
     "build",
 ]
+# Database drivers (optional)
+mysql = [
+    "PyMySQL~=1.1.0",
+    "mysql-connector-python~=8.4.0",
+]
+oracle = [
+    "cx_Oracle~=8.3.0",
+    "oracledb~=2.0.0",
+]
+cassandra = [
+    "cassandra-driver~=3.29.0",
+    "cqlalchemy~=1.0.0",
+]
+# All database drivers
+all-databases = [
+    "PyMySQL~=1.1.0",
+    "mysql-connector-python~=8.4.0",
+    "cx_Oracle~=8.3.0",  
+    "oracledb~=2.0.0",
+    "cassandra-driver~=3.29.0",
+    "cqlalchemy~=1.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/theshashank1/TESH-Query"
