@@ -32,6 +32,7 @@ from .core.introspect import introspect_db, save_schema_to_files
 from .core.llm import SQLQueryGenerator
 from .core.query import execute_sql_query
 from .utils.config import get_config, save_config
+from .utils.output import QueryResult
 
 
 class TeshQuery:
@@ -222,7 +223,7 @@ class TeshQuery:
 
         return self.llm_generator.generate_sql(natural_language_query, schema)
 
-    def execute_query(self, sql_query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def execute_query(self, sql_query: str, parameters: Optional[Dict[str, Any]] = None) -> QueryResult:
         """
         Execute a SQL query against the database.
 
@@ -231,9 +232,10 @@ class TeshQuery:
             parameters: Optional parameters for the query.
 
         Returns:
-            List of dictionaries representing the query results.
+            QueryResult object with normalized, consistent results.
         """
-        return execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters or {})
+        raw_results = execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters or {})
+        return QueryResult(raw_results, sql_query, parameters)
 
     def query(
         self,
@@ -241,7 +243,7 @@ class TeshQuery:
         schema: Optional[str] = None,
         schema_file: Optional[Union[str, Path]] = None,
         return_sql: bool = False,
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any], QueryResult]:
         """
         Complete workflow: generate SQL from natural language and execute it.
 
@@ -252,25 +254,48 @@ class TeshQuery:
             return_sql: If True, returns dict with 'sql', 'parameters', and 'results'.
 
         Returns:
-            Query results as list of dicts, or complete info dict if return_sql=True.
+            Query results as list of dicts, complete info dict if return_sql=True,
+            or QueryResult object for advanced use cases.
         """
         # Generate SQL
         sql_info = self.generate_sql(natural_language_query, schema, schema_file)
         sql_query = sql_info["query"]
         parameters = sql_info["parameters"]
 
-        # Execute query
-        results = self.execute_query(sql_query, parameters)
+        # Execute query and get QueryResult object
+        raw_results = execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters)
+        result = QueryResult(raw_results, sql_query, parameters, natural_language_query)
 
         if return_sql:
-            return {
-                "sql": sql_query,
-                "parameters": parameters,
-                "results": results,
-                "natural_language_query": natural_language_query,
-            }
+            return result.to_dict(include_sql=True)
         else:
-            return results
+            return result.results
+
+    def query_advanced(
+        self,
+        natural_language_query: str,
+        schema: Optional[str] = None,
+        schema_file: Optional[Union[str, Path]] = None,
+    ) -> QueryResult:
+        """
+        Advanced query method that returns a QueryResult object with full functionality.
+
+        Args:
+            natural_language_query: The natural language query.
+            schema: Schema text. If None, will try to use cached schema or load from file.
+            schema_file: Path to schema file. Used if schema is None.
+
+        Returns:
+            QueryResult object with normalized data, DataFrame access, and display methods.
+        """
+        # Generate SQL
+        sql_info = self.generate_sql(natural_language_query, schema, schema_file)
+        sql_query = sql_info["query"]
+        parameters = sql_info["parameters"]
+
+        # Execute query and get QueryResult object
+        raw_results = execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters)
+        return QueryResult(raw_results, sql_query, parameters, natural_language_query)
 
     def _format_schema_for_llm(self, schema_info: Dict[str, Any]) -> str:
         """

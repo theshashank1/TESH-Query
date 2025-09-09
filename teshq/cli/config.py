@@ -22,6 +22,7 @@ from teshq.utils.config import (  # DEFAULT_FILE_STORE_PATH,; DEFAULT_OUTPUT_PAT
     get_config_with_source,
     save_config,
 )
+from teshq.utils.database_connectors import UnifiedDatabaseConnector
 from teshq.utils.ui import print_config  # We'll implement our own fallback if this fails
 from teshq.utils.ui import (  # handle_error,
     clear_screen,
@@ -42,7 +43,8 @@ from teshq.utils.ui import (  # handle_error,
 from teshq.utils.validation import ConfigValidator, validate_production_readiness
 
 app = typer.Typer()
-SUPPORTED_DBS = ["postgresql", "mysql", "sqlite"]
+# Get supported database types from unified connector
+SUPPORTED_DBS = UnifiedDatabaseConnector.get_supported_databases()
 
 
 def display_current_config():

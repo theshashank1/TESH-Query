@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from teshq.utils.database_connectors import UnifiedDatabaseConnector
+
 
 class ValidationError(Exception):
     """Custom exception for validation errors."""
@@ -27,35 +29,40 @@ class ValidationError(Exception):
 class ConfigValidator:
     """Validates configuration values for production readiness."""
 
-    SUPPORTED_DB_TYPES = {"postgresql", "mysql", "sqlite"}
+    # Use unified connector's supported database list
+    @property 
+    def SUPPORTED_DB_TYPES(self):
+        return set(UnifiedDatabaseConnector.get_supported_databases())
+    
     GEMINI_API_KEY_PATTERN = re.compile(r"^AIza[0-9A-Za-z-_]{35}$")
 
     @staticmethod
     def validate_database_url(db_url: str) -> Tuple[bool, str]:
-        """Validate database URL format and connection."""
+        """Validate database URL format using unified connector system."""
         if not db_url or not isinstance(db_url, str):
             return False, "Database URL cannot be empty"
 
         try:
+            # Use unified connector to get comprehensive database info
+            db_info = UnifiedDatabaseConnector.get_database_info(db_url)
+            
+            if not db_info.get("supported", False):
+                supported_types = ", ".join(UnifiedDatabaseConnector.get_supported_databases())
+                return False, f"Unsupported database type: {db_info.get('database_type')}. Supported types: {supported_types}"
+            
             parsed = urlparse(db_url)
-
-            # Check basic URL structure
             if not parsed.scheme:
-                return False, "Database URL must include a scheme (postgresql://, mysql://, sqlite://)"
+                return False, "Database URL must include a scheme (postgresql://, mysql://, sqlite://, etc.)"
 
-            # Validate supported database types
-            if parsed.scheme not in ConfigValidator.SUPPORTED_DB_TYPES:
-                return (
-                    False,
-                    f"Unsupported database type:{parsed.scheme}. Supported: {', '.join(ConfigValidator.SUPPORTED_DB_TYPES)}",
-                )
+            # Validate scheme is supported
+            detected_type = UnifiedDatabaseConnector.detect_database_type(db_url)
 
             # Special validation for SQLite
-            if parsed.scheme == "sqlite":
+            if detected_type == "sqlite":
                 if parsed.path:
-                    # Ensure directory exists for SQLite file
                     db_path = Path(parsed.path)
                     try:
+                        # Check if directory is writable
                         db_path.parent.mkdir(parents=True, exist_ok=True)
                     except PermissionError:
                         return False, f"Cannot create directory for SQLite database: {db_path.parent}"
@@ -65,47 +72,25 @@ class ConfigValidator:
             # For non-SQLite, validate required components
             else:
                 if not parsed.hostname:
-                    return False, f"{parsed.scheme} database URL must include hostname"
+                    return False, f"{detected_type} database URL must include hostname"
                 if not parsed.path or parsed.path == "/":
-                    return False, f"{parsed.scheme} database URL must include database name"
+                    return False, f"{detected_type} database URL must include database name"
 
-            return True, "Valid database URL format"
+            return True, f"Valid {detected_type} database URL format"
 
         except Exception as e:
             return False, f"Invalid database URL format: {str(e)}"
 
     @staticmethod
     def validate_database_connection(db_url: str) -> Tuple[bool, str]:
-        """Test actual database connection."""
+        """Test actual database connection using unified connector system."""
         try:
-            # Create engine with connection timeout
-            engine = create_engine(
-                db_url,
-                connect_args=(
-                    {
-                        "connect_timeout": 10,  # 10 second timeout
-                    }
-                    if not db_url.startswith("sqlite")
-                    else {}
-                ),
-            )
-
-            # Test connection
-            with engine.connect() as conn:
-                # Simple test query
-                if db_url.startswith("sqlite"):
-                    conn.execute(text("SELECT 1"))
-                elif db_url.startswith("postgresql"):
-                    conn.execute(text("SELECT version()"))
-                elif db_url.startswith("mysql"):
-                    conn.execute(text("SELECT version()"))
-
-            return True, "Database connection successful"
-
-        except SQLAlchemyError as e:
-            return False, f"Database connection failed: {str(e)}"
+            # Use unified connector for comprehensive connection testing
+            success, message = UnifiedDatabaseConnector.test_connection(db_url)
+            return success, message
+            
         except Exception as e:
-            return False, f"Unexpected error testing database connection: {str(e)}"
+            return False, f"Connection test failed: {str(e)}"
 
     @staticmethod
     def validate_gemini_api_key(api_key: str) -> Tuple[bool, str]:

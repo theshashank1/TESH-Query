@@ -15,6 +15,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import Pool, QueuePool, StaticPool
 
+from teshq.utils.database_connectors import UnifiedDatabaseConnector
 from teshq.utils.logging import log_operation, logger, metrics
 from teshq.utils.retry import retry_database_operation
 
@@ -74,35 +75,49 @@ class ConnectionManager:
             metrics.increment_counter("db_connection_invalidated_total", tags={"engine": engine_name})
 
     def get_engine(self, database_url: str, engine_name: str = "default") -> Engine:
-        """Get or create a database engine with connection pooling."""
+        """Get or create a database engine with the unified connector system."""
         if engine_name in self._engines:
             return self._engines[engine_name]
 
         with log_operation("create_database_engine", engine_name=engine_name):
-            is_sqlite = database_url.startswith("sqlite")
-            engine_args = self._get_engine_args(database_url)
-
-            engine = create_engine(database_url, **engine_args)
-            self._engines[engine_name] = engine
-
-            # Set up listeners only once per engine
-            self._setup_metrics_listeners(engine_name)
-
-            log_info = {
-                "pool_class": "StaticPool" if is_sqlite else "QueuePool",
-                "engine_name": engine_name,
+            # Use unified connector system for enhanced database support
+            config_dict = {
+                "pool_size": self.config.pool_size,
+                "max_overflow": self.config.max_overflow,
+                "pool_timeout": self.config.pool_timeout,
+                "pool_recycle": self.config.pool_recycle,
+                "connect_timeout": self.config.connect_timeout,
+                "pool_pre_ping": self.config.pool_pre_ping,
+                "echo": self.config.echo,
             }
-            if not is_sqlite:
-                log_info.update(
-                    {
-                        "pool_size": self.config.pool_size,
-                        "max_overflow": self.config.max_overflow,
-                        "connect_timeout": self.config.connect_timeout,
-                    }
+            
+            try:
+                engine = UnifiedDatabaseConnector.create_engine(database_url, config_dict)
+                self._engines[engine_name] = engine
+                
+                # Set up listeners only once per engine
+                self._setup_metrics_listeners(engine_name)
+                
+                db_type = UnifiedDatabaseConnector.detect_database_type(database_url)
+                logger.info(
+                    "Database engine created",
+                    engine_name=engine_name,
+                    database_type=db_type,
+                    supports_pooling=db_type != "sqlite"
                 )
-
-            logger.info("Database engine created", **log_info)
-            return engine
+                
+                return engine
+                
+            except ValueError as e:
+                # Fallback to original implementation for unsupported databases
+                logger.warning(f"Using fallback connection method: {e}")
+                engine_args = self._get_engine_args(database_url)
+                engine = create_engine(database_url, **engine_args)
+                self._engines[engine_name] = engine
+                self._setup_metrics_listeners(engine_name)
+                
+                logger.info("Database engine created (fallback mode)", engine_name=engine_name)
+                return engine
 
     def _get_engine_args(self, database_url: str) -> Dict[str, Any]:
         """Get the appropriate arguments for creating a SQLAlchemy engine."""
@@ -186,12 +201,24 @@ class ConnectionManager:
                 raise
 
     def test_connection(self, database_url: str, engine_name: str = "default") -> bool:
-        """Test database connectivity."""
+        """Test database connectivity using the unified connector system."""
         try:
-            with self.get_connection(database_url, engine_name) as conn:
-                conn.execute(text("SELECT 1"))
-            logger.info("Database connection test successful", engine_name=engine_name)
-            return True
+            # Use unified connector for comprehensive testing
+            success, message = UnifiedDatabaseConnector.test_connection(
+                database_url, 
+                {
+                    "connect_timeout": self.config.connect_timeout,
+                    "echo": False,  # Disable echo for testing
+                }
+            )
+            
+            if success:
+                logger.info("Database connection test successful", engine_name=engine_name, message=message)
+            else:
+                logger.error("Database connection test failed", engine_name=engine_name, message=message)
+                
+            return success
+            
         except Exception as e:
             logger.error("Database connection test failed", error=e, engine_name=engine_name)
             return False
