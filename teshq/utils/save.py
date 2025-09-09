@@ -3,6 +3,8 @@ import sqlite3
 
 import pandas as pd
 
+from teshq.utils.logging import logger, log_operation
+
 
 def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
     """
@@ -15,10 +17,27 @@ def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
         **kwargs: Additional arguments to pass to df.to_csv().
     """
     try:
-        df.to_csv(filename, index=index, **kwargs)
-        print(f"Data successfully saved to {filename}")
+        with log_operation("save_to_csv", file_path=filename, row_count=len(df)):
+            # Ensure directory exists if filename has a directory path
+            parent_dir = os.path.dirname(filename)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            df.to_csv(filename, index=index, **kwargs)
+            
+        logger.success(
+            "Data successfully saved to CSV",
+            file_path=filename,
+            row_count=len(df),
+            file_size_bytes=os.path.getsize(filename)
+        )
     except Exception as e:
-        print(f"Error saving to CSV: {e}")
+        logger.error(
+            "Error saving to CSV",
+            error=e,
+            file_path=filename,
+            row_count=len(df)
+        )
+        raise
 
 
 def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", index: bool = False, **kwargs):
@@ -33,10 +52,29 @@ def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", i
         **kwargs: Additional arguments to pass to df.to_excel().
     """
     try:
-        df.to_excel(filename, sheet_name=sheet_name, index=index, **kwargs)
-        print(f"Data successfully saved to {filename}")
+        with log_operation("save_to_excel", file_path=filename, sheet_name=sheet_name, row_count=len(df)):
+            # Ensure directory exists if filename has a directory path
+            parent_dir = os.path.dirname(filename)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            df.to_excel(filename, sheet_name=sheet_name, index=index, **kwargs)
+            
+        logger.success(
+            "Data successfully saved to Excel",
+            file_path=filename,
+            sheet_name=sheet_name,
+            row_count=len(df),
+            file_size_bytes=os.path.getsize(filename)
+        )
     except Exception as e:
-        print(f"Error saving to Excel: {e}")
+        logger.error(
+            "Error saving to Excel",
+            error=e,
+            file_path=filename,
+            sheet_name=sheet_name,
+            row_count=len(df)
+        )
+        raise
 
 
 def save_to_sqlite(
@@ -58,11 +96,29 @@ def save_to_sqlite(
         **kwargs: Additional arguments to pass to df.to_sql().
     """
     try:
-        # Ensure the directory for the database file exists
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        with log_operation("save_to_sqlite", db_file_path=db_path, table_name=table_name, row_count=len(df)):
+            # Ensure the directory for the database file exists
+            db_dir = os.path.dirname(db_path)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
 
-        with sqlite3.connect(db_path) as conn:
-            df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
-        print(f"Data successfully saved to SQLite database '{db_path}' in table '{table_name}'")
+            with sqlite3.connect(db_path) as conn:
+                df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
+            
+        logger.success(
+            "Data successfully saved to SQLite database",
+            db_file_path=db_path,
+            table_name=table_name,
+            row_count=len(df),
+            if_exists=if_exists,
+            file_size_bytes=os.path.getsize(db_path)
+        )
     except Exception as e:
-        print(f"Error saving to SQLite: {e}")
+        logger.error(
+            "Error saving to SQLite",
+            error=e,
+            db_file_path=db_path,
+            table_name=table_name,
+            row_count=len(df)
+        )
+        raise
