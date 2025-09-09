@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from teshq.utils.config import get_database_url as get_db_url
 from teshq.utils.connection import execute_query_with_pooling
-from teshq.utils.logging import logger, log_query_metrics, log_operation
+from teshq.utils.logging import log_operation, log_query_metrics, logger
 
 
 def execute_sql_query(
@@ -31,32 +31,27 @@ def execute_sql_query(
         with log_operation("execute_sql_query", query_length=len(query), has_parameters=bool(parameters)):
             # Use the new connection pooling system
             result = execute_query_with_pooling(connection_url, query, parameters)
-            
+
             # Log query metrics
             log_query_metrics(
                 query_type="user_query",
                 execution_time=0,  # This will be handled by the connection manager
                 row_count=len(result),
                 query_length=len(query),
-                has_parameters=bool(parameters)
+                has_parameters=bool(parameters),
             )
-            
+
             logger.success(
                 "SQL query executed successfully",
                 row_count=len(result),
                 query_length=len(query),
-                has_parameters=bool(parameters)
+                has_parameters=bool(parameters),
             )
-            
+
             return result
-            
+
     except Exception as e:
-        logger.error(
-            "SQL query execution failed",
-            error=e,
-            query_length=len(query),
-            has_parameters=bool(parameters)
-        )
+        logger.error("SQL query execution failed", error=e, query_length=len(query), has_parameters=bool(parameters))
         # Re-raise the exception to maintain existing error handling behavior
         raise
 
