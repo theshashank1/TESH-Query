@@ -144,3 +144,5 @@ logs/
 test_logging_refactor.py
 
 db_schema/*
+
+logs/*

@@ -22,7 +22,7 @@ def database(
     """
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     print_header("Database Connection Manager", level=2)
 
     db_url = get_configured_database_url()
@@ -82,7 +82,7 @@ def introspect(
     """
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     print_header("Database Schema Introspection", level=2)
     try:  # Introspection logic handles db_url if None
         with status(

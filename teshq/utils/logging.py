@@ -61,11 +61,11 @@ class TeshqLogger:
 
         # Always set up file handler for logging to file
         self._setup_file_handler()
-        
+
         # Set up console handler only if CLI output is enabled
         if self.enable_cli_output:
             self._setup_console_handler()
-        
+
         self.logger.setLevel(logging.INFO)
 
     def _setup_file_handler(self):
@@ -74,11 +74,10 @@ class TeshqLogger:
             # Ensure log directory exists
             log_path = Path(self.log_file_path)
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            file_handler = logging.FileHandler(self.log_file_path, mode='a', encoding='utf-8')
+
+            file_handler = logging.FileHandler(self.log_file_path, mode="a", encoding="utf-8")
             formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S"
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
             )
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
@@ -108,7 +107,9 @@ class TeshqLogger:
         if self.enable_cli_output:
             self.enable_cli_output = False
             # Remove console handlers
-            self.logger.handlers = [h for h in self.logger.handlers if not isinstance(h, logging.StreamHandler) or h.stream != sys.stdout]
+            self.logger.handlers = [
+                h for h in self.logger.handlers if not isinstance(h, logging.StreamHandler) or h.stream != sys.stdout
+            ]
 
     def info(self, message: str, **kwargs):
         """Log info message with structured data."""
@@ -146,6 +147,7 @@ class TeshqLogger:
 
 # Global logger instance - default to file-only logging
 logger = TeshqLogger()
+
 
 # Function to configure global logger
 def configure_global_logger(enable_cli_output: bool = False, log_file_path: Optional[str] = None):

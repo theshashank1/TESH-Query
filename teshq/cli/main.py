@@ -24,14 +24,16 @@ app = typer.Typer(
 def __main__(
     version: Optional[bool] = typer.Option(False, "--version", "-v", help="Show the application's version and exit."),
     developer: Optional[bool] = typer.Option(False, "--developer", "-d", help="Show the application's author and exit."),
-    log: Optional[bool] = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+    log: Optional[bool] = typer.Option(
+        False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."
+    ),
 ):
     """
     These are Global Options
     """
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     if version:
         try:
             from importlib.metadata import PackageNotFoundError, version
@@ -66,9 +68,9 @@ def name(
     """Show the app name."""
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     from teshq.utils.logging import logger
-    
+
     logger.info("Executing 'name' command")
     typer.echo(f"App Name: {app.info.name}")
     logger.info("'name' command completed successfully")
@@ -91,7 +93,7 @@ def health(
     """Check system health and connectivity."""
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     import json
 
     from teshq.utils.health import get_health_status
@@ -129,7 +131,7 @@ def metrics(
     """Show performance metrics and monitoring data."""
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     import json
 
     from teshq.utils.health import get_metrics_summary

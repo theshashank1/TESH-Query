@@ -2,47 +2,244 @@ DATABASE SCHEMA
 ==================================================
 
 DATABASE STRUCTURE SUMMARY
-Total tables: 2
-Tables: orders, users
+Total tables: 11
+Tables: categories, customers, inventory, order_items, orders, product_suppliers, products, regions, suppliers, users, warehouses
 
 TABLE DETAILS:
-- orders (4 cols, PK: id, ~4 rows)
-- users (5 cols, PK: id, ~3 rows)
+- categories (2 cols, PK: category_id, ~7 rows)
+- customers (8 cols, PK: customer_id, ~20000 rows)
+- inventory (5 cols, PK: warehouse_id, product_id, ~5000 rows)
+- order_items (8 cols, PK: order_item_id, ~487218 rows)
+- orders (6 cols, PK: order_id, ~75000 rows)
+- product_suppliers (4 cols, PK: product_id, supplier_id, ~1515 rows)
+- products (8 cols, PK: product_id, ~1000 rows)
+- regions (2 cols, PK: region_id, ~5 rows)
+- suppliers (3 cols, PK: supplier_id, ~120 rows)
+- users (2 cols, PK: None, ~0 rows)
+- warehouses (5 cols, PK: warehouse_id, ~5 rows)
 
   Explicit Relationships:
-  - orders.user_id → users.id
+  - customers.region_id → regions.region_id
+  - inventory.warehouse_id → warehouses.warehouse_id
+  - inventory.product_id → products.product_id
+  - order_items.order_id → orders.order_id
+  - order_items.product_id → products.product_id
+  - orders.customer_id → customers.customer_id
+  - orders.warehouse_id → warehouses.warehouse_id
+  - product_suppliers.product_id → products.product_id
+  - product_suppliers.supplier_id → suppliers.supplier_id
+  - products.category_id → categories.category_id
+  - warehouses.region_id → regions.region_id
+
+  Implicit Relationships (Detected by Naming Convention):
+  - customers.customer_id → customers.customer_id (Type: potential-many-to-one, Confidence: medium)
+  - order_items.order_item_id → order_items.order_item_id (Type: potential-many-to-one, Confidence: medium)
+  - orders.order_id → orders.order_id (Type: potential-many-to-one, Confidence: medium)
+  - products.product_id → products.product_id (Type: potential-many-to-one, Confidence: medium)
+  - regions.region_id → regions.region_id (Type: potential-many-to-one, Confidence: medium)
+  - suppliers.supplier_id → suppliers.supplier_id (Type: potential-many-to-one, Confidence: medium)
+  - warehouses.warehouse_id → warehouses.warehouse_id (Type: potential-many-to-one, Confidence: medium)
 
 ==================================================
 
 DETAILED TABLE INFORMATION:
 
-Table: orders
--------------
-Row count: 4
+Table: categories
+-----------------
+Row count: 7
 
 Columns:
-- id (INTEGER), Primary Key
-- user_id (INTEGER), NOT NULL
-- amount (DECIMAL(10, 2)), NOT NULL
-- order_date (DATE), NOT NULL
+- category_id (INTEGER), Primary Key
+- category_name (TEXT), NOT NULL
+
+--------------------------------------------------
+
+Table: customers
+----------------
+Row count: 20000
+
+Columns:
+- customer_id (INTEGER), Primary Key
+- customer_code (TEXT), NOT NULL
+- customer_name (TEXT), NOT NULL
+- region_id (INTEGER), NOT NULL
+- city (TEXT), NOT NULL
+- channel (TEXT), NOT NULL
+- tier (TEXT), NOT NULL
+- created_at (TEXT), NOT NULL
 
 Foreign Keys:
-- user_id → users(id)
+- region_id → regions(region_id)
+
+--------------------------------------------------
+
+Table: inventory
+----------------
+Row count: 5000
+
+Columns:
+- warehouse_id (INTEGER), NOT NULL, Primary Key
+- product_id (INTEGER), NOT NULL, Primary Key
+- on_hand (INTEGER), NOT NULL
+- reorder_point (INTEGER), NOT NULL
+- last_updated (TEXT), NOT NULL
+
+Foreign Keys:
+- warehouse_id → warehouses(warehouse_id)
+- product_id → products(product_id)
+
+--------------------------------------------------
+
+Table: order_items
+------------------
+Row count: 487218
+
+Columns:
+- order_item_id (INTEGER), Primary Key
+- order_id (INTEGER), NOT NULL
+- product_id (INTEGER), NOT NULL
+- quantity (INTEGER), NOT NULL
+- unit_price (NUMERIC), NOT NULL
+- discount_pct (NUMERIC), NOT NULL, Default: 0
+- tax_amount (NUMERIC), NOT NULL
+- line_total (NUMERIC), NOT NULL
+
+Foreign Keys:
+- order_id → orders(order_id)
+- product_id → products(product_id)
+
+Indexes:
+- idx_items_order: (order_id)
+- idx_items_product: (product_id)
+
+--------------------------------------------------
+
+Table: orders
+-------------
+Row count: 75000
+
+Columns:
+- order_id (INTEGER), Primary Key
+- order_code (TEXT), NOT NULL
+- customer_id (INTEGER), NOT NULL
+- warehouse_id (INTEGER), NOT NULL
+- order_date (TEXT), NOT NULL
+- status (TEXT), NOT NULL
+
+Foreign Keys:
+- customer_id → customers(customer_id)
+- warehouse_id → warehouses(warehouse_id)
+
+Indexes:
+- idx_orders_customer: (customer_id)
+- idx_orders_date: (order_date)
+
+--------------------------------------------------
+
+Table: product_suppliers
+------------------------
+Row count: 1515
+
+Columns:
+- product_id (INTEGER), NOT NULL, Primary Key
+- supplier_id (INTEGER), NOT NULL, Primary Key
+- lead_time_days (INTEGER), NOT NULL
+- unit_cost (NUMERIC), NOT NULL
+
+Foreign Keys:
+- product_id → products(product_id)
+- supplier_id → suppliers(supplier_id)
+
+--------------------------------------------------
+
+Table: products
+---------------
+Row count: 1000
+
+Columns:
+- product_id (INTEGER), Primary Key
+- sku (TEXT), NOT NULL
+- product_name (TEXT), NOT NULL
+- category_id (INTEGER), NOT NULL
+- brand (TEXT), NOT NULL
+- mrp (NUMERIC), NOT NULL
+- unit_size (TEXT), NOT NULL
+- tax_rate (NUMERIC), NOT NULL
+
+Foreign Keys:
+- category_id → categories(category_id)
+
+Indexes:
+- idx_prod_brand: (brand)
+- idx_prod_cat: (category_id)
+
+--------------------------------------------------
+
+Table: regions
+--------------
+Row count: 5
+
+Columns:
+- region_id (INTEGER), Primary Key
+- region_name (TEXT), NOT NULL
+
+--------------------------------------------------
+
+Table: suppliers
+----------------
+Row count: 120
+
+Columns:
+- supplier_id (INTEGER), Primary Key
+- supplier_name (TEXT), NOT NULL
+- city (TEXT), NOT NULL
 
 --------------------------------------------------
 
 Table: users
 ------------
-Row count: 3
+Row count: 0
 
 Columns:
-- id (INTEGER), Primary Key
-- name (TEXT), NOT NULL
-- email (TEXT), NOT NULL
-- created_at (DATE), NOT NULL
-- is_active (BOOLEAN), Default: 1
+- id (INTEGER)
+- name (TEXT)
+
+--------------------------------------------------
+
+Table: warehouses
+-----------------
+Row count: 5
+
+Columns:
+- warehouse_id (INTEGER), Primary Key
+- region_id (INTEGER), NOT NULL
+- warehouse_name (TEXT), NOT NULL
+- city (TEXT), NOT NULL
+- capacity_units (INTEGER), NOT NULL
+
+Foreign Keys:
+- region_id → regions(region_id)
 
 --------------------------------------------------
 
 EXPLICIT RELATIONSHIPS:
-- orders.user_id → users.id
+- customers.region_id → regions.region_id
+- inventory.warehouse_id → warehouses.warehouse_id
+- inventory.product_id → products.product_id
+- order_items.order_id → orders.order_id
+- order_items.product_id → products.product_id
+- orders.customer_id → customers.customer_id
+- orders.warehouse_id → warehouses.warehouse_id
+- product_suppliers.product_id → products.product_id
+- product_suppliers.supplier_id → suppliers.supplier_id
+- products.category_id → categories.category_id
+- warehouses.region_id → regions.region_id
+
+INFERRED RELATIONSHIPS:
+- customers.customer_id → customers.customer_id (Type: potential-many-to-one, Confidence: medium)
+- order_items.order_item_id → order_items.order_item_id (Type: potential-many-to-one, Confidence: medium)
+- orders.order_id → orders.order_id (Type: potential-many-to-one, Confidence: medium)
+- products.product_id → products.product_id (Type: potential-many-to-one, Confidence: medium)
+- regions.region_id → regions.region_id (Type: potential-many-to-one, Confidence: medium)
+- suppliers.supplier_id → suppliers.supplier_id (Type: potential-many-to-one, Confidence: medium)
+- warehouses.warehouse_id → warehouses.warehouse_id (Type: potential-many-to-one, Confidence: medium)

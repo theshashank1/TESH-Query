@@ -177,10 +177,11 @@ def config(
     """
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     from teshq.utils.logging import logger
+
     logger.info("Starting configuration command")
-    
+
     try:
         clear_screen()
         print_header("🔧 TESHQ CONFIGURATION", "Database & Gemini API Setup")
@@ -331,7 +332,7 @@ def validate_config(
     """Validate the current configuration for production deployment."""
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     try:
         with section("Configuration Validation"):
             info("Checking configuration for production readiness...")

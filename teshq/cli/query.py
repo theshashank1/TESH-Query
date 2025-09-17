@@ -101,7 +101,7 @@ def process_nl_query(
     """
     # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-    
+
     try:
         # Validate natural language query
         is_valid, validation_message = CLIValidator.validate_natural_language_query(natural_language_request)
