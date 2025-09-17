@@ -179,6 +179,21 @@ teshq query --help
 teshq query "your question here"
 ```
 
+### Logging and Debugging
+
+```bash
+# Enable real-time logging output for debugging (logs are always saved to file)
+teshq query "your question here" --log
+teshq config --log
+teshq introspect --log
+
+# All commands support the --log flag for debugging
+# Default behavior: logs saved to logs/teshq.log (file only)
+# With --log flag: logs shown on CLI + saved to file
+```
+
+> **🔍 Logging Behavior**: By default, TESH-Query saves all logs to `logs/teshq.log` for historical record-keeping without cluttering your CLI. Use the `--log` flag with any command to see real-time debug output while still maintaining the log file.
+
 ---
 
 ## 💡 Example Queries

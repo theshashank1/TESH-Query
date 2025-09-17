@@ -137,4 +137,10 @@ config.json
 
 .env
 
+# Logs directory
+logs/
+
+# Test files for development
+test_logging_refactor.py
+
 db_schema/*
