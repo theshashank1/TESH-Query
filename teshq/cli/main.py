@@ -6,6 +6,7 @@ import typer
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.cli import config, db, query
+from teshq.utils.logging import configure_global_logger
 
 # from teshq.utils.ui import error as ui_error
 from teshq.utils.ui import handle_error
@@ -23,10 +24,14 @@ app = typer.Typer(
 def __main__(
     version: Optional[bool] = typer.Option(False, "--version", "-v", help="Show the application's version and exit."),
     developer: Optional[bool] = typer.Option(False, "--developer", "-d", help="Show the application's author and exit."),
+    log: Optional[bool] = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """
     These are Global Options
     """
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     if version:
         try:
             from importlib.metadata import PackageNotFoundError, version
@@ -55,20 +60,38 @@ app.add_typer(query.app)
 
 
 @app.command()
-def name():
+def name(
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+):
     """Show the app name."""
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
+    from teshq.utils.logging import logger
+    
+    logger.info("Executing 'name' command")
     typer.echo(f"App Name: {app.info.name}")
+    logger.info("'name' command completed successfully")
 
 
 @app.command()
-def help_text():
+def help_text(
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+):
     """Show the app help description."""
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
     typer.echo(f"Help: {app.info.help}")
 
 
 @app.command()
-def health():
+def health(
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+):
     """Check system health and connectivity."""
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     import json
 
     from teshq.utils.health import get_health_status
@@ -100,8 +123,13 @@ def health():
 
 
 @app.command()
-def metrics():
+def metrics(
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+):
     """Show performance metrics and monitoring data."""
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     import json
 
     from teshq.utils.health import get_metrics_summary

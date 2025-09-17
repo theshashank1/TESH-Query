@@ -10,6 +10,7 @@ from teshq.core.query import execute_sql_query
 from teshq.utils.config import get_database_url as get_db_url
 from teshq.utils.config import get_gemini_config as get_gemini_credentials
 from teshq.utils.formater import print_query_table
+from teshq.utils.logging import configure_global_logger
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
 from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success
 from teshq.utils.validation import CLIValidator, ValidationError
@@ -93,10 +94,14 @@ def process_nl_query(
     save_csv: str = typer.Option(None, "--save-csv", help="Save the query result as a CSV file."),
     save_excel: str = typer.Option(None, "--save-excel", help="Save the query result as an Excel file."),
     save_sqlite: str = typer.Option(None, "--save-sqlite", help="Save the query result to a SQLite database."),
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """
     Processes a natural language query, generates SQL, executes it, and prints the results.
     """
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     try:
         # Validate natural language query
         is_valid, validation_message = CLIValidator.validate_natural_language_query(natural_language_request)

@@ -22,6 +22,7 @@ from teshq.utils.config import (  # DEFAULT_FILE_STORE_PATH,; DEFAULT_OUTPUT_PAT
     get_config_with_source,
     save_config,
 )
+from teshq.utils.logging import configure_global_logger
 from teshq.utils.ui import print_config  # We'll implement our own fallback if this fails
 from teshq.utils.ui import (  # handle_error,
     clear_screen,
@@ -163,6 +164,7 @@ def config(
     force_configure_gemini: bool = typer.Option(False, "--gemini", "-gemini", help="Interactive Gemini API configuration"),
     output_file_path: str = typer.Option(None, "--output-file-path", help="Output file path"),
     file_store_path: str = typer.Option(None, "--file-store-path", help="File store path"),
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """
     Configure TeshQ's database and Gemini API settings.
@@ -173,6 +175,12 @@ def config(
     When saving, the resulting configuration is written to .env and config.json,
     ensuring all relevant environment variables and file paths persist for future sessions.
     """
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
+    from teshq.utils.logging import logger
+    logger.info("Starting configuration command")
+    
     try:
         clear_screen()
         print_header("🔧 TESHQ CONFIGURATION", "Database & Gemini API Setup")
@@ -317,8 +325,13 @@ def config(
 
 
 @app.command(name="validate", help="Validate current configuration for production readiness")
-def validate_config():
+def validate_config(
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+):
     """Validate the current configuration for production deployment."""
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     try:
         with section("Configuration Validation"):
             info("Checking configuration for production readiness...")

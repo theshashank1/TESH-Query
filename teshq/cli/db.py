@@ -5,6 +5,7 @@ from teshq.cli.ui import error, handle_error, print_footer, print_header, status
 from teshq.core.db import connect_database, disconnect_database
 from teshq.core.introspect import introspect_db
 from teshq.utils.config import get_database_url as get_configured_database_url
+from teshq.utils.logging import configure_global_logger
 
 app = typer.Typer()
 load_dotenv()
@@ -14,10 +15,14 @@ load_dotenv()
 def database(
     connect: bool = typer.Option(False, "--connect", help="Connect to the database"),
     disconnect: bool = typer.Option(False, "--disconnect", help="Disconnect from the database (after connection)"),
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """
     Manage database connection lifecycle: connect and optionally disconnect.
     """
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     print_header("Database Connection Manager", level=2)
 
     db_url = get_configured_database_url()
@@ -70,10 +75,14 @@ def introspect(
         "-r",
         help="Detect implicit relationships from naming conventions.",
     ),
+    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """
     Perform database schema introspection optimized for LLM query generation.
     """
+    # Configure logging based on --log flag
+    configure_global_logger(enable_cli_output=log)
+    
     print_header("Database Schema Introspection", level=2)
     try:  # Introspection logic handles db_url if None
         with status(
