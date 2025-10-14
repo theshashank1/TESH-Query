@@ -8,7 +8,7 @@ to ensure reliable database operations under production conditions.
 import os
 import time
 from contextlib import contextmanager
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -166,28 +166,17 @@ class ConnectionManager:
                 )
                 raise
 
-    def test_connection(self, database_url: str, engine_name: str = "default") -> bool:
-        """Test database connectivity using the unified connector system."""
+    def test_connection(self, database_url: str, engine_name: str = "default") -> Tuple[bool, str]:
+        """Test database connectivity by executing a simple query."""
         try:
-            # Use unified connector for comprehensive testing
-            success, message = UnifiedDatabaseConnector.test_connection(
-                database_url,
-                {
-                    "connect_timeout": self.config.connect_timeout,
-                    "echo": False,  # Disable echo for testing
-                },
-            )
-
-            if success:
-                logger.info("Database connection test successful", engine_name=engine_name, message=message)
-            else:
-                logger.error("Database connection test failed", engine_name=engine_name, message=message)
-
-            return success
+            with self.get_connection(database_url, engine_name) as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Database connection test successful", engine_name=engine_name)
+            return True, "Connection successful and test query executed."
 
         except Exception as e:
             logger.error("Database connection test failed", error=e, engine_name=engine_name)
-            return False
+            return False, str(e)
 
     def get_connection_info(self, engine_name: str = "default") -> Dict[str, Any]:
         """Get connection pool information for monitoring."""
