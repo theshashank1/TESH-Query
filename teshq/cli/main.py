@@ -124,29 +124,6 @@ def health(
         raise typer.Exit(1)
 
 
-@app.command()
-def metrics(
-    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
-):
-    """Show performance metrics and monitoring data."""
-    # Configure logging based on --log flag
-    configure_global_logger(enable_cli_output=log)
-
-    import json
-
-    from teshq.utils.health import get_metrics_summary
-    from teshq.utils.ui import info
-
-    try:
-        metrics_data = get_metrics_summary()
-        print(json.dumps(metrics_data, indent=2))
-        info("📊 Metrics data collected successfully")
-
-    except Exception as e:
-        handle_error(e, "Metrics Collection", suggest_action="Check system configuration")
-        raise typer.Exit(1)
-
-
 def main():
     """Main entry point with comprehensive error handling."""
     try:
