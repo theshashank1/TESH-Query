@@ -10,13 +10,13 @@ import time
 from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool, StaticPool
 
 from teshq.utils.database_connectors import UnifiedDatabaseConnector
-from teshq.utils.logging import log_operation, logger, metrics
+from teshq.utils.logging import logger
 from teshq.utils.retry import retry_database_operation
 
 
@@ -50,88 +50,47 @@ class ConnectionManager:
     def __init__(self, config: Optional[ConnectionConfig] = None):
         self.config = config or ConnectionConfig()
         self._engines: Dict[str, Engine] = {}
-        self._listeners_set_up = set()  # Track which engines have listeners set up
-
-    def _setup_metrics_listeners(self, engine: Engine, engine_name: str):
-        """Set up event listeners for metrics for a given engine."""
-        # Only set up listeners once per engine to avoid duplicates
-        if engine_name in self._listeners_set_up:
-            return
-
-        # Use standard function definitions instead of named parameters
-        def connect(dbapi_connection, connection_record):
-            metrics.increment_counter("db_connections_total", tags={"engine": engine_name})
-
-        def checkout(dbapi_connection, connection_record, connection_proxy):
-            metrics.increment_counter("db_checkouts_total", tags={"engine": engine_name})
-            pool = engine.pool
-            if isinstance(pool, QueuePool):
-                metrics.set_gauge("db_pool_connections", pool.size(), tags={"engine": engine_name})
-                metrics.set_gauge("db_pool_checkedout", pool.checkedout(), tags={"engine": engine_name})
-
-        def checkin(dbapi_connection, connection_record):
-            pool = engine.pool
-            if isinstance(pool, QueuePool):
-                metrics.set_gauge("db_pool_checkedin", pool.checkedin(), tags={"engine": engine_name})
-
-        def soft_invalidate(dbapi_connection, connection_record, exception):
-            metrics.increment_counter("db_connection_invalidated_total", tags={"engine": engine_name})
-
-        # Register event listeners directly with the engine's pool
-        event.listen(engine.pool, "connect", connect)
-        event.listen(engine.pool, "checkout", checkout)
-        event.listen(engine.pool, "checkin", checkin)
-        event.listen(engine.pool, "soft_invalidate", soft_invalidate)
-
-        self._listeners_set_up.add(engine_name)
-        logger.debug(f"Event listeners registered for engine: {engine_name}")
 
     def get_engine(self, database_url: str, engine_name: str = "default") -> Engine:
         """Get or create a database engine with the unified connector system."""
         if engine_name in self._engines:
             return self._engines[engine_name]
 
-        with log_operation("create_database_engine", engine_name=engine_name):
-            # Use unified connector system for enhanced database support
-            config_dict = {
-                "pool_size": self.config.pool_size,
-                "max_overflow": self.config.max_overflow,
-                "pool_timeout": self.config.pool_timeout,
-                "pool_recycle": self.config.pool_recycle,
-                "connect_timeout": self.config.connect_timeout,
-                "pool_pre_ping": self.config.pool_pre_ping,
-                "echo": self.config.echo,
-            }
+        logger.info("Creating database engine", engine_name=engine_name)
+        # Use unified connector system for enhanced database support
+        config_dict = {
+            "pool_size": self.config.pool_size,
+            "max_overflow": self.config.max_overflow,
+            "pool_timeout": self.config.pool_timeout,
+            "pool_recycle": self.config.pool_recycle,
+            "connect_timeout": self.config.connect_timeout,
+            "pool_pre_ping": self.config.pool_pre_ping,
+            "echo": self.config.echo,
+        }
 
-            try:
-                engine = UnifiedDatabaseConnector.create_engine(database_url, config_dict)
-                self._engines[engine_name] = engine
+        try:
+            engine = UnifiedDatabaseConnector.create_engine(database_url, config_dict)
+            self._engines[engine_name] = engine
 
-                # Set up listeners after engine is created
-                self._setup_metrics_listeners(engine, engine_name)
+            db_type = UnifiedDatabaseConnector.detect_database_type(database_url)
+            logger.info(
+                "Database engine created",
+                engine_name=engine_name,
+                database_type=db_type,
+                supports_pooling=db_type != "sqlite",
+            )
 
-                db_type = UnifiedDatabaseConnector.detect_database_type(database_url)
-                logger.info(
-                    "Database engine created",
-                    engine_name=engine_name,
-                    database_type=db_type,
-                    supports_pooling=db_type != "sqlite",
-                )
+            return engine
 
-                return engine
+        except ValueError as e:
+            # Fallback to original implementation for unsupported databases
+            logger.warning(f"Using fallback connection method: {e}")
+            engine_args = self._get_engine_args(database_url)
+            engine = create_engine(database_url, **engine_args)
+            self._engines[engine_name] = engine
 
-            except ValueError as e:
-                # Fallback to original implementation for unsupported databases
-                logger.warning(f"Using fallback connection method: {e}")
-                engine_args = self._get_engine_args(database_url)
-                engine = create_engine(database_url, **engine_args)
-                self._engines[engine_name] = engine
-
-                # Set up listeners after engine is created
-                self._setup_metrics_listeners(engine, engine_name)
-
-                logger.info("Database engine created (fallback mode)", engine_name=engine_name)
-                return engine
+            logger.info("Database engine created (fallback mode)", engine_name=engine_name)
+            return engine
 
     def _get_engine_args(self, database_url: str) -> Dict[str, Any]:
         """Get the appropriate arguments for creating a SQLAlchemy engine."""
@@ -164,14 +123,14 @@ class ConnectionManager:
         connection = None
 
         try:
-            with log_operation("get_database_connection", engine_name=engine_name):
-                connection = engine.connect()
-                if not database_url.startswith("sqlite"):
-                    try:
-                        connection.execute(text(f"SET statement_timeout = {self.config.query_timeout * 1000}"))
-                    except SQLAlchemyError:
-                        pass  # Some dialects might not support this
-                yield connection
+            logger.debug("Getting database connection", engine_name=engine_name)
+            connection = engine.connect()
+            if not database_url.startswith("sqlite"):
+                try:
+                    connection.execute(text(f"SET statement_timeout = {self.config.query_timeout * 1000}"))
+                except SQLAlchemyError:
+                    pass  # Some dialects might not support this
+            yield connection
         except Exception as e:
             logger.error("Database connection error", error=e, engine_name=engine_name)
             raise
@@ -193,11 +152,6 @@ class ConnectionManager:
                 columns = result.keys() if hasattr(result, "keys") else []
                 execution_time = time.time() - start_time
 
-                tags = {"engine": engine_name, "status": "success"}
-                metrics.add_point("db_query_execution_time", execution_time, tags)
-                metrics.add_point("db_query_row_count", len(rows), tags)
-                metrics.increment_counter("db_queries_total", tags=tags)
-
                 logger.info(
                     "Query executed successfully",
                     execution_time_seconds=execution_time,
@@ -207,8 +161,6 @@ class ConnectionManager:
                 return [dict(zip(columns, row)) for row in rows]
             except Exception as e:
                 execution_time = time.time() - start_time
-                tags = {"engine": engine_name, "status": "error"}
-                metrics.increment_counter("db_queries_total", tags=tags)
                 logger.error(
                     "Query execution failed", error=e, execution_time_seconds=execution_time, engine_name=engine_name
                 )
@@ -267,7 +219,6 @@ class ConnectionManager:
             except Exception as e:
                 logger.error("Error disposing database engine", error=e, engine_name=engine_name)
         self._engines.clear()
-        self._listeners_set_up.clear()
 
 
 connection_manager = ConnectionManager()
