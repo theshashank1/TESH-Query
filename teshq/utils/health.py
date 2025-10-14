@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from teshq.utils.config import get_config, get_database_url, get_gemini_config
 from teshq.utils.connection import connection_manager
-from teshq.utils.logging import logger, metrics
+from teshq.utils.logging import logger
 from teshq.utils.retry import retry_api_call
 from teshq.utils.validation import ConfigValidator
 
@@ -53,7 +53,6 @@ class HealthChecker:
             self._check_configuration(),
             self._check_database_connectivity(),
             self._check_api_connectivity(),
-            self._check_llm_token_usage(),
         ]
 
         total_duration = (time.time() - start_time) * 1000
@@ -206,34 +205,6 @@ class HealthChecker:
         duration_ms = (time.time() - start_time) * 1000
         return HealthCheck("api_connectivity", status, message, duration_ms, details)
 
-    def _check_llm_token_usage(self) -> HealthCheck:
-        """Check LLM token usage from metrics."""
-        start_time = time.time()
-        try:
-            token_metrics = metrics.get_summary().get("api_tokens_used", {})
-            if not token_metrics:
-                details = {"total_tokens": 0}
-                status = HealthStatus.HEALTHY
-                message = "No token usage recorded yet"
-            else:
-                total_tokens = token_metrics.get("total", 0)
-                avg_tokens = token_metrics.get("avg", 0)
-                max_tokens = token_metrics.get("max", 0)
-                details = {
-                    "total_tokens": total_tokens,
-                    "average_tokens_per_call": avg_tokens,
-                    "max_tokens_in_one_call": max_tokens,
-                    "call_count": token_metrics.get("count", 0),
-                }
-                status = HealthStatus.HEALTHY
-                message = f"Total tokens used: {total_tokens}"
-        except Exception as e:
-            details = {"error": str(e)}
-            status = HealthStatus.UNKNOWN
-            message = f"Failed to check token usage: {e}"
-        duration_ms = (time.time() - start_time) * 1000
-        return HealthCheck("llm_token_usage", status, message, duration_ms, details)
-
 
 health_checker = HealthChecker()
 
@@ -245,11 +216,3 @@ def get_health_status() -> Dict[str, Any]:
 def is_healthy() -> bool:
     result = get_health_status()
     return result["status"] == HealthStatus.HEALTHY
-
-
-def get_metrics_summary() -> Dict[str, Any]:
-    return {
-        "metrics": metrics.get_summary(),
-        "connection_info": connection_manager.get_connection_info(),
-        "timestamp": time.time(),
-    }
