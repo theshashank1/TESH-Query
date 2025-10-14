@@ -3,7 +3,7 @@ import sqlite3
 
 import pandas as pd
 
-from teshq.utils.logging import log_operation, logger
+from teshq.utils.logging import logger
 
 
 def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
@@ -17,12 +17,12 @@ def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
         **kwargs: Additional arguments to pass to df.to_csv().
     """
     try:
-        with log_operation("save_to_csv", file_path=filename, row_count=len(df)):
-            # Ensure directory exists if filename has a directory path
-            parent_dir = os.path.dirname(filename)
-            if parent_dir:
-                os.makedirs(parent_dir, exist_ok=True)
-            df.to_csv(filename, index=index, **kwargs)
+        logger.info("Saving data to CSV", file_path=filename, row_count=len(df))
+        # Ensure directory exists if filename has a directory path
+        parent_dir = os.path.dirname(filename)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        df.to_csv(filename, index=index, **kwargs)
 
         logger.success(
             "Data successfully saved to CSV",
@@ -47,12 +47,12 @@ def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", i
         **kwargs: Additional arguments to pass to df.to_excel().
     """
     try:
-        with log_operation("save_to_excel", file_path=filename, sheet_name=sheet_name, row_count=len(df)):
-            # Ensure directory exists if filename has a directory path
-            parent_dir = os.path.dirname(filename)
-            if parent_dir:
-                os.makedirs(parent_dir, exist_ok=True)
-            df.to_excel(filename, sheet_name=sheet_name, index=index, **kwargs)
+        logger.info("Saving data to Excel", file_path=filename, sheet_name=sheet_name, row_count=len(df))
+        # Ensure directory exists if filename has a directory path
+        parent_dir = os.path.dirname(filename)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        df.to_excel(filename, sheet_name=sheet_name, index=index, **kwargs)
 
         logger.success(
             "Data successfully saved to Excel",
@@ -85,14 +85,14 @@ def save_to_sqlite(
         **kwargs: Additional arguments to pass to df.to_sql().
     """
     try:
-        with log_operation("save_to_sqlite", db_file_path=db_path, table_name=table_name, row_count=len(df)):
-            # Ensure the directory for the database file exists
-            db_dir = os.path.dirname(db_path)
-            if db_dir:
-                os.makedirs(db_dir, exist_ok=True)
+        logger.info("Saving data to SQLite", db_file_path=db_path, table_name=table_name, row_count=len(df))
+        # Ensure the directory for the database file exists
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
 
-            with sqlite3.connect(db_path) as conn:
-                df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
+        with sqlite3.connect(db_path) as conn:
+            df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
 
         logger.success(
             "Data successfully saved to SQLite database",
