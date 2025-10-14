@@ -1,4 +1,5 @@
-import importlib.metadata
+# import importlib.metadata
+import json
 import sys
 from typing import Optional
 
@@ -6,11 +7,11 @@ import typer
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.cli import config, db, query
+from teshq.utils.health import HealthChecker, HealthStatus
 from teshq.utils.logging import configure_global_logger
-
-# from teshq.utils.ui import error as ui_error
-from teshq.utils.ui import handle_error
-from teshq.utils.ui import info as ui_info  # noqa: F401
+from teshq.utils.ui import error, handle_error
+from teshq.utils.ui import info as ui_info
+from teshq.utils.ui import success, warning
 
 app = typer.Typer(
     name="TESH Query",
@@ -18,6 +19,15 @@ app = typer.Typer(
     short_help=("A CLI tool that converts natural language queries into SQL and executes"),
     epilog="For more info, visit: https://github.com/theshashank1/TESH-Query",
 )
+
+
+class EnumEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle HealthStatus enum."""
+
+    def default(self, obj):
+        if isinstance(obj, HealthStatus):
+            return obj.value
+        return json.JSONEncoder.default(self, obj)
 
 
 @app.callback(invoke_without_command=True, no_args_is_help=True)
@@ -31,7 +41,6 @@ def __main__(
     """
     These are Global Options
     """
-    # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
 
     if version:
@@ -40,15 +49,11 @@ def __main__(
 
             try:
                 __version__ = version("teshq")
-                base_version = __version__
-                print(f"teshq v{base_version}")
+                print(f"teshq v{__version__}")
             except PackageNotFoundError:
-                __version__ = "unknown"
-
-            # base_version = __version__.split(".dev")[0]
-            # print(f"teshq v{base_version}")
-        except importlib.metadata.PackageNotFoundError:
-            print("teshq: Unknown (Package not installed)")
+                print("teshq: Unknown (Package not installed)")
+        except ImportError:
+            print("teshq: Unknown (importlib.metadata not available)")
         raise typer.Exit()
 
     if developer:
@@ -66,9 +71,7 @@ def name(
     log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """Show the app name."""
-    # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
-
     from teshq.utils.logging import logger
 
     logger.info("Executing 'name' command")
@@ -81,7 +84,6 @@ def help_text(
     log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """Show the app help description."""
-    # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
     typer.echo(f"Help: {app.info.help}")
 
@@ -91,32 +93,25 @@ def health(
     log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """Check system health and connectivity."""
-    # Configure logging based on --log flag
     configure_global_logger(enable_cli_output=log)
 
-    import json
-
-    from teshq.utils.health import get_health_status
-    from teshq.utils.ui import error, info, success, warning  # noqa: F401
-
     try:
-        health_status = get_health_status()
+        health_checker = HealthChecker()
+        health_report = health_checker.run_all_checks()
 
-        # Print health status as formatted JSON
-        print(json.dumps(health_status, indent=2))
+        print(json.dumps(health_report, indent=2, cls=EnumEncoder))
 
-        # Summary message
-        if health_status["status"] == "healthy":
+        overall_status = health_report["status"]
+        if overall_status == HealthStatus.HEALTHY.value:
             success("🎉 All systems are healthy and operational!")
-        elif health_status["status"] == "degraded":
+        elif overall_status == HealthStatus.DEGRADED.value:
             warning("⚠️  System is operational but has some issues that should be addressed")
         else:
             error("❌ System has critical health issues that require immediate attention")
 
-        # Exit with appropriate code
-        if health_status["status"] == "unhealthy":
+        if overall_status == HealthStatus.UNHEALTHY.value:
             raise typer.Exit(1)
-        elif health_status["status"] == "degraded":
+        elif overall_status == HealthStatus.DEGRADED.value:
             raise typer.Exit(2)
 
     except Exception as e:
@@ -130,17 +125,15 @@ def main():
         app()
     except KeyboardInterrupt:
         ui_info("Operation cancelled by user")
-        sys.exit(130)  # Standard exit code for Ctrl+C
+        sys.exit(130)
     except typer.Abort:
         ui_info("Operation aborted")
         sys.exit(1)
-    except ImportError as e:
-        handle_error(e, "Module Import", suggest_action="Ensure all dependencies are installed with: pip install -e .")
+    except (ImportError, ModuleNotFoundError) as e:
+        handle_error(e, "Module Import", suggest_action="Ensure all dependencies are installed.")
         sys.exit(1)
     except SQLAlchemyError as e:
-        handle_error(
-            e, "Database Connection", suggest_action="Check your database configuration with: teshq config --interactive"
-        )
+        handle_error(e, "Database Connection", suggest_action="Check config with: teshq config --interactive")
         sys.exit(1)
     except FileNotFoundError as e:
         handle_error(e, "File Operation", suggest_action="Ensure all required files exist and paths are correct")
@@ -149,14 +142,14 @@ def main():
         handle_error(e, "File Permissions", suggest_action="Check file permissions or run with appropriate privileges")
         sys.exit(1)
     except ConnectionError as e:
-        handle_error(e, "Network Connection", suggest_action="Check your internet connection and API credentials")
+        handle_error(e, "Network Connection", suggest_action="Check internet connection and API credentials")
         sys.exit(1)
     except Exception as e:
         handle_error(
             e,
             "Unexpected Error",
             show_traceback=True,
-            suggest_action="If this persists, please report this issue at:https://github.com/theshashank1/TESH-Query/issues",
+            suggest_action="If this persists, please report this issue: https://github.com/theshashank1/TESH-Query/issues",
         )
         sys.exit(1)
 
