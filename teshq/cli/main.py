@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.cli import config, db, query
+from teshq.cli import analytics, config, db, query
 from teshq.utils.health import HealthChecker, HealthStatus
 from teshq.utils.logging import configure_global_logger
 from teshq.utils.ui import error, handle_error
@@ -64,6 +64,7 @@ def __main__(
 app.add_typer(db.app)
 app.add_typer(config.app, short_help="Configure database connection details")
 app.add_typer(query.app)
+app.add_typer(analytics.app, name="analytics", help="View usage analytics.")  # Add the analytics command
 
 
 @app.command()
