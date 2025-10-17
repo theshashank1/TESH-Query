@@ -1,0 +1,1 @@
+{"timestamp": "2025-10-17T13:23:53.303248", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2390, "output_tokens": 43, "total_tokens": 2433}

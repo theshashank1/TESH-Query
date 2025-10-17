@@ -61,10 +61,10 @@ def track_llm_usage(model: str, input_tokens: int, output_tokens: int, provider:
         provider: The provider of the LLM (defaults to 'google').
     """
     # Fetch real-time cost data and calculate the cost for the current call
-    input_cost_per_1m, output_cost_per_1m = _get_model_cost(provider, model)
-    input_cost = (input_tokens / 1_000_000) * input_cost_per_1m
-    output_cost = (output_tokens / 1_000_000) * output_cost_per_1m
-    total_cost = input_cost + output_cost
+    # input_cost_per_1m, output_cost_per_1m = _get_model_cost(provider, model)
+    # input_cost = (input_tokens / 1_000_000) * input_cost_per_1m
+    # output_cost = (output_tokens / 1_000_000) * output_cost_per_1m
+    # total_cost = input_cost + output_cost
 
     metric = {
         "timestamp": datetime.datetime.now().isoformat(),
@@ -74,7 +74,7 @@ def track_llm_usage(model: str, input_tokens: int, output_tokens: int, provider:
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": input_tokens + output_tokens,
-        "cost": total_cost,
+        # "cost": total_cost,
     }
 
     # Append the metric as a new line to the file, ensuring thread-safe appends
