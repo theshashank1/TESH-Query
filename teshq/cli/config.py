@@ -25,7 +25,6 @@ from teshq.utils.config import (  # DEFAULT_FILE_STORE_PATH,; DEFAULT_OUTPUT_PAT
 from teshq.utils.logging import configure_global_logger
 from teshq.utils.ui import print_config  # We'll implement our own fallback if this fails
 from teshq.utils.ui import (  # handle_error,
-    clear_screen,
     confirm,
     error,
     handle_error,
@@ -183,7 +182,7 @@ def config(
     logger.info("Starting configuration command")
 
     try:
-        clear_screen()
+        # clear_screen()
         print_header("🔧 TESHQ CONFIGURATION", "Database & Gemini API Setup")
 
         final_db_url_to_save = None
