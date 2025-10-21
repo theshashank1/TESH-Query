@@ -22,7 +22,7 @@ from sqlalchemy.engine.url import make_url
 
 from teshq.utils.config import DEFAULT_GEMINI_MODEL, get_config, get_config_with_source, save_config
 from teshq.utils.logging import configure_global_logger
-from teshq.utils.ui import (  # print_divider,
+from teshq.utils.ui import (
     confirm,
     error,
     handle_error,
