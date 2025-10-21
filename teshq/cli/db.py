@@ -1,7 +1,7 @@
 import typer
 from dotenv import load_dotenv
 
-from teshq.cli.ui import error, handle_error, print_footer, print_header, status, tip, warning
+from teshq.cli.ui import error, handle_error, print_header, status, tip, warning
 from teshq.core.db import connect_database, disconnect_database
 from teshq.core.introspect import introspect_db
 from teshq.utils.config import get_database_url as get_configured_database_url
@@ -105,4 +105,3 @@ if __name__ == "__main__":
     # This script runs as a Typer CLI application.
     # Execute `python -m teshq.cli.main --help` to see commands.
     app()
-print_footer()
