@@ -98,8 +98,11 @@ class ModernUI:
 
     def _detect_unicode(self) -> bool:
         """Detect Unicode support"""
+        # Attempt to write a known Unicode character
         try:
             sys.stdout.write("•")
+            # Immediately erase it to avoid universal printing
+            sys.stdout.write("\b")
             sys.stdout.flush()
             return True
         except (UnicodeEncodeError, UnicodeError):
