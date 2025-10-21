@@ -78,8 +78,6 @@ def save_results(
     if csv_path:
         save_to_csv(df, csv_path)
     if excel_path:
-        if not excel_path.endswith((".xlsx", ".xls")):
-            excel_path += ".xlsx"
         save_to_excel(df, excel_path)
     if sqlite_path:
         save_to_sqlite(df, sqlite_path, sqlite_table)
@@ -91,9 +89,10 @@ def save_results(
 )
 def process_nl_query(
     natural_language_request: str = typer.Argument(..., help="The natural language query to execute."),
-    save_csv: str = typer.Option(None, "--save-csv", help="Save the query result as a CSV file."),
-    save_excel: str = typer.Option(None, "--save-excel", help="Save the query result as an Excel file."),
-    save_sqlite: str = typer.Option(None, "--save-sqlite", help="Save the query result to a SQLite database."),
+    output_base_name: str = typer.Argument(None, help="Base name for output files (required if any --save flag is used)."),
+    save_csv: bool = typer.Option(False, "--save-csv", help="Save the query result as a CSV file."),
+    save_excel: bool = typer.Option(False, "--save-excel", help="Save the query result as an Excel file."),
+    save_sqlite: bool = typer.Option(False, "--save-sqlite", help="Save the query result to a SQLite database."),
     log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
 ):
     """
@@ -113,19 +112,22 @@ def process_nl_query(
             )
             raise typer.Exit(1)
 
-        # Validate save paths if provided
-        save_options = [(save_csv, "csv"), (save_excel, "excel"), (save_sqlite, "sqlite")]
+        # Check if a save flag is used and if an output name is provided
+        save_flags_used = save_csv or save_excel or save_sqlite
+        if save_flags_used and not output_base_name:
+            error("An output base name is required when using --save-csv, --save-excel, or --save-sqlite.")
+            raise typer.Exit(1)
 
-        for save_path, format_type in save_options:
-            if save_path:
-                is_valid, validation_message = CLIValidator.validate_save_path(save_path, format_type)
-                if not is_valid:
-                    handle_error(
-                        ValidationError(validation_message, f"save_{format_type}"),
-                        "Save Path Validation",
-                        suggest_action=f"Please provide a valid {format_type} file path",
-                    )
-                    raise typer.Exit(1)
+        # Validate output directory if a save path is provided
+        if output_base_name:
+            output_path = Path(output_base_name)
+            output_dir = output_path.parent
+            if not output_dir.exists():
+                error(f"Output directory '{output_dir}' does not exist.")
+                raise typer.Exit(1)
+            if not output_dir.is_dir():
+                error(f"Output path '{output_dir}' is not a directory.")
+                raise typer.Exit(1)
 
         with status("Initializing", "Initialization Complete"):
             time.sleep(1)
@@ -150,13 +152,24 @@ def process_nl_query(
 
         if query_execution_result:
             df = pd.DataFrame(query_execution_result)
-            save_results(df, save_csv, save_excel, save_sqlite)
+            csv_path = f"{output_base_name}.csv" if save_csv else None
+            excel_path = f"{output_base_name}.xlsx" if save_excel else None
+            sqlite_path = f"{output_base_name}.db" if save_sqlite else None
+            save_results(df, csv_path, excel_path, sqlite_path)
+
+            # Add a confirmation message if any file was saved
+            if any([csv_path, excel_path, sqlite_path]):
+                saved_files = []
+                if csv_path:
+                    saved_files.append(csv_path)
+                if excel_path:
+                    saved_files.append(excel_path)
+                if sqlite_path:
+                    saved_files.append(sqlite_path)
+                success(f"💾 Results saved to: {', '.join(saved_files)}")
 
         success("🎉 Query processed and result displayed.")
 
-    # except ValidationError as e:
-    #     # Validation errors are already handled above
-    #     raise
     except SQLAlchemyError as e:
         handle_error(e, "Database Query Execution", suggest_action="Check your database connection and query syntax")
         raise typer.Exit(1)
