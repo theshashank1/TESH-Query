@@ -9,7 +9,7 @@ Functions:
 - save_config(): Save configuration data to .env and config.json files.
 - get_database_url(): Get the database connection URL.
 - get_gemini_config(): Get Gemini API key and model name.
-- get_paths(): Get output and file storage paths.
+- get_storage_paths(): Get and create storage paths for query results, schema, and metrics.
 - is_configured(): Check if essential configuration is present.
 - print_config_debug(): Print detailed configuration status for debugging.
 """
@@ -17,16 +17,23 @@ Functions:
 import json
 import os
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from pathlib import Path
+from typing import Dict, NamedTuple, Optional, Tuple
 
 # Constants
 ENV_FILE = ".env"
 JSON_CONFIG_FILE = "config.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash-latest"
-DEFAULT_OUTPUT_PATH = "./teshq_output"
-DEFAULT_FILE_STORE_PATH = "./teshq_files"
+DEFAULT_STORAGE_BASE_PATH = "teshq_storage"
 
-CONFIG_KEYS = ["DATABASE_URL", "GEMINI_API_KEY", "GEMINI_MODEL_NAME", "OUTPUT_PATH", "FILE_STORE_PATH"]
+CONFIG_KEYS = ["DATABASE_URL", "GEMINI_API_KEY", "GEMINI_MODEL_NAME", "STORAGE_BASE_PATH"]
+
+
+class StoragePaths(NamedTuple):
+    base: Path
+    query_results: Path
+    schema: Path
+    metrics: Path
 
 
 def get_current_timestamp() -> str:
@@ -80,6 +87,26 @@ def get_config() -> Dict[str, Optional[str]]:
             config[key] = env_value
 
     return config
+
+
+def get_storage_paths() -> StoragePaths:
+    """
+    Get storage paths and create directories if they don't exist.
+    """
+    config = get_config()
+    base_path = Path(config.get("STORAGE_BASE_PATH", DEFAULT_STORAGE_BASE_PATH))
+
+    paths = StoragePaths(
+        base=base_path,
+        query_results=base_path / "query_results",
+        schema=base_path / "schema",
+        metrics=base_path / "metrics",
+    )
+
+    for path in paths:
+        path.mkdir(parents=True, exist_ok=True)
+
+    return paths
 
 
 def get_config_with_source() -> Tuple[Dict[str, Optional[str]], Dict[str, str]]:
@@ -202,14 +229,6 @@ def get_gemini_config() -> Tuple[Optional[str], str]:
     return api_key, model
 
 
-def get_paths() -> Tuple[str, str]:
-    """Get output and file store paths."""
-    config = get_config()
-    output_path = config.get("OUTPUT_PATH", DEFAULT_OUTPUT_PATH)
-    file_store_path = config.get("FILE_STORE_PATH", DEFAULT_FILE_STORE_PATH)
-    return output_path, file_store_path
-
-
 def is_configured() -> bool:
     """Check if required configuration is present."""
     config = get_config()
@@ -253,6 +272,8 @@ if __name__ == "__main__":
     # print("Save config:", save_config({"DATABASE_URL": "postgresql://user:pass@host:port/dbname"}))
     print("Get DB URL:", get_database_url())
     print("Get Gemini config:", get_gemini_config())
-    print("Get paths:", get_paths())
+    storage_paths = get_storage_paths()
+    print("Get storage paths:", storage_paths)
+    print(f"Query results path: {storage_paths.query_results}")
     print("Is configured:", is_configured())
     print_config_debug()
