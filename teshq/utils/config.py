@@ -26,7 +26,14 @@ JSON_CONFIG_FILE = "config.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash-latest"
 DEFAULT_STORAGE_BASE_PATH = "teshq_storage"
 
-CONFIG_KEYS = ["DATABASE_URL", "GEMINI_API_KEY", "GEMINI_MODEL_NAME", "STORAGE_BASE_PATH"]
+CONFIG_KEYS = [
+    "DATABASE_URL",
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL_NAME",
+    "STORAGE_BASE_PATH",
+    "SUBSCRIBER_EMAIL",
+    "SUBSCRIBER_ID",
+]
 
 
 class StoragePaths(NamedTuple):

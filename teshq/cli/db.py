@@ -5,6 +5,7 @@ from teshq.cli.ui import error, handle_error, print_header, status, tip, warning
 from teshq.core.db import connect_database, disconnect_database
 from teshq.core.introspect import introspect_db
 from teshq.utils.config import get_database_url as get_configured_database_url
+from teshq.utils.config import get_storage_paths
 from teshq.utils.logging import configure_global_logger
 
 app = typer.Typer()
@@ -20,8 +21,8 @@ def database(
     """
     Manage database connection lifecycle: connect and optionally disconnect.
     """
-    # Configure logging based on --log flag
-    configure_global_logger(enable_cli_output=log)
+    storage_paths = get_storage_paths()
+    configure_global_logger(enable_cli_output=log, log_file_path=storage_paths.metrics / "teshq.log")
 
     print_header("Database Connection Manager", level=2)
 
@@ -80,16 +81,15 @@ def introspect(
     """
     Perform database schema introspection optimized for LLM query generation.
     """
-    # Configure logging based on --log flag
-    configure_global_logger(enable_cli_output=log)
+    storage_paths = get_storage_paths()
+    configure_global_logger(enable_cli_output=log, log_file_path=storage_paths.metrics / "teshq.log")
 
     print_header("Database Schema Introspection", level=2)
-    try:  # Introspection logic handles db_url if None
+    try:
         with status(
             "Performing database introspection...",
             success_message="Introspection complete.",
         ):
-            # introspect_db will handle finding the db_url if not provided
             introspect_db(db_url=db_url, detect_relationships=detect_relationships)
         tip("Schema details have been processed and are ready for use.")
     except Exception as e:
@@ -102,6 +102,4 @@ def introspect(
 
 
 if __name__ == "__main__":
-    # This script runs as a Typer CLI application.
-    # Execute `python -m teshq.cli.main --help` to see commands.
     app()

@@ -1,1 +1,6 @@
 {"timestamp": "2025-10-17T13:23:53.303248", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2390, "output_tokens": 43, "total_tokens": 2433}
+{"timestamp": "2025-10-21T14:37:26.545066", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2455, "output_tokens": 627, "total_tokens": 3082}
+{"timestamp": "2025-10-21T14:55:11.800725", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2455, "output_tokens": 628, "total_tokens": 3083}
+{"timestamp": "2025-10-21T14:58:48.480552", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2455, "output_tokens": 432, "total_tokens": 2887}
+{"timestamp": "2025-10-21T19:30:48.944784", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2455, "output_tokens": 503, "total_tokens": 2958}
+{"timestamp": "2025-10-22T16:59:17.848275", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2455, "output_tokens": 556, "total_tokens": 3011}
