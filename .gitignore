@@ -147,3 +147,5 @@ db_schema/*
 
 logs/*
 */usage_metrics.jsonl
+
+teshq_storage/
