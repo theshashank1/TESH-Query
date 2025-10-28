@@ -66,7 +66,7 @@ Last Updated: 2025-10-28
 ### Required Configuration
 The following must be configured before deployment:
 - `DATABASE_URL` - Database connection string
-- `GEMINI_API_KEY` - Google Gemini API key (format: AIza... 39 chars)
+- `GEMINI_API_KEY` - Google Gemini API key (format: 'AIza' followed by exactly 35 additional characters, total 39 characters)
 
 Optional configuration:
 - `GEMINI_MODEL_NAME` - Model to use (default: gemini-1.5-flash-latest)

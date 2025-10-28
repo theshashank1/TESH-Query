@@ -78,7 +78,18 @@ Added both dependencies to project configuration:
 **pyproject.toml:**
 ```python
 dependencies = [
-    # ... existing deps ...
+    "SQLAlchemy~=2.0.41",
+    "python-dotenv~=1.1.0",
+    "psycopg2-binary~=2.9.10",
+    "langchain~=0.3.25",
+    "langchain-core~=0.3.61",
+    "langchain-google-genai~=2.1.4",
+    "typer[all]~=0.15.4",
+    "rich~=14.0.0",
+    "logfire~=3.16.0",
+    "tabulate~=0.9.0",
+    "pandas~=2.2.2",
+    "pydantic~=2.0",
     "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
     "requests>=2.31.0",  # Required for subscription client
 ]
@@ -125,8 +136,8 @@ Two integration tests were failing due to:
 2. Type inconsistency in test fixture (temp_dir as string instead of Path)
 
 **Fix Applied:**
-1. Added `Path.mkdir` mocking to prevent actual directory creation
-2. Fixed Path operations: `str(Path(temp_dir) / "output")`
+1. Added `Path.mkdir` mocking to prevent actual directory creation during tests
+2. Fixed Path operations: `str(Path(temp_dir) / "output")` - This resolved a type inconsistency where temp_dir was a string but was being used with the Path `/` operator, which requires Path objects on both sides
 3. Simplified configuration file test to focus on validation rather than file I/O
 
 **Files Modified:**
@@ -158,7 +169,8 @@ Two integration tests were failing due to:
 
 **Verification:**
 ```bash
-✅ flake8 --max-line-length=120  # No warnings
+✅ pytest tests/ -v  # All tests passing
+✅ flake8 teshq/ --max-line-length=120  # No linting errors
 ```
 
 ---
