@@ -15,7 +15,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool, StaticPool
 
-from teshq.utils.database_connectors import UnifiedDatabaseConnector
 from teshq.utils.logging import logger
 from teshq.utils.retry import retry_database_operation
 
@@ -52,45 +51,30 @@ class ConnectionManager:
         self._engines: Dict[str, Engine] = {}
 
     def get_engine(self, database_url: str, engine_name: str = "default") -> Engine:
-        """Get or create a database engine with the unified connector system."""
+        """Get or create a database engine with connection pooling."""
         if engine_name in self._engines:
             return self._engines[engine_name]
 
         logger.info("Creating database engine", engine_name=engine_name)
-        # Use unified connector system for enhanced database support
-        config_dict = {
-            "pool_size": self.config.pool_size,
-            "max_overflow": self.config.max_overflow,
-            "pool_timeout": self.config.pool_timeout,
-            "pool_recycle": self.config.pool_recycle,
-            "connect_timeout": self.config.connect_timeout,
-            "pool_pre_ping": self.config.pool_pre_ping,
-            "echo": self.config.echo,
-        }
+        
+        # Create engine with appropriate configuration
+        engine_args = self._get_engine_args(database_url)
+        engine = create_engine(database_url, **engine_args)
+        self._engines[engine_name] = engine
 
-        try:
-            engine = UnifiedDatabaseConnector.create_engine(database_url, config_dict)
-            self._engines[engine_name] = engine
+        # Detect database type from URL
+        db_type = "sqlite" if database_url.startswith("sqlite") else \
+                  "postgresql" if database_url.startswith("postgresql") else \
+                  "mysql" if database_url.startswith("mysql") else "other"
+        
+        logger.info(
+            "Database engine created",
+            engine_name=engine_name,
+            database_type=db_type,
+            supports_pooling=db_type != "sqlite",
+        )
 
-            db_type = UnifiedDatabaseConnector.detect_database_type(database_url)
-            logger.info(
-                "Database engine created",
-                engine_name=engine_name,
-                database_type=db_type,
-                supports_pooling=db_type != "sqlite",
-            )
-
-            return engine
-
-        except ValueError as e:
-            # Fallback to original implementation for unsupported databases
-            logger.warning(f"Using fallback connection method: {e}")
-            engine_args = self._get_engine_args(database_url)
-            engine = create_engine(database_url, **engine_args)
-            self._engines[engine_name] = engine
-
-            logger.info("Database engine created (fallback mode)", engine_name=engine_name)
-            return engine
+        return engine
 
     def _get_engine_args(self, database_url: str) -> Dict[str, Any]:
         """Get the appropriate arguments for creating a SQLAlchemy engine."""
