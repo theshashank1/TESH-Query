@@ -11,7 +11,8 @@ dynamic = ["version"]
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+# Use the license file so packaging tools pick it up
+license = { file = "LICENSE" }
 keywords = ["sql", "cli", "database", "natural language", "AI", "LLM"]
 authors = [
   { name = "Shashank", email = "shashankgundas1@gmail.com" },
@@ -22,12 +23,15 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
+# Core runtime dependencies (keep pins compatible with requirements.txt)
 dependencies = [
     "SQLAlchemy~=2.0.41",
     "python-dotenv~=1.1.0",
-    "psycopg2-binary~=2.9.10",
+    "psycopg2-binary~=2.9.10",   # PostgreSQL driver (included by default)
     "langchain~=0.3.25",
     "langchain-core~=0.3.61",
     "langchain-google-genai~=2.1.4",
@@ -35,12 +39,12 @@ dependencies = [
     "rich~=14.0.0",
     "logfire~=3.16.0",
     "tabulate~=0.9.0",
-    "pandas",
-    "pydantic~=2.0"
-
+    "pandas~=2.2.2",
+    "pydantic~=2.0",
 ]
 
 [project.optional-dependencies]
+# Development & CI tools
 dev = [
     "pytest~=8.3.5",
     "autopep8~=2.3.2",
@@ -48,18 +52,87 @@ dev = [
     "flake8~=6.1.0",
     "isort~=5.13.2",
     "build",
+    "mkdocs-material",
+]
+
+# Database drivers that are supported but not installed by default.
+# SQLite: builtin to Python (no extra package).
+# PostgreSQL: psycopg2-binary is included in core dependencies above.
+
+# MySQL support (pure Python, no system dependencies)
+mysql = [
+    "PyMySQL>=1.0.0",
+    "mysql-connector-python>=8.0.0",
+]
+
+# MariaDB support (REQUIRES SYSTEM DEPENDENCIES)
+# Before installing: sudo apt-get install libmariadb-dev (Debian/Ubuntu)
+#                    or brew install mariadb-connector-c (macOS)
+# Alternative: use PyMySQL which works with MariaDB and has no system deps
+mariadb = [
+    "PyMySQL>=1.0.0",  # Pure Python, works with MariaDB, no system deps required
+]
+
+# MariaDB native driver (use only if you have MariaDB Connector/C installed)
+mariadb-native = [
+    "mariadb>=1.1.0",  # Requires: libmariadb-dev or mariadb-connector-c
+]
+
+# Microsoft SQL Server support
+mssql = [
+    "pymssql>=2.2.0",  # Pure Python, recommended (easier to install)
+]
+
+# MSSQL with ODBC (REQUIRES SYSTEM DEPENDENCIES)
+# Before installing: Install Microsoft ODBC Driver for SQL Server
+mssql-odbc = [
+    "pyodbc>=4.0.0",  # Requires: ODBC driver installed on system
+]
+
+# Oracle support (REQUIRES SYSTEM DEPENDENCIES)
+# Before installing: Install Oracle Instant Client
+oracle = [
+    "oracledb>=1.0.0",  # Requires: Oracle Instant Client
+]
+
+# Extras for data export / Excel output
+export = [
+    "openpyxl~=3.1.2",
+]
+
+# Convenience "all" extra - installs drivers that DON'T require system dependencies
+all = [
+    "PyMySQL>=1.0.0",
+    "mysql-connector-python>=8.0.0",
+    "pymssql>=2.2.0",
+    "openpyxl~=3.1.2",
+    "mkdocs-material",
+]
+
+# Full extras including drivers that require system dependencies
+# USE WITH CAUTION - ensure you have all system dependencies installed first
+all-native = [
+    "PyMySQL>=1.0.0",
+    "mysql-connector-python>=8.0.0",
+    "mariadb>=1.1.0",
+    "pyodbc>=4.0.0",
+    "pymssql>=2.2.0",
+    "oracledb>=1.0.0",
+    "openpyxl~=3.1.2",
+    "mkdocs-material",
 ]
 
 [project.urls]
 Homepage = "https://github.com/theshashank1/TESH-Query"
 "Bug Tracker" = "https://github.com/theshashank1/TESH-Query/issues"
+Documentation = "https://github.com/theshashank1/TESH-Query#readme"
 
 [project.scripts]
 teshq = "teshq.cli.main:app"
 
 [tool.setuptools_scm]
-# This section is added to configure setuptools_scm
-# It will automatically use git tags to determine the version
+# setuptools_scm will infer the package version from git tags
 
 [tool.setuptools]
 packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils"]
+include-package-data = true

@@ -7,6 +7,9 @@
   packages = [
     pkgs.python3
     pkgs.python311Packages.pip
+    pkgs.python311Packages.sqlalchemy
+    pkgs.gcc
+    pkgs.mariadb-connector-c
   ];
   # Sets environment variables in the workspace
   env = {};
