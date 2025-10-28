@@ -4,7 +4,6 @@ Integration tests for production readiness validation.
 Tests end-to-end scenarios to ensure the application is ready for production deployment.
 """
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch

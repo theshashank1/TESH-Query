@@ -56,7 +56,7 @@ class ConnectionManager:
             return self._engines[engine_name]
 
         logger.info("Creating database engine", engine_name=engine_name)
-        
+
         # Create engine with appropriate configuration
         engine_args = self._get_engine_args(database_url)
         engine = create_engine(database_url, **engine_args)
@@ -66,7 +66,7 @@ class ConnectionManager:
         db_type = "sqlite" if database_url.startswith("sqlite") else \
                   "postgresql" if database_url.startswith("postgresql") else \
                   "mysql" if database_url.startswith("mysql") else "other"
-        
+
         logger.info(
             "Database engine created",
             engine_name=engine_name,
