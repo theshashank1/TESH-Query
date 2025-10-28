@@ -41,6 +41,8 @@ dependencies = [
     "tabulate~=0.9.0",
     "pandas~=2.2.2",
     "pydantic~=2.0",
+    "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
+    "requests>=2.31.0",  # Required for subscription client
 ]
 
 [project.optional-dependencies]
