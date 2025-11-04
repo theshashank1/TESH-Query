@@ -84,6 +84,27 @@ def save_results(
     sqlite_table: str = "results",
 ):
     """Saves the query results to the specified formats."""
+    from teshq.utils.ui import confirm, warning
+
+    # Check for existing files and prompt for confirmation
+    existing_files = []
+    if csv_path and csv_path.exists():
+        existing_files.append(str(csv_path))
+    if excel_path and excel_path.exists():
+        existing_files.append(str(excel_path))
+    if sqlite_path and sqlite_path.exists():
+        existing_files.append(str(sqlite_path))
+
+    if existing_files:
+        warning("⚠️  The following file(s) already exist:")
+        for file in existing_files:
+            info(f"  • {file}")
+
+        if not confirm("Do you want to overwrite the existing file(s)?", default=False, danger=True):
+            info("Save operation cancelled by user")
+            raise typer.Exit(0)
+
+    # Proceed with saving
     if csv_path:
         save_to_csv(df, str(csv_path))
     if excel_path:
@@ -104,7 +125,9 @@ def process_nl_query(
     save_csv: bool = typer.Option(False, "--save-csv", help="Save the query result as a CSV file."),
     save_excel: bool = typer.Option(False, "--save-excel", help="Save the query result as an Excel file."),
     save_sqlite: bool = typer.Option(False, "--save-sqlite", help="Save the query result to a SQLite database."),
-    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+    log: bool = typer.Option(
+        False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."
+    ),
 ):
     """
     Processes a natural language query, generates SQL, executes it, and prints the results.
@@ -192,9 +215,14 @@ def process_nl_query(
     except SQLAlchemyError as e:
         handle_error(e, "Database Query Execution", suggest_action="Check your database connection and query syntax.")
         raise typer.Exit(1)
-    except FileNotFoundError as e:  # This is now less likely to be hit directly for schema, but good to keep.
-        handle_error(e, "File Operation", suggest_action="Ensure all required files exist and paths are correctly set up.")
+    except FileNotFoundError as e:
+        # This is now less likely to be hit directly for schema, but good to keep.
+        handle_error(
+            e, "File Operation", suggest_action="Ensure all required files exist and paths are correctly set up."
+        )
         raise typer.Exit(1)
     except Exception as e:
-        handle_error(e, "Query Processing", show_traceback=True, suggest_action="Please check your input and try again.")
+        handle_error(
+            e, "Query Processing", show_traceback=True, suggest_action="Please check your input and try again."
+        )
         raise typer.Exit(1)
