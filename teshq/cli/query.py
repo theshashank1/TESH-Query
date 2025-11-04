@@ -82,27 +82,39 @@ def save_results(
     excel_path: Optional[Path] = None,
     sqlite_path: Optional[Path] = None,
     sqlite_table: str = "results",
+    check_existing: bool = True,
 ):
-    """Saves the query results to the specified formats."""
+    """
+    Saves the query results to the specified formats.
+
+    Args:
+        df: DataFrame to save
+        csv_path: Path to save CSV file
+        excel_path: Path to save Excel file
+        sqlite_path: Path to save SQLite database
+        sqlite_table: Table name for SQLite
+        check_existing: Whether to check for existing files and prompt (default True)
+    """
     from teshq.utils.ui import confirm, warning
 
-    # Check for existing files and prompt for confirmation
-    existing_files = []
-    if csv_path and csv_path.exists():
-        existing_files.append(str(csv_path))
-    if excel_path and excel_path.exists():
-        existing_files.append(str(excel_path))
-    if sqlite_path and sqlite_path.exists():
-        existing_files.append(str(sqlite_path))
+    # Check for existing files and prompt for confirmation (if enabled)
+    if check_existing:
+        existing_files = []
+        if csv_path and csv_path.exists():
+            existing_files.append(str(csv_path))
+        if excel_path and excel_path.exists():
+            existing_files.append(str(excel_path))
+        if sqlite_path and sqlite_path.exists():
+            existing_files.append(str(sqlite_path))
 
-    if existing_files:
-        warning("⚠️  The following file(s) already exist:")
-        for file in existing_files:
-            info(f"  • {file}")
+        if existing_files:
+            warning("⚠️  The following file(s) already exist:")
+            for file in existing_files:
+                info(f"  • {file}")
 
-        if not confirm("Do you want to overwrite the existing file(s)?", default=False, danger=True):
-            info("Save operation cancelled by user")
-            raise typer.Exit(0)
+            if not confirm("Do you want to overwrite the existing file(s)?", default=False, danger=True):
+                info("Save operation cancelled by user")
+                raise typer.Exit(0)
 
     # Proceed with saving
     if csv_path:
@@ -160,6 +172,70 @@ def process_nl_query(
             error("An output base name is required when using --save-csv, --save-excel, or --save-sqlite.")
             raise typer.Exit(1)
 
+        # Check for existing files BEFORE using LLM credits
+        if save_flags_used:
+            # Determine output paths
+            if output_base_name:
+                user_path = Path(output_base_name)
+                if user_path.is_absolute() or str(output_base_name).startswith("."):
+                    base_output_path = user_path
+                else:
+                    base_output_path = storage_paths.query_results / output_base_name
+            else:
+                base_output_path = storage_paths.query_results / "query_result"
+
+            # Validate parent directory
+            output_dir = base_output_path.parent
+            if not output_dir.exists():
+                error(f"Output directory '{output_dir}' does not exist.")
+                raise typer.Exit(1)
+
+            # Check for existing files
+            csv_path = base_output_path.with_suffix(".csv") if save_csv else None
+            excel_path = base_output_path.with_suffix(".xlsx") if save_excel else None
+            sqlite_path = base_output_path.with_suffix(".db") if save_sqlite else None
+
+            existing_files = []
+            if csv_path and csv_path.exists():
+                existing_files.append(str(csv_path))
+            if excel_path and excel_path.exists():
+                existing_files.append(str(excel_path))
+            if sqlite_path and sqlite_path.exists():
+                existing_files.append(str(sqlite_path))
+
+            if existing_files:
+                from teshq.utils.ui import confirm, prompt, warning
+                warning("⚠️  The following file(s) already exist:")
+                for file in existing_files:
+                    info(f"  • {file}")
+
+                overwrite = confirm("Do you want to overwrite the existing file(s)?", default=False, danger=True)
+
+                if not overwrite:
+                    # Ask if user wants to rename
+                    if confirm("Would you like to use a different filename?", default=True):
+                        new_name = prompt("Enter new base filename", default=output_base_name)
+                        # Update the base path with new name
+                        if user_path.is_absolute() or str(output_base_name).startswith("."):
+                            base_output_path = Path(new_name)
+                        else:
+                            base_output_path = storage_paths.query_results / new_name
+
+                        # Update paths with new name
+                        csv_path = base_output_path.with_suffix(".csv") if save_csv else None
+                        excel_path = base_output_path.with_suffix(".xlsx") if save_excel else None
+                        sqlite_path = base_output_path.with_suffix(".db") if save_sqlite else None
+
+                        info(f"✓ Will save to: {base_output_path.name}")
+                    else:
+                        info("Save operation cancelled by user")
+                        raise typer.Exit(0)
+        else:
+            # No save flags, these will be None
+            csv_path = None
+            excel_path = None
+            sqlite_path = None
+
         with status("Initializing", "Initialization Complete"):
             time.sleep(1)
             generator = get_llm_generator()
@@ -181,30 +257,17 @@ def process_nl_query(
         print_query_table(natural_language_request, sql_query, parameters, query_execution_result)
 
         # Saving results if applicable
-        if query_execution_result:
+        if query_execution_result and save_flags_used:
             df = pd.DataFrame(query_execution_result)
 
-            # Allow relative or absolute paths from user; otherwise, use internal folder
-            if output_base_name:
-                user_path = Path(output_base_name)
-                if user_path.is_absolute() or str(output_base_name).startswith("."):
-                    base_output_path = user_path
-                else:
-                    base_output_path = storage_paths.query_results / output_base_name
-            else:
-                base_output_path = storage_paths.query_results / "query_result"
-
-            # Validate parent directory before saving
-            output_dir = base_output_path.parent
-            if not output_dir.exists():
-                error(f"Output directory '{output_dir}' does not exist.")
-                raise typer.Exit(1)
-
-            csv_path = base_output_path.with_suffix(".csv") if save_csv else None
-            excel_path = base_output_path.with_suffix(".xlsx") if save_excel else None
-            sqlite_path = base_output_path.with_suffix(".db") if save_sqlite else None
-
-            save_results(df, csv_path, excel_path, sqlite_path)
+            # Paths were already determined and checked before LLM execution
+            # No need to check for existing files again - just save directly
+            if csv_path:
+                save_to_csv(df, str(csv_path))
+            if excel_path:
+                save_to_excel(df, str(excel_path))
+            if sqlite_path:
+                save_to_sqlite(df, str(sqlite_path), sqlite_table="results")
 
             if any([csv_path, excel_path, sqlite_path]):
                 saved_files = [str(p) for p in [csv_path, excel_path, sqlite_path] if p]
