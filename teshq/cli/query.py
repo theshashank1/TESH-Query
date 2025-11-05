@@ -4,6 +4,7 @@ from typing import Optional
 
 import pandas as pd
 import typer
+from rich.prompt import Prompt
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.core.llm import SQLQueryGenerator
@@ -48,7 +49,7 @@ def load_db_schema(generator: SQLQueryGenerator, schema_path: Path):
 
 def generate_sql_query(generator: SQLQueryGenerator, nl_query: str, schema: str):
     """Generates an SQL query from a natural language query."""
-    info(f"🧠 Generating SQL for your query: “[italic]{nl_query}[/italic]”")
+    info(f"🧠 Generating SQL for your query: [italic]{nl_query}[/italic]")
     try:
         with status("Generating SQL Query", "SQL Query Generated Successfully"):
             result = generator.generate_sql(nl_query, schema)
@@ -76,55 +77,6 @@ def run_sql_query(db_url: str, sql_query: str, parameters: dict):
         raise typer.Exit(code=1)
 
 
-def save_results(
-    df: pd.DataFrame,
-    csv_path: Optional[Path] = None,
-    excel_path: Optional[Path] = None,
-    sqlite_path: Optional[Path] = None,
-    sqlite_table: str = "results",
-    check_existing: bool = True,
-):
-    """
-    Saves the query results to the specified formats.
-
-    Args:
-        df: DataFrame to save
-        csv_path: Path to save CSV file
-        excel_path: Path to save Excel file
-        sqlite_path: Path to save SQLite database
-        sqlite_table: Table name for SQLite
-        check_existing: Whether to check for existing files and prompt (default True)
-    """
-    from teshq.utils.ui import confirm, warning
-
-    # Check for existing files and prompt for confirmation (if enabled)
-    if check_existing:
-        existing_files = []
-        if csv_path and csv_path.exists():
-            existing_files.append(str(csv_path))
-        if excel_path and excel_path.exists():
-            existing_files.append(str(excel_path))
-        if sqlite_path and sqlite_path.exists():
-            existing_files.append(str(sqlite_path))
-
-        if existing_files:
-            warning("⚠️  The following file(s) already exist:")
-            for file in existing_files:
-                info(f"  • {file}")
-
-            if not confirm("Do you want to overwrite the existing file(s)?", default=False, danger=True):
-                info("Save operation cancelled by user")
-                raise typer.Exit(0)
-
-    # Proceed with saving
-    if csv_path:
-        save_to_csv(df, str(csv_path))
-    if excel_path:
-        save_to_excel(df, str(excel_path))
-    if sqlite_path:
-        save_to_sqlite(df, str(sqlite_path), sqlite_table)
-
-
 @app.command(
     name="query",
     help="Execute a Natural Language Query on the Database and return the result",
@@ -138,7 +90,9 @@ def process_nl_query(
     save_excel: bool = typer.Option(False, "--save-excel", help="Save the query result as an Excel file."),
     save_sqlite: bool = typer.Option(False, "--save-sqlite", help="Save the query result to a SQLite database."),
     log: bool = typer.Option(
-        False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."
+        False,
+        "--log",
+        help="Enable real-time logging output to CLI (logs are always saved to file).",
     ),
 ):
     """
@@ -177,7 +131,7 @@ def process_nl_query(
             # Determine output paths
             if output_base_name:
                 user_path = Path(output_base_name)
-                if user_path.is_absolute() or str(output_base_name).startswith("."):
+                if user_path.is_absolute() or str(output_base_name).startswith("."):  # type: ignore
                     base_output_path = user_path
                 else:
                     base_output_path = storage_paths.query_results / output_base_name
@@ -204,32 +158,56 @@ def process_nl_query(
                 existing_files.append(str(sqlite_path))
 
             if existing_files:
-                from teshq.utils.ui import confirm, prompt, warning
-                warning("⚠️  The following file(s) already exist:")
-                for file in existing_files:
-                    info(f"  • {file}")
+                from teshq.utils.ui import confirm, warning
 
-                overwrite = confirm("Do you want to overwrite the existing file(s)?", default=False, danger=True)
+                warning("⚠️  The following file(s) already exist:")
+                for f in existing_files:
+                    info(f"  • {f}")
+
+                overwrite = confirm(
+                    "Do you want to overwrite the existing file(s)?",
+                    default=False,
+                    danger=True,
+                )
 
                 if not overwrite:
-                    # Ask if user wants to rename
-                    if confirm("Would you like to use a different filename?", default=True):
-                        new_name = prompt("Enter new base filename", default=output_base_name)
-                        # Update the base path with new name
-                        if user_path.is_absolute() or str(output_base_name).startswith("."):
-                            base_output_path = Path(new_name)
-                        else:
-                            base_output_path = storage_paths.query_results / new_name
+                    # --- Start: improved filename prompt (replaces confirm+prompt dance) ---
+                    while True:
+                        new_name = Prompt.ask("Enter new base filename", default=output_base_name).strip()
 
-                        # Update paths with new name
+                        # Reject yes/no answers or empty inputs to avoid confirm-loop confusion
+                        if not new_name or new_name.lower() in {"y", "n", "yes", "no"}:
+                            info("Please enter a valid filename (not 'yes'/'no').")
+                            continue
+
+                        # Strip any extension if user typed one
+                        new_stem = Path(new_name).stem
+
+                        # Rebuild base path
+                        if user_path.is_absolute() or str(output_base_name).startswith("."):  # type: ignore
+                            base_output_path = Path(new_stem)
+                        else:
+                            base_output_path = storage_paths.query_results / new_stem
+
+                        # Recalculate output paths
                         csv_path = base_output_path.with_suffix(".csv") if save_csv else None
                         excel_path = base_output_path.with_suffix(".xlsx") if save_excel else None
                         sqlite_path = base_output_path.with_suffix(".db") if save_sqlite else None
 
+                        # Check new collisions
+                        collisions = [str(p) for p in [csv_path, excel_path, sqlite_path] if p and p.exists()]
+                        if collisions:
+                            warning("⚠️  That filename still exists:")
+                            for c in collisions:
+                                info(f"  • {c}")
+                            if not confirm("Try a different filename?", default=True):
+                                info("Save operation cancelled by user")
+                                raise typer.Exit(0)
+                            continue
+
                         info(f"✓ Will save to: {base_output_path.name}")
-                    else:
-                        info("Save operation cancelled by user")
-                        raise typer.Exit(0)
+                        break
+                    # --- End: improved filename prompt ---
         else:
             # No save flags, these will be None
             csv_path = None
@@ -260,14 +238,19 @@ def process_nl_query(
         if query_execution_result and save_flags_used:
             df = pd.DataFrame(query_execution_result)
 
-            # Paths were already determined and checked before LLM execution
-            # No need to check for existing files again - just save directly
             if csv_path:
                 save_to_csv(df, str(csv_path))
             if excel_path:
                 save_to_excel(df, str(excel_path))
             if sqlite_path:
-                save_to_sqlite(df, str(sqlite_path), sqlite_table="results")
+                # choose table name: prefer the final base_output_path's stem, otherwise fall back to output_base_name or "results" # noqa: E501
+                try:
+                    table_name = base_output_path.stem
+                except NameError:
+                    table_name = Path(output_base_name).stem if output_base_name else "results"
+
+                # save_to_sqlite expects table name as positional arg
+                save_to_sqlite(df, str(sqlite_path), table_name)
 
             if any([csv_path, excel_path, sqlite_path]):
                 saved_files = [str(p) for p in [csv_path, excel_path, sqlite_path] if p]
@@ -276,16 +259,25 @@ def process_nl_query(
         success("🎉 Query processed and result displayed successfully.")
 
     except SQLAlchemyError as e:
-        handle_error(e, "Database Query Execution", suggest_action="Check your database connection and query syntax.")
+        handle_error(
+            e,
+            "Database Query Execution",
+            suggest_action="Check your database connection and query syntax.",
+        )
         raise typer.Exit(1)
     except FileNotFoundError as e:
         # This is now less likely to be hit directly for schema, but good to keep.
         handle_error(
-            e, "File Operation", suggest_action="Ensure all required files exist and paths are correctly set up."
+            e,
+            "File Operation",
+            suggest_action="Ensure all required files exist and paths are correctly set up.",
         )
         raise typer.Exit(1)
     except Exception as e:
         handle_error(
-            e, "Query Processing", show_traceback=True, suggest_action="Please check your input and try again."
+            e,
+            "Query Processing",
+            show_traceback=True,
+            suggest_action="Please check your input and try again.",
         )
         raise typer.Exit(1)
