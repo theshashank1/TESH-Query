@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TESHQ: From Natural Language to SQL in Seconds</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root {
+            --color-primary: #ff3131;
+            --color-primary-dark: #e62c2c;
+            --color-treeex: #51985c;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: #1a202c;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden; /* Prevent horizontal scroll from animations */
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+        }
+
+        code, pre {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .bg-primary { background-color: var(--color-primary); }
+        .text-primary { color: var(--color-primary); }
+        .border-primary { border-color: var(--color-primary); }
+        .hover\:bg-primary-dark:hover { background-color: var(--color-primary-dark); }
+
+        .text-treeex {
+            color: var(--color-treeex);
+            font-family: 'Oswald', sans-serif;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .terminal-window {
+            background: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            background: #323232;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-content {
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #d4d4d4;
+        }
+
+        .terminal-prompt { color: #4ec9b0; }
+        .terminal-command { color: #dcdcaa; }
+        .terminal-output { color: #ce9178; }
+        .terminal-success { color: #4ec9b0; }
+        .terminal-comment { color: #6a9955; }
+
+        /* === START: Motion Graphics CSS === */
+
+        /* 1. Define the animation keyframes */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* A subtle pulse for your main Call-to-Action buttons */
+        @keyframes subtlePulse {
+            0% {
+                box-shadow: 0 0 0 0px rgba(255, 49, 49, 0.7);
+            }
+            100% {
+                box-shadow: 0 0 0 12px rgba(255, 49, 49, 0);
+            }
+        }
+
+        /* 2. Apply animations to Hero elements for a clean, staggered load-in */
+
+        /* Animate the H1 */
+        #hero h1 {
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        /* Animate the sub-headline, with a small delay */
+        #hero p.mt-6 { /* Target the specific hero paragraph */
+            animation: fadeInUp 0.8s ease-out 0.2s;
+            animation-fill-mode: forwards; /* Keeps it from flashing */
+            opacity: 0; /* Start hidden */
+        }
+
+        /* Animate the buttons, with a longer delay */
+        #hero .mt-10 {
+            animation: fadeInUp 0.8s ease-out 0.4s;
+            animation-fill-mode: forwards;
+            opacity: 0;
+        }
+
+        /* Animate the terminal window, with the longest delay */
+        #hero .terminal-window {
+            animation: fadeInUp 0.8s ease-out 0.6s;
+            animation-fill-mode: forwards;
+            opacity: 0;
+        }
+
+        /* 3. Apply the pulse to your main CTA button in the hero */
+        #hero .bg-primary {
+            /* Starts pulsing 2 seconds after page load, and loops */
+            animation: subtlePulse 1.5s infinite 2s;
+        }
+
+        /* 4. Add a subtle hover-lift to all Use Case & Feature cards */
+        #features .bg-gray-50,
+        #use-cases .bg-white,
+        #problem .bg-gray-50,
+        #problem .bg-primary {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        #features .bg-gray-50:hover,
+        #use-cases .bg-white:hover,
+        #problem .bg-gray-50:hover,
+        #problem .bg-primary:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.07);
+        }
+
+        /* 5. NEW: Scroll-Triggered Animations */
+        .animate-on-scroll {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+            transition-delay: var(--scroll-delay, 0s);
+            will-change: opacity, transform;
+        }
+
+        .animate-on-scroll.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 6. NEW: Tab System for "Coming Soon" */
+        .tab-button {
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button.is-active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.is-active {
+            display: block;
+        }
+
+        /* === END: Motion Graphics CSS === */
+
+    </style>
+</head>
+<body class="bg-white">
+
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex-shrink-0 flex items-center">
+                    <img class="w-8 h-8" src="https://img.notionusercontent.com/ext/https%3A%2F%2Fs3-us-west-2.amazonaws.com%2Fpublic.notion-static.com%2F9275c70f-f015-4029-800e-643150881144%2FUntitled_design.png/size/w=160?exp=1762553333&sig=XLxzY6QmzivelLhD6JF-Yg7Ml-Ckt4ijW3WO8ZVD-w8&id=20172c79-e020-803d-8e1a-007a8ca5b649&table=custom_emoji&userId=ea1bde08-08aa-4104-b3f0-fc45bf374805" alt="TESHQ Logo">
+                    <span class="ml-2 text-2xl font-bold text-gray-900">TESHQ</span>
+                </div>
+
+                <div class="hidden md:flex space-x-8">
+                    <a href="#how-it-works" class="text-base font-medium text-gray-500 hover:text-gray-900">How It Works</a>
+                    <a href="#features" class="text-base font-medium text-gray-500 hover:text-gray-900">Features</a>
+                    <a href="#pricing" class="text-base font-medium text-gray-500 hover:text-gray-900">Pricing</a>
+                    <a href="#docs" class="text-base font-medium text-gray-500 hover:text-gray-900">Docs</a>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <a href="https://github.com/theshashank1/TESH-Query" class="hidden sm:inline-flex items-center gap-2 px-5 py-2 border-2 border-gray-300 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        GitHub
+                    </a>
+                    <a href="#install" class="px-5 py-2 border border-transparent rounded-lg text-base font-medium text-white bg-primary hover:bg-primary-dark transition-colors">
+                        Get Started Free
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section id="hero" class="bg-gradient-to-b from-gray-50 to-white py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-4xl mx-auto">
+                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-sm font-medium mb-6">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        <span class="text-gray-700">Powered by <span class="text-treeex">TREEEX</span></span>
+                    </div>
+                    <!-- START: Creative Tagline -->
+                    <h1 class="text-5xl md:text-7xl font-bold tracking-tighter text-gray-900">
+                        From 'What If?' to SQL.
+                        <br/>
+                        <span class="text-primary">Instantly.</span>
+                    </h1>
+                    <p class="mt-6 text-xl md:text-2xl text-gray-600 leading-relaxed">
+                        Your data has answers. TeshQ finds them.
+                        Query your databases in natural language and get from raw data to a business decision in seconds.
+                    </p>
+                    <!-- END: Creative Tagline -->
+                    <div class="mt-10 flex flex-col sm:flex-row justify-center items-center gap-4">
+                        <a href="#install" class="w-full sm:w-auto px-10 py-4 border border-transparent rounded-lg text-lg font-medium text-white bg-primary hover:bg-primary-dark transition-colors flex items-center justify-center gap-2">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                            Install TESHQ
+                        </a>
+                        <a href="https://github.com/theshashank1/TESH-Query" class="w-full sm:w-auto px-10 py-4 border-2 border-gray-300 rounded-lg text-lg font-medium text-gray-700 hover:bg-white hover:border-gray-400 transition-colors flex items-center justify-center gap-2">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                            Star on GitHub
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mt-20 max-w-5xl mx-auto">
+                    <div class="terminal-window shadow-2xl">
+                        <div class="terminal-header">
+                            <div class="terminal-dot" style="background: #ff5f56;"></div>
+                            <div class="terminal-dot" style="background: #ffbd2e;"></div>
+                            <div class="terminal-dot" style="background: #27c93f;"></div>
+                        </div>
+                        <div class="terminal-content">
+                            <div><span class="terminal-comment"># Install TESHQ</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">pip install teshq</span></div>
+                            <div class="terminal-output">Successfully installed teshq</div>
+
+                            <div class="mt-4"><span class="terminal-comment"># Configure your database and API key</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq config --db --gemini</span></div>
+                            <div class="terminal-success">✓ Configuration saved successfully</div>
+
+                            <div class="mt-4"><span class="terminal-comment"># Introspect your database schema</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq introspect</span></div>
+                            <div class="terminal-success">✓ Schema introspection complete</div>
+
+                            <!-- START: Creative Query Example -->
+                            <div class="mt-4"><span class="terminal-comment"># Ask complex questions in plain English!</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq query "List 'power users' who signed up last month and have made more than 5 purchases"</span></div>
+                            <div class="terminal-success">✓ SQL Query Generated:</div>
+                            <div class="terminal-output">   SELECT c.name, c.email, COUNT(o.id) AS purchase_count</div>
+                            <div class="terminal-output">   FROM customers c JOIN orders o ON c.id = o.customer_id</div>
+                            <div class="terminal-output">   WHERE c.created_at >= '2024-12-01'</div>
+                            <div class="terminal-output">   GROUP BY c.id, c.name, c.email</div>
+                            <div class="terminal-output">   HAVING COUNT(o.id) > 5</div>
+                            <div class="terminal-success">✓ Query executed successfully (14 rows)</div>
+                            <!-- END: Creative Query Example -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- === START: NEW ANIMATED SOCIAL PROOF === -->
+                <div id="social-proof" class="mt-24 bg-gray-900 rounded-xl py-16">
+                    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <h2 class="text-3xl font-bold text-center text-white animate-on-scroll">
+                            Trusted by Developers Worldwide
+                        </h2>
+                        <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                            <div class="animate-on-scroll" style="--scroll-delay: 0.1s;">
+                                <h3 id="count-commits" class="text-5xl md:text-7xl font-bold text-primary">149+</h3>
+                                <p class="mt-2 text-lg text-gray-400">Commits</p>
+                            </div>
+                            <div class="animate-on-scroll" style="--scroll-delay: 0.2s;">
+                                <h3 id="count-installs" class="text-5xl md:text-7xl font-bold text-primary">4.5K+</h3>
+                                <p class="mt-2 text-lg text-gray-400">Installs</p>
+                            </div>
+                            <div class="animate-on-scroll" style="--scroll-delay: 0.3s;">
+                                <h3 id="count-queries" class="text-5xl md:text-7xl font-bold text-primary">35K+</h3>
+                                <p class="mt-2 text-lg text-gray-400">Queries</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- === END: NEW ANIMATED SOCIAL PROOF === -->
+            </div>
+        </section>
+
+        <!-- === START: CORRECTED SECTION 1 (Problem) === -->
+        <section id="problem" class="bg-white py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-gray-900 animate-on-scroll">
+                        Your Data Is Trying to Talk. Are You Listening?
+                    </h2>
+                    <p class="mt-6 text-xl text-gray-600 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        Your data is scattered. Your insights are delayed. Your team is waiting on analysts for every simple query. Sound familiar?
+                    </p>
+                </div>
+
+                <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <h3 class="text-lg font-semibold text-red-600">Problem: Scattered Data</h3>
+                        <p class="mt-2 text-2xl font-bold text-gray-900">"My data is in 5 different places"</p>
+                        <p class="mt-4 text-gray-600">Sales, marketing, and customer data live in silos. Getting a complete picture means manual exports, spreadsheets, and hours of work.</p>
+                    </div>
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <h3 class="text-lg font-semibold text-red-600">Problem: Slow Insights</h3>
+                        <p class="mt-2 text-2xl font-bold text-gray-900">"I need to wait days for a simple query"</p>
+                        <p class="mt-4 text-gray-600">Business questions require technical SQL skills. You're bottlenecked by your data team for every insight you need.</p>
+                    </div>
+                    <div class="bg-primary p-8 rounded-xl shadow-lg animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <h3 class="text-lg font-semibold text-white">Solution: Instant Answers</h3>
+                        <p class="mt-2 text-2xl font-bold text-white">"Just ask in plain English"</p>
+                        <p class="mt-4 text-white/90">TESHQ connects all your data sources and turns your questions into perfect SQL instantly. No waiting, no coding required.</p>
+                    </div>
+                </div>
+
+                <!-- === START: NEW INTERACTIVE "COMING SOON" === -->
+                <div class="mt-16 bg-gradient-to-r from-primary/10 to-purple-50 rounded-2xl p-8 md:p-12 animate-on-scroll">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                        <!-- Left Column -->
+                        <div class="flex flex-col justify-center">
+                            <h3 class="text-3xl font-bold text-gray-900">Coming Soon in TESHQ Pro</h3>
+                            <p class="mt-4 text-lg text-gray-600">
+                                We're building the features you asked for. Get ready for a full-featured data platform, powered by AI.
+                            </p>
+                            <a href="#contact" class="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors w-auto md:w-max">
+                                Get Early Access
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            </a>
+                        </div>
+
+                        <!-- Right Column (Tabs) -->
+                        <div>
+                            <!-- Tab Buttons -->
+                            <div class="flex flex-wrap gap-x-4 gap-y-2 border-b border-gray-300">
+                                <button class="tab-button is-active px-1 py-3 text-base font-semibold text-gray-700 hover:text-primary" data-tab="1">
+                                    Dashboards
+                                </button>
+                                <button class="tab-button px-1 py-3 text-base font-semibold text-gray-700 hover:text-primary" data-tab="2">
+                                    Forecasting
+                                </button>
+                                <button class="tab-button px-1 py-3 text-base font-semibold text-gray-700 hover:text-primary" data-tab="3">
+                                    Collaboration
+                                </button>
+                                <button class="tab-button px-1 py-3 text-base font-semibold text-gray-700 hover:text-primary" data-tab="4">
+                                    Connectors
+                                </button>
+                            </div>
+
+                            <!-- Tab Content -->
+                            <div class="mt-6">
+                                <div id="tab-content-1" class="tab-content is-active">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-900">Interactive Dashboards</p>
+                                            <p class="text-sm text-gray-600">Ask a question, get a chart. Save it to a dashboard. All in plain English with a drag-and-drop visual builder.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="tab-content-2" class="tab-content">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-900">AI-Powered Forecasting Engine</p>
+                                            <p class="text-sm text-gray-600">"Forecast our revenue for the next 6 months based on last year's trend." It's that simple.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="tab-content-3" class="tab-content">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-900">Team Collaboration</p>
+                                            <p class="text-sm text-gray-600">Share queries, results, and dashboards with your team securely. Add comments and manage versions.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="tab-content-4" class="tab-content">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-900">Premium Connectors</p>
+                                            <p class="text-sm text-gray-600">Go beyond your database. Query data from Google Ads, Meta Ads, Salesforce, Google Analytics & more, all in one place.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- === END: NEW INTERACTIVE "COMING SOON" === -->
+            </div>
+        </section>
+        <!-- === END: CORRECTED SECTION 1 === -->
+
+        <!-- === START: CORRECTED SECTION 2 (How It Works) === -->
+        <section id="how-it-works" class="bg-gray-900 py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-white animate-on-scroll">
+                        From Question to Answer in 3 Simple Steps
+                    </h2>
+                </div>
+
+                <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-12">
+                    <div class="text-center animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        <div class="flex items-center justify-center w-16 h-16 bg-primary rounded-full mx-auto">
+                            <span class="text-2xl font-bold text-white">1</span>
+                        </div>
+                        <h3 class="mt-6 text-2xl font-semibold text-white">Connect</h3>
+                        <p class="mt-4 text-lg text-gray-300">
+                            Link your databases (PostgreSQL, MySQL, SQLite). TESHQ automatically understands your schema, relationships, and data structure.
+                        </p>
+                    </div>
+                    <div class="text-center animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <div class="flex items-center justify-center w-16 h-16 bg-primary rounded-full mx-auto">
+                            <span class="text-2xl font-bold text-white">2</span>
+                        </div>
+                        <h3 class="mt-6 text-2xl font-semibold text-white">Query</h3>
+                        <p class="mt-4 text-lg text-gray-300">
+                            Ask questions in natural, plain English. Our AI (powered by Google Gemini) generates perfect SQL with parameters and safety checks.
+                        </p>
+                    </div>
+                    <div class="text-center animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <div class="flex items-center justify-center w-16 h-16 bg-primary rounded-full mx-auto">
+                            <span class="text-2xl font-bold text-white">3</span>
+                        </div>
+                        <h3 class="mt-6 text-2xl font-semibold text-white">Decide</h3>
+                        <p class="mt-4 text-lg text-gray-300">
+                            Get instant results as tables, charts, or exports (CSV, Excel, SQLite). Make data-driven decisions immediately.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-20 bg-gray-800 rounded-xl p-8 border border-gray-700 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                    <h3 class="text-xl font-semibold text-white mb-6">Try it with Python:</h3>
+                    <pre class="text-gray-300 text-sm leading-relaxed overflow-x-auto"><code>import teshq
+
+# Initialize the client
+client = teshq.TeshQuery(
+    db_url="postgresql://user:pass@localhost/mydb",
+    gemini_api_key="your-api-key"
+)
+
+# Introspect your database
+schema = client.introspect_database()
+
+# Ask questions in plain English!
+results = client.query(
+    "Show me all customers who registered last month"
+)
+
+# Get results instantly
+print(f"Found {len(results)} customers")</code></pre>
+                </div>
+            </div>
+        </section>
+        <!-- === END: CORRECTED SECTION 2 === -->
+
+        <!-- === START: CORRECTED SECTION 3 (Features) === -->
+        <section id="features" class="bg-white py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-gray-900 animate-on-scroll">
+                        Your AI Data Analyst, Bottled.
+                    </h2>
+                    <p class="mt-6 text-xl text-gray-600 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        Everything you need to turn data into decisions, with none of the usual headaches.
+                    </p>
+                </div>
+
+                <div class="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-semibold text-gray-900">Unified Data Sources</h3>
+                        <p class="mt-2 text-gray-600">
+                            Connect PostgreSQL, MySQL, SQLite databases. Soon: Google Ads, Meta Ads, Salesforce, and more.
+                        </p>
+                    </div>
+
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-semibold text-gray-900">Plain-English Queries</h3>
+                        <p class="mt-2 text-gray-600">
+                            No SQL knowledge required. Ask questions naturally, get accurate SQL with smart parameter binding.
+                        </p>
+                    </div>
+
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-semibold text-gray-900">Instant Dashboards</h3>
+                        <p class="mt-2 text-gray-600">
+                            Built-in visualization and export to CSV, Excel, or SQLite. Pro tier adds interactive dashboards and forecasting.
+                        </p>
+                    </div>
+
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-semibold text-gray-900">Local & Private</h3>
+                        <p class="mt-2 text-gray-600">
+                            Your data never leaves your machine. No cloud storage, no data sharing. Complete privacy and control.
+                        </p>
+                    </div>
+
+                    <!-- START: Added Feature Card 1 -->
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-semibold text-gray-900">CLI & Python API</h3>
+                        <p class="mt-2 text-gray-600">
+                            Use from your terminal or integrate directly into your Python applications. Full programmatic control when you need it.
+                        </p>
+                    </div>
+                    <!-- END: Added Feature Card 1 -->
+
+                    <!-- START: Added Feature Card 2 -->
+                    <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-semibold text-gray-900">Smart Schema Understanding</h3>
+                        <p class="mt-2 text-gray-600">
+                            Automatic relationship detection, index awareness, and sample data analysis for better, more accurate query generation.
+                        </p>
+                    </div>
+                    <!-- END: Added Feature Card 2 -->
+                </div>
+            </div>
+        </section>
+        <!-- === END: CORRECTED SECTION 3 === -->
+
+        <section id="use-cases" class="bg-gray-50 py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-gray-900 animate-on-scroll">
+                        The 'Aha!' Moment, On Demand.
+                    </h2>
+                    <p class="mt-6 text-xl text-gray-600 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        From quick insights to complex analysis, TESHQ handles it all.
+                    </p>
+                </div>
+
+                <div class="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- START: Use Case 1 -->
+                    <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Customer Analytics</h3>
+                        <p class="mt-3 text-gray-600">
+                            "Find customers from New York who bought 'Product A' but not 'Product B' in the last 6 months."
+                        </p>
+                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Cohort analysis </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Churn prediction </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> LTV calculations </li>
+                        </ul>
+                    </div>
+                    <!-- START: Use Case 2 -->
+                    <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Sales Performance</h3>
+                        <p class="mt-3 text-gray-600">
+                            "What's the 7-day-average sales revenue, and compare it to the same period last month?"
+                        </p>
+                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Revenue tracking </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Product performance </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Sales team KPIs </li>
+                        </ul>
+                    </div>
+                    <!-- START: Use Case 3 -->
+                    <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-purple-600"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Marketing ROI</h3>
+                        <p class="mt-3 text-gray-600">
+                           "Compare the 30-day conversion rate for users from 'google' vs 'facebook' ad campaigns."
+                        </p>
+                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Campaign analysis </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Attribution modeling </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Channel optimization </li>
+                        </ul>
+                    </div>
+                    <!-- START: Use Case 4 -->
+                    <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Inventory Management</h3>
+                        <p class="mt-3 text-gray-600">
+                            "Show me low-stock items (under 10 units) that sold *more* than 100 units last month."
+                        </p>
+                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Stock alerts </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Reorder points </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Demand forecasting </li>
+                        </ul>
+                    </div>
+                    <!-- START: Use Case 5 -->
+                    <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-600"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M12.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">HR Analytics</h3>
+                        <p class="mt-3 text-gray-600">
+                           "What's the average tenure of employees in the 'Engineering' department vs. 'Sales'?"
+                        </p>
+                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Headcount reports </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Retention analysis </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Performance metrics </li>
+                        </ul>
+                    </div>
+                    <!-- START: Use Case 6 -->
+                    <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-600"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Operations & Logistics</h3>
+                        <p class="mt-3 text-gray-600">
+                            "List all orders with a 'shipped' status for more than 3 days but no 'delivered' status yet."
+                        </p>
+                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Delivery tracking </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> SLA monitoring </li>
+                            <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Process optimization </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="pricing" class="bg-gray-50 py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-gray-900 animate-on-scroll">
+                        Simple, Transparent Pricing
+                    </h2>
+                    <p class="mt-6 text-xl text-gray-600 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        Start free, scale as you grow. No hidden fees, no surprises.
+                    </p>
+                </div>
+
+                <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                    <!-- Free Tier -->
+                    <div class="bg-white p-8 rounded-xl border-2 border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <h3 class="text-2xl font-bold text-gray-900">Free</h3>
+                        <p class="mt-2 text-gray-600">Perfect for individuals and exploration</p>
+                        <div class="mt-6">
+                            <span class="text-5xl font-bold text-gray-900">$0</span>
+                            <span class="text-gray-600">/forever</span>
+                        </div>
+                        <ul class="mt-8 space-y-4">
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Single database connection</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Unlimited natural language queries</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Basic query capabilities</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Export to CSV/Excel</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Community support</span>
+                            </li>
+                        </ul>
+                        <a href="#install" class="mt-8 block w-full px-6 py-3 border-2 border-gray-300 rounded-lg text-center font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                            Get Started Free
+                        </a>
+                    </div>
+
+                    <!-- Pro Tier -->
+                    <div class="bg-gray-900 p-8 rounded-xl border-2 border-primary shadow-xl transform scale-105 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                        <div class="inline-block px-3 py-1 bg-primary rounded-full text-white text-sm font-semibold mb-4">
+                            Most Popular
+                        </div>
+                        <h3 class="text-2xl font-bold text-white">Pro</h3>
+                        <p class="mt-2 text-gray-300">For teams and power users</p>
+                        <div class="mt-6">
+                            <span class="text-5xl font-bold text-white">$49</span>
+                            <span class="text-gray-300">/user/month</span>
+                        </div>
+                        <ul class="mt-8 space-y-4">
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-300">Everything in Free, plus:</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-300">Unlimited database connections</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-300">Interactive dashboards & visualizations</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-300">Premium connectors (Google Ads, Meta)</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-300">Team collaboration tools</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-300">Priority support</span>
+                            </li>
+                        </ul>
+                        <a href="#contact" class="mt-8 block w-full px-6 py-3 bg-primary rounded-lg text-center font-medium text-white hover:bg-primary-dark transition-colors">
+                            Start Pro Trial
+                        </a>
+                    </div>
+
+                    <!-- Enterprise Tier -->
+                    <div class="bg-white p-8 rounded-xl border-2 border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <h3 class="text-2xl font-bold text-gray-900">Enterprise</h3>
+                        <p class="mt-2 text-gray-600">For organizations at scale</p>
+                        <div class="mt-6">
+                            <span class="text-5xl font-bold text-gray-900">Custom</span>
+                        </div>
+                        <ul class="mt-8 space-y-4">
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Everything in Pro, plus:</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Advanced security & governance</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">SSO, RBAC, audit logs</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Custom integrations</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">Dedicated support & SLA</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-6 h-6 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span class="ml-3 text-gray-600">On-premise deployment option</span>
+                            </li>
+                        </ul>
+                        <a href="#contact" class="mt-8 block w-full px-6 py-3 border-2 border-primary rounded-lg text-center font-medium text-primary hover:bg-primary/5 transition-colors">
+                            Contact Sales
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="testimonials" class="bg-white py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-gray-900 animate-on-scroll">
+                        Don't Just Take Our Word For It
+                    </h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-lg font-semibold text-gray-800">Head of Data Science</p>
+                                <p class="text-base text-gray-500">Global Fortune 500 Retailer</p>
+                            </div>
+                        </div>
+                        <blockquote>
+                            <p class="text-xl text-gray-900">
+                                "TESHQ saved our analytics team <strong class="text-primary">hundreds of hours</strong> per month. We could finally see ad spend, sales, and customer numbers in one place—no more back-and-forth with analysts."
+                            </p>
+                        </blockquote>
+                    </div>
+
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-lg font-semibold text-gray-800">Product Manager</p>
+                                <p class="text-base text-gray-500">SaaS Startup</p>
+                            </div>
+                        </div>
+                        <blockquote>
+                            <p class="text-xl text-gray-900">
+                                "I'm not technical, but with TESHQ I can answer my own data questions. From 'Why did sales drop this week?' to actionable insights in <strong class="text-primary">minutes, not days</strong>."
+                            </p>
+                        </blockquote>
+                    </div>
+                </div>
+
+                <div class="mt-12 text-center animate-on-scroll" style="--scroll-delay: 0.3s;">
+                    <p class="text-gray-600">Join <strong class="text-gray-900">1,200+ weekly active users</strong> making data-driven decisions faster</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="install" class="bg-gray-900 py-24 sm:py-32">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-white animate-on-scroll">
+                        Install. Connect. Interrogate.
+                    </h2>
+                    <p class="mt-6 text-xl text-gray-300 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                        Install TESHQ, connect your database, and start asking questions. It's that simple.
+                    </p>
+                </div>
+
+                <div class="mt-16 max-w-4xl mx-auto animate-on-scroll" style="--scroll-delay: 0.2s;">
+                    <div class="terminal-window shadow-2xl">
+                        <div class="terminal-header">
+                            <div class="terminal-dot" style="background: #ff5f56;"></div>
+                            <div class="terminal-dot" style="background: #ffbd2e;"></div>
+                            <div class="terminal-dot" style="background: #27c93f;"></div>
+                        </div>
+                        <div class="terminal-content">
+                            <div><span class="terminal-comment"># Step 1: Install TESHQ</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">pip install teshq</span></div>
+                            <div class="terminal-success">✓ Successfully installed teshq</div>
+
+                            <div class="mt-4"><span class="terminal-comment"># Step 2: Configure (interactive prompts will guide you)</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq config --interactive</span></div>
+                            <div class="terminal-output">Database type (postgresql/mysql/sqlite): postgresql</div>
+                            <div class="terminal-output">Database host: localhost</div>
+                            <div class="terminal-output">Database name: myapp</div>
+                            <div class="terminal-output">Gemini API Key: AIza...</div>
+                            <div class="terminal-success">✓ Configuration saved successfully</div>
+
+                            <div class="mt-4"><span class="terminal-comment"># Step 3: Introspect your database</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq introspect</span></div>
+                            <div class="terminal-success">✓ Found 12 tables, 145 columns</div>
+                            <div class="terminal-success">✓ Detected 8 relationships</div>
+                            <div class="terminal-success">✓ Schema saved to db_schema/</div>
+
+                            <div class="mt-4"><span class="terminal-comment"># Step 4: Start asking questions!</span></div>
+                            <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq query "How many users signed up last month?"</span></div>
+                            <div class="terminal-success">✓ Generated SQL:</div>
+                            <div class="terminal-output">   SELECT COUNT(*) FROM users</div>
+                            <div class="terminal-output">   WHERE created_at >= '2024-12-01'</div>
+                            <div class="terminal-success">✓ Result: 1,847 users</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-12 flex flex-col sm:flex-row justify-center items-center gap-4 animate-on-scroll" style="--scroll-delay: 0.3s;">
+                    <a href="https://github.com/theshashank1/TESH-Query" class="w-full sm:w-auto px-10 py-4 border border-transparent rounded-lg text-lg font-medium text-gray-900 bg-white hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        View on GitHub
+                    </a>
+                    <a href="#" class="w-full sm:w-auto px-10 py-4 border-2 border-white rounded-lg text-lg font-medium text-white hover:bg-white/10 transition-colors">
+                        Read Documentation
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section id="cta" class="bg-primary">
+            <div class="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-4xl md:text-5xl font-bold text-white animate-on-scroll">
+                    Ready to Transform Your Data Workflow?
+                </h2>
+                <p class="mt-6 max-w-2xl mx-auto text-xl text-white/90 animate-on-scroll" style="--scroll-delay: 0.1s;">
+                    Join thousands of users who've already made the switch from complex SQL to simple questions. Get started free today.
+                </p>
+                <div class="mt-10 flex flex-col sm:flex-row justify-center items-center gap-4 animate-on-scroll" style="--scroll-delay: 0.2s;">
+                    <a href="#install" class="w-full sm:w-auto px-10 py-4 border border-transparent rounded-lg text-lg font-medium text-primary bg-white hover:bg-gray-100 transition-colors">
+                        Start Free Now
+                    </a>
+                    <a href="#contact" class="w-full sm:w-auto px-10 py-4 border-2 border-white rounded-lg text-lg font-medium text-white hover:bg-white/10 transition-colors">
+                        Talk to Sales
+                    </a>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-900">
+        <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8">
+            <div class="xl:grid xl:grid-cols-3 xl:gap-8">
+                <div class="space-y-8 xl:col-span-1">
+                    <div class="flex items-center">
+                        <img class="w-8 h-8" src="https://img.notionusercontent.com/ext/https%3A%2F%2Fs3-us-west-2.amazonaws.com%2Fpublic.notion-static.com%2F9275c70f-f015-4029-800e-643150881144%2FUntitled_design.png/size/w=160?exp=1762553333&sig=XLxzY6QmzivelLhD6JF-Yg7Ml-Ckt4ijW3WO8ZVD-w8&id=20172c79-e020-803d-8e1a-007a8ca5b649&table=custom_emoji&userId=ea1bde08-08aa-4104-b3f0-fc45bf374805" alt="TESHQ Logo">
+                        <span class="ml-2 text-2xl font-bold text-white">TESHQ</span>
+                    </div>
+                    <p class="text-gray-400 text-base">
+                        From raw data to business decision in 60 seconds.
+                    </p>
+                    <p class="text-gray-500 text-sm">
+                        Powered by <span class="text-treeex">TREEEX</span>
+                    </p>
+                </div>
+                <div class="mt-12 grid grid-cols-2 gap-8 xl:mt-0 xl:col-span-2">
+                    <div class="md:grid md:grid-cols-2 md:gap-8">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-300 tracking-wider uppercase">Product</h3>
+                            <ul class="mt-4 space-y-4">
+                                <li><a href="#features" class="text-base text-gray-400 hover:text-white">Features</a></li>
+                                <li><a href="#pricing" class="text-base text-gray-400 hover:text-white">Pricing</a></li>
+                                <li><a href="#install" class="text-base text-gray-400 hover:text-white">Get Started</a></li>
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Roadmap</a></li>
+                            </ul>
+                        </div>
+                        <div class="mt-12 md:mt-0">
+                            <h3 class="text-sm font-semibold text-gray-300 tracking-wider uppercase">Resources</h3>
+                            <ul class="mt-4 space-y-4">
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Documentation</a></li>
+                                <li><a href="https://github.com/theshashank1/TESH-Query" class="text-base text-gray-400 hover:text-white">GitHub</a></li>
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Examples</a></li>
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Blog</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="md:grid md:grid-cols-2 md:gap-8">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-300 tracking-wider uppercase">Company</h3>
+                            <ul class="mt-4 space-y-4">
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">About</a></li>
+                                <li><a href="https://www.linkedin.com/in/gunda-shashank/" class="text-base text-gray-400 hover:text-white">Founder</a></li>
+                                <li><a href="#contact" class="text-base text-gray-400 hover:text-white">Contact</a></li>
+                            </ul>
+                        </div>
+                        <div class="mt-12 md:mt-0">
+                            <h3 class="text-sm font-semibold text-gray-300 tracking-wider uppercase">Legal</h3>
+                            <ul class="mt-4 space-y-4">
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Privacy</a></li>
+                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Terms</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-12 border-t border-gray-700 pt-8">
+                <p class="text-base text-gray-400 xl:text-center">
+                    &copy; 2025 TESHQ by Shashank. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- === START: NEW JAVASCRIPT === -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- 1. Tab System for "Coming Soon" ---
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabId = button.getAttribute('data-tab');
+
+                    // Deactivate all buttons and content
+                    tabButtons.forEach(btn => btn.classList.remove('is-active'));
+                    tabContents.forEach(content => content.classList.remove('is-active'));
+
+                    // Activate the clicked button and corresponding content
+                    button.classList.add('is-active');
+                    document.getElementById(`tab-content-${tabId}`).classList.add('is-active');
+                });
+            });
+
+            // --- 2. Scroll-Triggered Animations ---
+            const scrollObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.1 // Trigger when 10% of the element is visible
+            });
+
+            // Observe all elements with the class
+            const elementsToAnimate = document.querySelectorAll('.animate-on-scroll');
+            elementsToAnimate.forEach(el => scrollObserver.observe(el));
+
+            // --- 3. Count-Up Animation ---
+            const countUp = (el, endVal, duration = 2000) => {
+                let startVal = 0;
+                const end = parseFloat(endVal.replace(/K\+|[+,]/g, ''));
+                const isK = endVal.includes('K');
+                const isPlus = endVal.includes('+');
+
+                let startTime = null;
+
+                const animation = (currentTime) => {
+                    if (startTime === null) startTime = currentTime;
+                    const timeElapsed = currentTime - startTime;
+                    const progress = Math.min(timeElapsed / duration, 1);
+
+                    let currentVal = progress * end;
+
+                    if (isK) {
+                        el.textContent = `${(currentVal).toFixed(1)}K+`;
+                    } else {
+                        el.textContent = `${Math.floor(currentVal)}+`;
+                    }
+
+                    if (timeElapsed < duration) {
+                        requestAnimationFrame(animation);
+                    } else {
+                        // Ensure final value is exact
+                         if (isK) {
+                            el.textContent = `${end.toFixed(1)}K+`;
+                        } else {
+                            el.textContent = `${Math.floor(end)}+`;
+                        }
+                    }
+                };
+                requestAnimationFrame(animation);
+            };
+
+            const socialProofSection = document.getElementById('social-proof');
+            let hasCounted = false; // Flag to ensure it only runs once
+
+            const countObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && !hasCounted) {
+                        hasCounted = true;
+                        countUp(document.getElementById('count-commits'), '149+', 1500);
+                        countUp(document.getElementById('count-installs'), '4.5K+', 2000);
+                        countUp(document.getElementById('count-queries'), '35K+', 2000);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.5 // Trigger when 50% of the section is visible
+            });
+
+            if (socialProofSection) {
+                countObserver.observe(socialProofSection);
+            }
+        });
+    </script>
+    <!-- === END: NEW JAVASCRIPT === -->
+
+</body>
+</html>
