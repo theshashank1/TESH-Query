@@ -23,7 +23,7 @@
             color: #1a202c;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            overflow-x: hidden; /* Prevent horizontal scroll from animations */
+            overflow-x: hidden;
         }
 
         h1, h2, h3, h4, h5, h6 {
@@ -81,9 +81,6 @@
         .terminal-success { color: #4ec9b0; }
         .terminal-comment { color: #6a9955; }
 
-        /* === START: Motion Graphics CSS === */
-
-        /* 1. Define the animation keyframes */
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -100,7 +97,6 @@
             to { opacity: 1; }
         }
 
-        /* A subtle pulse for your main Call-to-Action buttons */
         @keyframes subtlePulse {
             0% {
                 box-shadow: 0 0 0 0px rgba(255, 49, 49, 0.7);
@@ -110,41 +106,32 @@
             }
         }
 
-        /* 2. Apply animations to Hero elements for a clean, staggered load-in */
-
-        /* Animate the H1 */
         #hero h1 {
             animation: fadeInUp 0.8s ease-out;
         }
 
-        /* Animate the sub-headline, with a small delay */
-        #hero p.mt-6 { /* Target the specific hero paragraph */
+        #hero p.mt-6 {
             animation: fadeInUp 0.8s ease-out 0.2s;
-            animation-fill-mode: forwards; /* Keeps it from flashing */
-            opacity: 0; /* Start hidden */
+            animation-fill-mode: forwards;
+            opacity: 0;
         }
 
-        /* Animate the buttons, with a longer delay */
         #hero .mt-10 {
             animation: fadeInUp 0.8s ease-out 0.4s;
             animation-fill-mode: forwards;
             opacity: 0;
         }
 
-        /* Animate the terminal window, with the longest delay */
         #hero .terminal-window {
             animation: fadeInUp 0.8s ease-out 0.6s;
             animation-fill-mode: forwards;
             opacity: 0;
         }
 
-        /* 3. Apply the pulse to your main CTA button in the hero */
         #hero .bg-primary {
-            /* Starts pulsing 2 seconds after page load, and loops */
             animation: subtlePulse 1.5s infinite 2s;
         }
 
-        /* 4. Add a subtle hover-lift to all Use Case & Feature cards */
         #features .bg-gray-50,
         #use-cases .bg-white,
         #problem .bg-gray-50,
@@ -160,7 +147,6 @@
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.07);
         }
 
-        /* 5. NEW: Scroll-Triggered Animations */
         .animate-on-scroll {
             opacity: 0;
             transform: translateY(30px);
@@ -174,7 +160,6 @@
             transform: translateY(0);
         }
 
-        /* 6. NEW: Tab System for "Coming Soon" */
         .tab-button {
             transition: all 0.3s ease;
             border-bottom: 3px solid transparent;
@@ -194,11 +179,184 @@
             display: block;
         }
 
-        /* === END: Motion Graphics CSS === */
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-overlay.is-open {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: fadeInUp 0.4s ease;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-close {
+            transition: transform 0.2s ease;
+        }
+
+        .modal-close:hover {
+            transform: rotate(90deg);
+        }
+
+        .form-input {
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(255, 49, 49, 0.1);
+        }
+
+        .submit-button {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .submit-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
 
     </style>
 </head>
 <body class="bg-white">
+
+    <!-- Subscription Modal -->
+    <div id="subscriptionModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="p-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-gray-900">Get Early Access</h3>
+                    <button id="closeModal" class="modal-close p-2 text-gray-400 hover:text-gray-600">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <p class="text-gray-600 mb-6">
+                    Join the waitlist for TESHQ Pro and Enterprise. Be the first to know when we launch premium features.
+                </p>
+
+                <div id="alertContainer"></div>
+
+                <form id="subscriptionForm">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="subscriberName" class="block text-sm font-medium text-gray-700 mb-1">
+                                Full Name <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="subscriberName"
+                                name="name"
+                                required
+                                class="form-input w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
+                                placeholder="John Doe"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="subscriberEmail" class="block text-sm font-medium text-gray-700 mb-1">
+                                Email Address <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="email"
+                                id="subscriberEmail"
+                                name="email"
+                                required
+                                class="form-input w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
+                                placeholder="john@company.com"
+                            />
+                        </div>
+
+                        <div class="flex items-start">
+                            <input
+                                type="checkbox"
+                                id="consentGiven"
+                                name="consent_given"
+                                required
+                                class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                            />
+                            <label for="consentGiven" class="ml-3 text-sm text-gray-600">
+                                I agree to receive updates about TESHQ Pro and Enterprise. You can unsubscribe at any time. <span class="text-red-500">*</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        id="submitButton"
+                        class="submit-button mt-6 w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
+                    >
+                        <span id="buttonText">Subscribe</span>
+                        <span id="buttonSpinner" class="spinner hidden"></span>
+                    </button>
+                </form>
+
+                <p class="mt-4 text-xs text-gray-500 text-center">
+                    We respect your privacy. Your information will never be shared.
+                </p>
+            </div>
+        </div>
+    </div>
 
     <header class="bg-white shadow-sm sticky top-0 z-50">
         <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -236,7 +394,6 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                         <span class="text-gray-700">Powered by <span class="text-treeex">TREEEX</span></span>
                     </div>
-                    <!-- START: Creative Tagline -->
                     <h1 class="text-5xl md:text-7xl font-bold tracking-tighter text-gray-900">
                         From 'What If?' to SQL.
                         <br/>
@@ -246,7 +403,6 @@
                         Your data has answers. TeshQ finds them.
                         Query your databases in natural language and get from raw data to a business decision in seconds.
                     </p>
-                    <!-- END: Creative Tagline -->
                     <div class="mt-10 flex flex-col sm:flex-row justify-center items-center gap-4">
                         <a href="#install" class="w-full sm:w-auto px-10 py-4 border border-transparent rounded-lg text-lg font-medium text-white bg-primary hover:bg-primary-dark transition-colors flex items-center justify-center gap-2">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -279,22 +435,19 @@
                             <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq introspect</span></div>
                             <div class="terminal-success">✓ Schema introspection complete</div>
 
-                            <!-- START: Creative Query Example -->
                             <div class="mt-4"><span class="terminal-comment"># Ask complex questions in plain English!</span></div>
                             <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq query "List 'power users' who signed up last month and have made more than 5 purchases"</span></div>
                             <div class="terminal-success">✓ SQL Query Generated:</div>
-                            <div class="terminal-output">   SELECT c.name, c.email, COUNT(o.id) AS purchase_count</div>
-                            <div class="terminal-output">   FROM customers c JOIN orders o ON c.id = o.customer_id</div>
-                            <div class="terminal-output">   WHERE c.created_at >= '2024-12-01'</div>
-                            <div class="terminal-output">   GROUP BY c.id, c.name, c.email</div>
-                            <div class="terminal-output">   HAVING COUNT(o.id) > 5</div>
+                            <div class="terminal-output">  SELECT c.name, c.email, COUNT(o.id) AS purchase_count</div>
+                            <div class="terminal-output">  FROM customers c JOIN orders o ON c.id = o.customer_id</div>
+                            <div class="terminal-output">  WHERE c.created_at >= '2024-12-01'</div>
+                            <div class="terminal-output">  GROUP BY c.id, c.name, c.email</div>
+                            <div class="terminal-output">  HAVING COUNT(o.id) > 5</div>
                             <div class="terminal-success">✓ Query executed successfully (14 rows)</div>
-                            <!-- END: Creative Query Example -->
                         </div>
                     </div>
                 </div>
 
-                <!-- === START: NEW ANIMATED SOCIAL PROOF === -->
                 <div id="social-proof" class="mt-24 bg-gray-900 rounded-xl py-16">
                     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                         <h2 class="text-3xl font-bold text-center text-white animate-on-scroll">
@@ -302,11 +455,11 @@
                         </h2>
                         <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
                             <div class="animate-on-scroll" style="--scroll-delay: 0.1s;">
-                                <h3 id="count-commits" class="text-5xl md:text-7xl font-bold text-primary">200+</h3>
+                                <h3 id="count-commits" class="text-5xl md:text-7xl font-bold text-primary">210+</h3>
                                 <p class="mt-2 text-lg text-gray-400">Commits</p>
                             </div>
                             <div class="animate-on-scroll" style="--scroll-delay: 0.2s;">
-                                <h3 id="count-installs" class="text-5xl md:text-7xl font-bold text-primary">5.1K+</h3>
+                                <h3 id="count-installs" class="text-5xl md:text-7xl font-bold text-primary">5.6K+</h3>
                                 <p class="mt-2 text-lg text-gray-400">Installs</p>
                             </div>
                             <div class="animate-on-scroll" style="--scroll-delay: 0.3s;">
@@ -316,11 +469,9 @@
                         </div>
                     </div>
                 </div>
-                <!-- === END: NEW ANIMATED SOCIAL PROOF === -->
             </div>
         </section>
 
-        <!-- === START: CORRECTED SECTION 1 (Problem) === -->
         <section id="problem" class="bg-white py-24 sm:py-32">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center max-w-3xl mx-auto">
@@ -350,24 +501,20 @@
                     </div>
                 </div>
 
-                <!-- === START: NEW INTERACTIVE "COMING SOON" === -->
                 <div class="mt-16 bg-gradient-to-r from-primary/10 to-purple-50 rounded-2xl p-8 md:p-12 animate-on-scroll">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-                        <!-- Left Column -->
                         <div class="flex flex-col justify-center">
                             <h3 class="text-3xl font-bold text-gray-900">Coming Soon in TESHQ Pro</h3>
                             <p class="mt-4 text-lg text-gray-600">
                                 We're building the features you asked for. Get ready for a full-featured data platform, powered by AI.
                             </p>
-                            <a href="#contact" class="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors w-auto md:w-max">
+                            <button class="open-modal mt-8 inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors w-auto md:w-max">
                                 Get Early Access
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            </a>
+                            </button>
                         </div>
 
-                        <!-- Right Column (Tabs) -->
                         <div>
-                            <!-- Tab Buttons -->
                             <div class="flex flex-wrap gap-x-4 gap-y-2 border-b border-gray-300">
                                 <button class="tab-button is-active px-1 py-3 text-base font-semibold text-gray-700 hover:text-primary" data-tab="1">
                                     Dashboards
@@ -383,7 +530,6 @@
                                 </button>
                             </div>
 
-                            <!-- Tab Content -->
                             <div class="mt-6">
                                 <div id="tab-content-1" class="tab-content is-active">
                                     <div class="flex items-start gap-3">
@@ -433,12 +579,9 @@
                         </div>
                     </div>
                 </div>
-                <!-- === END: NEW INTERACTIVE "COMING SOON" === -->
             </div>
         </section>
-        <!-- === END: CORRECTED SECTION 1 === -->
 
-        <!-- === START: CORRECTED SECTION 2 (How It Works) === -->
         <section id="how-it-works" class="bg-gray-900 py-24 sm:py-32">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center">
@@ -500,9 +643,7 @@ print(f"Found {len(results)} customers")</code></pre>
                 </div>
             </div>
         </section>
-        <!-- === END: CORRECTED SECTION 2 === -->
 
-        <!-- === START: CORRECTED SECTION 3 (Features) === -->
         <section id="features" class="bg-white py-24 sm:py-32">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center max-w-3xl mx-auto">
@@ -555,7 +696,6 @@ print(f"Found {len(results)} customers")</code></pre>
                         </p>
                     </div>
 
-                    <!-- START: Added Feature Card 1 -->
                     <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
                         <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
@@ -565,9 +705,7 @@ print(f"Found {len(results)} customers")</code></pre>
                             Use from your terminal or integrate directly into your Python applications. Full programmatic control when you need it.
                         </p>
                     </div>
-                    <!-- END: Added Feature Card 1 -->
 
-                    <!-- START: Added Feature Card 2 -->
                     <div class="bg-gray-50 p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
                         <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -577,11 +715,9 @@ print(f"Found {len(results)} customers")</code></pre>
                             Automatic relationship detection, index awareness, and sample data analysis for better, more accurate query generation.
                         </p>
                     </div>
-                    <!-- END: Added Feature Card 2 -->
                 </div>
             </div>
         </section>
-        <!-- === END: CORRECTED SECTION 3 === -->
 
         <section id="use-cases" class="bg-gray-50 py-24 sm:py-32">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -595,7 +731,6 @@ print(f"Found {len(results)} customers")</code></pre>
                 </div>
 
                 <div class="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <!-- START: Use Case 1 -->
                     <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
                         <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
@@ -604,13 +739,12 @@ print(f"Found {len(results)} customers")</code></pre>
                         <p class="mt-3 text-gray-600">
                             "Find customers from New York who bought 'Product A' but not 'Product B' in the last 6 months."
                         </p>
-                        <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                         <ul class="mt-4 space-y-2 text-sm text-gray-600">
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Cohort analysis </li>
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Churn prediction </li>
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> LTV calculations </li>
                         </ul>
                     </div>
-                    <!-- START: Use Case 2 -->
                     <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
                         <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -625,14 +759,13 @@ print(f"Found {len(results)} customers")</code></pre>
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Sales team KPIs </li>
                         </ul>
                     </div>
-                    <!-- START: Use Case 3 -->
                     <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
                         <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-purple-600"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
                         </div>
                         <h3 class="text-xl font-bold text-gray-900">Marketing ROI</h3>
                         <p class="mt-3 text-gray-600">
-                           "Compare the 30-day conversion rate for users from 'google' vs 'facebook' ad campaigns."
+                            "Compare the 30-day conversion rate for users from 'google' vs 'facebook' ad campaigns."
                         </p>
                         <ul class="mt-4 space-y-2 text-sm text-gray-600">
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Campaign analysis </li>
@@ -640,7 +773,6 @@ print(f"Found {len(results)} customers")</code></pre>
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Channel optimization </li>
                         </ul>
                     </div>
-                    <!-- START: Use Case 4 -->
                     <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
                         <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
@@ -655,14 +787,13 @@ print(f"Found {len(results)} customers")</code></pre>
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Demand forecasting </li>
                         </ul>
                     </div>
-                    <!-- START: Use Case 5 -->
                     <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.3s;">
                         <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-600"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M12.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
                         </div>
                         <h3 class="text-xl font-bold text-gray-900">HR Analytics</h3>
                         <p class="mt-3 text-gray-600">
-                           "What's the average tenure of employees in the 'Engineering' department vs. 'Sales'?"
+                            "What's the average tenure of employees in the 'Engineering' department vs. 'Sales'?"
                         </p>
                         <ul class="mt-4 space-y-2 text-sm text-gray-600">
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Headcount reports </li>
@@ -670,7 +801,6 @@ print(f"Found {len(results)} customers")</code></pre>
                             <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0"><path d="M20 6L9 17l-5-5"/></svg> Performance metrics </li>
                         </ul>
                     </div>
-                    <!-- START: Use Case 6 -->
                     <div class="bg-white p-8 rounded-xl border border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
                         <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-600"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -701,7 +831,6 @@ print(f"Found {len(results)} customers")</code></pre>
                 </div>
 
                 <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                    <!-- Free Tier -->
                     <div class="bg-white p-8 rounded-xl border-2 border-gray-200 animate-on-scroll" style="--scroll-delay: 0.2s;">
                         <h3 class="text-2xl font-bold text-gray-900">Free</h3>
                         <p class="mt-2 text-gray-600">Perfect for individuals and exploration</p>
@@ -736,10 +865,9 @@ print(f"Found {len(results)} customers")</code></pre>
                         </a>
                     </div>
 
-                    <!-- Pro Tier -->
                     <div class="bg-gray-900 p-8 rounded-xl border-2 border-primary shadow-xl transform scale-105 animate-on-scroll" style="--scroll-delay: 0.3s;">
                         <div class="inline-block px-3 py-1 bg-primary rounded-full text-white text-sm font-semibold mb-4">
-                            Most Popular
+                            Launching Soon
                         </div>
                         <h3 class="text-2xl font-bold text-white">Pro</h3>
                         <p class="mt-2 text-gray-300">For teams and power users</p>
@@ -773,13 +901,15 @@ print(f"Found {len(results)} customers")</code></pre>
                                 <span class="ml-3 text-gray-300">Priority support</span>
                             </li>
                         </ul>
-                        <a href="#contact" class="mt-8 block w-full px-6 py-3 bg-primary rounded-lg text-center font-medium text-white hover:bg-primary-dark transition-colors">
-                            Start Pro Trial
-                        </a>
+                        <button class="open-modal mt-8 block w-full px-6 py-3 bg-primary rounded-lg text-center font-medium text-white hover:bg-primary-dark transition-colors">
+                            Get Notified
+                        </button>
                     </div>
 
-                    <!-- Enterprise Tier -->
                     <div class="bg-white p-8 rounded-xl border-2 border-gray-200 animate-on-scroll" style="--scroll-delay: 0.4s;">
+                        <div class="inline-block px-3 py-1 bg-primary rounded-full text-white text-sm font-semibold mb-4">
+                            Launching Soon
+                        </div>
                         <h3 class="text-2xl font-bold text-gray-900">Enterprise</h3>
                         <p class="mt-2 text-gray-600">For organizations at scale</p>
                         <div class="mt-6">
@@ -811,9 +941,9 @@ print(f"Found {len(results)} customers")</code></pre>
                                 <span class="ml-3 text-gray-600">On-premise deployment option</span>
                             </li>
                         </ul>
-                        <a href="#contact" class="mt-8 block w-full px-6 py-3 border-2 border-primary rounded-lg text-center font-medium text-primary hover:bg-primary/5 transition-colors">
-                            Contact Sales
-                        </a>
+                        <button class="open-modal mt-8 block w-full px-6 py-3 border-2 border-primary rounded-lg text-center font-medium text-primary hover:bg-primary/5 transition-colors">
+                            Get Notified
+                        </button>
                     </div>
                 </div>
             </div>
@@ -909,8 +1039,8 @@ print(f"Found {len(results)} customers")</code></pre>
                             <div class="mt-4"><span class="terminal-comment"># Step 4: Start asking questions!</span></div>
                             <div><span class="terminal-prompt">$</span> <span class="terminal-command">teshq query "How many users signed up last month?"</span></div>
                             <div class="terminal-success">✓ Generated SQL:</div>
-                            <div class="terminal-output">   SELECT COUNT(*) FROM users</div>
-                            <div class="terminal-output">   WHERE created_at >= '2024-12-01'</div>
+                            <div class="terminal-output">  SELECT COUNT(*) FROM users</div>
+                            <div class="terminal-output">  WHERE created_at >= '2024-12-01'</div>
                             <div class="terminal-success">✓ Result: 1,847 users</div>
                         </div>
                     </div>
@@ -921,7 +1051,7 @@ print(f"Found {len(results)} customers")</code></pre>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                         View on GitHub
                     </a>
-                    <a href="#" class="w-full sm:w-auto px-10 py-4 border-2 border-white rounded-lg text-lg font-medium text-white hover:bg-white/10 transition-colors">
+                    <a href="https://theshashank1.notion.site/TESH-Query-20172c79e02080a287bcdff73f694a6b" class="w-full sm:w-auto px-10 py-4 border-2 border-white rounded-lg text-lg font-medium text-white hover:bg-white/10 transition-colors">
                         Read Documentation
                     </a>
                 </div>
@@ -940,9 +1070,9 @@ print(f"Found {len(results)} customers")</code></pre>
                     <a href="#install" class="w-full sm:w-auto px-10 py-4 border border-transparent rounded-lg text-lg font-medium text-primary bg-white hover:bg-gray-100 transition-colors">
                         Start Free Now
                     </a>
-                    <a href="#contact" class="w-full sm:w-auto px-10 py-4 border-2 border-white rounded-lg text-lg font-medium text-white hover:bg-white/10 transition-colors">
+                    <button class="open-modal w-full sm:w-auto px-10 py-4 border-2 border-white rounded-lg text-lg font-medium text-white hover:bg-white/10 transition-colors">
                         Talk to Sales
-                    </a>
+                    </button>
                 </div>
             </div>
         </section>
@@ -955,7 +1085,7 @@ print(f"Found {len(results)} customers")</code></pre>
                 <div class="space-y-8 xl:col-span-1">
                     <div class="flex items-center">
                         <img class="w-8 h-8" src="https://img.notionusercontent.com/ext/https%3A%2F%2Fs3-us-west-2.amazonaws.com%2Fpublic.notion-static.com%2F9275c70f-f015-4029-800e-643150881144%2FUntitled_design.png/size/w=160?exp=1762553333&sig=XLxzY6QmzivelLhD6JF-Yg7Ml-Ckt4ijW3WO8ZVD-w8&id=20172c79-e020-803d-8e1a-007a8ca5b649&table=custom_emoji&userId=ea1bde08-08aa-4104-b3f0-fc45bf374805" alt="TESHQ Logo">
-                        <span class="ml-2 text-2xl font-bold text-white">TESHQ</span>
+                        <span class="ml-2 text-2xl font-bold text-white">TeshQuery</span>
                     </div>
                     <p class="text-gray-400 text-base">
                         From raw data to business decision in 60 seconds.
@@ -972,16 +1102,16 @@ print(f"Found {len(results)} customers")</code></pre>
                                 <li><a href="#features" class="text-base text-gray-400 hover:text-white">Features</a></li>
                                 <li><a href="#pricing" class="text-base text-gray-400 hover:text-white">Pricing</a></li>
                                 <li><a href="#install" class="text-base text-gray-400 hover:text-white">Get Started</a></li>
-                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Roadmap</a></li>
+                                <li><a href="#problem" class="text-base text-gray-400 hover:text-white">Roadmap</a></li>
                             </ul>
                         </div>
                         <div class="mt-12 md:mt-0">
                             <h3 class="text-sm font-semibold text-gray-300 tracking-wider uppercase">Resources</h3>
                             <ul class="mt-4 space-y-4">
-                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Documentation</a></li>
+                                <li><a href="https://theshashank1.notion.site/TESH-Query-20172c79e02080a287bcdff73f694a6b" class="text-base text-gray-400 hover:text-white">Documentation</a></li>
                                 <li><a href="https://github.com/theshashank1/TESH-Query" class="text-base text-gray-400 hover:text-white">GitHub</a></li>
-                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Examples</a></li>
-                                <li><a href="#" class="text-base text-gray-400 hover:text-white">Blog</a></li>
+                                <li><a href="#use-cases" class="text-base text-gray-400 hover:text-white">Examples</a></li>
+                                <li><a href="https://github.com/theshashank1/TESH-Query/discussions" class="text-base text-gray-400 hover:text-white">Community</a></li>
                             </ul>
                         </div>
                     </div>
@@ -991,7 +1121,7 @@ print(f"Found {len(results)} customers")</code></pre>
                             <ul class="mt-4 space-y-4">
                                 <li><a href="#" class="text-base text-gray-400 hover:text-white">About</a></li>
                                 <li><a href="https://www.linkedin.com/in/gunda-shashank/" class="text-base text-gray-400 hover:text-white">Founder</a></li>
-                                <li><a href="#contact" class="text-base text-gray-400 hover:text-white">Contact</a></li>
+                                <li><button class="open-modal text-base text-gray-400 hover:text-white text-left">Contact</button></li>
                             </ul>
                         </div>
                         <div class="mt-12 md:mt-0">
@@ -1012,11 +1142,139 @@ print(f"Found {len(results)} customers")</code></pre>
         </div>
     </footer>
 
-    <!-- === START: NEW JAVASCRIPT === -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
-            // --- 1. Tab System for "Coming Soon" ---
+            // --- Modal Management ---
+            const modal = document.getElementById('subscriptionModal');
+            const closeModalBtn = document.getElementById('closeModal');
+            const subscriptionForm = document.getElementById('subscriptionForm');
+            const alertContainer = document.getElementById('alertContainer');
+            const submitButton = document.getElementById('submitButton');
+            const buttonText = document.getElementById('buttonText');
+            const buttonSpinner = document.getElementById('buttonSpinner');
+
+            // This is the public anonymous key for your Supabase project.
+            // **PASTE YOUR REAL ANON KEY HERE**
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYWliemljamJ3c3lkbHZjcmd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0OTI0NTYsImV4cCI6MjA3NzA2ODQ1Nn0.F7CvWawQhlJUICYR6dxDii6PNX19tzwQ2_78yAFOijY';
+
+            // Open modal
+            document.querySelectorAll('.open-modal').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    modal.classList.add('is-open');
+                    document.body.style.overflow = 'hidden';
+                });
+            });
+
+            // Close modal
+            const closeModal = () => {
+                modal.classList.remove('is-open');
+                document.body.style.overflow = '';
+                alertContainer.innerHTML = '';
+                subscriptionForm.reset();
+            };
+
+            closeModalBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+
+            // Escape key to close
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && modal.classList.contains('is-open')) {
+                    closeModal();
+                }
+            });
+
+            // Show alert message
+            const showAlert = (message, type = 'success') => {
+                alertContainer.innerHTML = `
+                    <div class="alert alert-${type}">
+                        ${message}
+                    </div>
+                `;
+            };
+
+            // --- NEW: Handle form submission with fetch ---
+            subscriptionForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('YOUR_SUPABASE')) {
+                    showAlert('Form is not configured. Please add a Supabase anon key.', 'error');
+                    return;
+                }
+
+                const name = document.getElementById('subscriberName').value.trim();
+                const email = document.getElementById('subscriberEmail').value.trim();
+                const consentGiven = document.getElementById('consentGiven').checked;
+
+                if (!name || !email || !consentGiven) {
+                    showAlert('Please fill in all required fields.', 'error');
+                    return;
+                }
+
+                submitButton.disabled = true;
+                buttonText.textContent = 'Subscribing...';
+                buttonSpinner.classList.remove('hidden');
+                alertContainer.innerHTML = '';
+
+                const endpoint = 'https://jmaibzicjbwsydlvcrgy.supabase.co/functions/v1/subscribe';
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                };
+                const body = JSON.stringify({ name: name, email: email });
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: headers,
+                        body: body
+                    });
+
+                    let data = {};
+                    try {
+                        // Try parsing JSON, but don't fail if body is empty
+                        const text = await response.text();
+                        if (text) {
+                            data = JSON.parse(text);
+                        }
+                    } catch (e) {
+                        // Ignore parsing error
+                    }
+
+                    if (response.status === 201) {
+                        showAlert('🎉 Success! You\'re on the waitlist. Check your email for confirmation.', 'success');
+                        subscriptionForm.reset();
+                        setTimeout(closeModal, 3000);
+                    } else if (response.status === 200) {
+                        showAlert('You\'re already subscribed! We\'ll notify you when we launch.', 'warning');
+                    } else if (response.status === 400) {
+                        showAlert(data.error || 'Invalid input. Please check your name and email.', 'error');
+                    } else if (response.status === 429) {
+                        showAlert('Too many requests. Please try again in a few minutes.', 'error');
+                    } else if (response.status === 410) {
+                        showAlert('This email address cannot be re-subscribed.', 'error');
+                    } else {
+                        // Handle other HTTP errors
+                        showAlert(`Error ${response.status}: ${data.error || 'Something went wrong. Please try again later.'}`, 'error');
+                    }
+
+                } catch (error) {
+                    // This catches network errors, CORS errors, etc.
+                    console.error('Fetch Error:', error);
+                    showAlert('Network error. Please check your connection and try again.', 'error');
+                } finally {
+                    // Re-enable button in all cases
+                    submitButton.disabled = false;
+                    buttonText.textContent = 'Subscribe';
+                    buttonSpinner.classList.add('hidden');
+                }
+            });
+
+            // --- Tab System for "Coming Soon" ---
             const tabButtons = document.querySelectorAll('.tab-button');
             const tabContents = document.querySelectorAll('.tab-content');
 
@@ -1024,17 +1282,15 @@ print(f"Found {len(results)} customers")</code></pre>
                 button.addEventListener('click', () => {
                     const tabId = button.getAttribute('data-tab');
 
-                    // Deactivate all buttons and content
                     tabButtons.forEach(btn => btn.classList.remove('is-active'));
                     tabContents.forEach(content => content.classList.remove('is-active'));
 
-                    // Activate the clicked button and corresponding content
                     button.classList.add('is-active');
                     document.getElementById(`tab-content-${tabId}`).classList.add('is-active');
                 });
             });
 
-            // --- 2. Scroll-Triggered Animations ---
+            // --- Scroll-Triggered Animations ---
             const scrollObserver = new IntersectionObserver((entries, observer) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
@@ -1043,19 +1299,17 @@ print(f"Found {len(results)} customers")</code></pre>
                     }
                 });
             }, {
-                threshold: 0.1 // Trigger when 10% of the element is visible
+                threshold: 0.1
             });
 
-            // Observe all elements with the class
             const elementsToAnimate = document.querySelectorAll('.animate-on-scroll');
             elementsToAnimate.forEach(el => scrollObserver.observe(el));
 
-            // --- 3. Count-Up Animation ---
+            // --- Count-Up Animation ---
             const countUp = (el, endVal, duration = 2000) => {
                 let startVal = 0;
                 const end = parseFloat(endVal.replace(/K\+|[+,]/g, ''));
                 const isK = endVal.includes('K');
-                const isPlus = endVal.includes('+');
 
                 let startTime = null;
 
@@ -1075,8 +1329,7 @@ print(f"Found {len(results)} customers")</code></pre>
                     if (timeElapsed < duration) {
                         requestAnimationFrame(animation);
                     } else {
-                        // Ensure final value is exact
-                         if (isK) {
+                        if (isK) {
                             el.textContent = `${end.toFixed(1)}K+`;
                         } else {
                             el.textContent = `${Math.floor(end)}+`;
@@ -1087,20 +1340,20 @@ print(f"Found {len(results)} customers")</code></pre>
             };
 
             const socialProofSection = document.getElementById('social-proof');
-            let hasCounted = false; // Flag to ensure it only runs once
+            let hasCounted = false;
 
             const countObserver = new IntersectionObserver((entries, observer) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting && !hasCounted) {
                         hasCounted = true;
-                        countUp(document.getElementById('count-commits'), '149+', 1500);
-                        countUp(document.getElementById('count-installs'), '4.5K+', 2000);
+                        countUp(document.getElementById('count-commits'), '210+', 1500);
+                        countUp(document.getElementById('count-installs'), '5.6K+', 2000);
                         countUp(document.getElementById('count-queries'), '35K+', 2000);
                         observer.unobserve(entry.target);
                     }
                 });
             }, {
-                threshold: 0.5 // Trigger when 50% of the section is visible
+                threshold: 0.5
             });
 
             if (socialProofSection) {
@@ -1108,7 +1361,6 @@ print(f"Found {len(results)} customers")</code></pre>
             }
         });
     </script>
-    <!-- === END: NEW JAVASCRIPT === -->
 
 </body>
 </html>
