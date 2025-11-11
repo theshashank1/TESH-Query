@@ -134,6 +134,8 @@ teshq = "teshq.cli.main:app"
 
 [tool.setuptools_scm]
 # setuptools_scm will infer the package version from git tags
+write_to = "teshq/_version.py"
+fallback_version = "0.0.0.dev0"
 
 [tool.setuptools]
 packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils"]
