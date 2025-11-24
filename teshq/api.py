@@ -33,6 +33,7 @@ from .core.llm import SQLQueryGenerator
 from .core.query import execute_sql_query
 from .utils.analytics import track_feature_usage  # Correctly import the tracking function
 from .utils.config import get_config, save_config
+from .utils.health import HealthChecker
 
 
 class TeshQuery:
@@ -258,6 +259,19 @@ class TeshQuery:
                 schema_text += "\n"
         return schema_text
 
+    def health_check(self) -> Dict[str, Any]:
+        """
+        Run health checks on the system.
+
+        Returns:
+            Dict[str, Any]: Health check report with status, checks, and summary.
+        """
+        # Track this feature usage
+        track_feature_usage("TeshQuery.health_check")
+
+        health_checker = HealthChecker()
+        return health_checker.run_all_checks()
+
 
 # Convenience functions for quick usage
 def introspect(db_url: str, **kwargs) -> Dict[str, Any]:
@@ -280,3 +294,16 @@ def query(
     track_feature_usage("teshq.api.query", {"query_length": len(natural_language_query)})
     client = TeshQuery(db_url=db_url, gemini_api_key=gemini_api_key)
     return client.query(natural_language_query, schema=schema, **kwargs)
+
+
+def health_check() -> Dict[str, Any]:
+    """
+    Quick health check execution.
+
+    Returns:
+        Dict[str, Any]: Health check report with status, checks, and summary.
+    """
+    # Track the usage of this convenience function
+    track_feature_usage("teshq.api.health_check")
+    health_checker = HealthChecker()
+    return health_checker.run_all_checks()

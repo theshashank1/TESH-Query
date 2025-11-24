@@ -2,7 +2,7 @@ import typer
 
 from teshq.utils.health import HealthChecker, HealthStatus
 from teshq.utils.logging import configure_global_logger
-from teshq.utils.ui import error, handle_error, print_header, print_table, space, success, warning
+from teshq.utils.ui import error, handle_error, print_header, print_table, space, status, success, warning
 
 app = typer.Typer(invoke_without_command=True)
 
@@ -31,40 +31,49 @@ def health(
     try:
         print_header("System Health Check", "Running all system checks...")
 
-        health_checker = HealthChecker()
-        health_report = health_checker.run_all_checks()
+        # Use status context manager for the running phase
+        with status("Running health checks", "Health checks completed successfully"):
+            health_checker = HealthChecker()
+            health_report = health_checker.run_all_checks()
 
-        headers = ["Component", "Status", "Details"]
+        headers = ["Component", "Status", "Message"]
         rows = []
         checks = health_report.get("checks", [])
 
         if checks:
             for check in checks:
-                status_enum = check.get("status", HealthStatus.UNHEALTHY)
+                status_str = check.get("status", "unknown")
+                # Convert string status to HealthStatus enum for formatting
+                try:
+                    status_enum = HealthStatus(status_str)
+                except (ValueError, KeyError):
+                    status_enum = HealthStatus.UNHEALTHY
+                
+                message = check.get("message", "")
                 rows.append(
                     [
                         check.get("name", "N/A"),
                         format_status(status_enum),
-                        check.get("details", "-"),
+                        message,
                     ]
                 )
-            print_table("Health Check Details", headers, rows)
+            print_table("Health Check Results", headers, rows)
         else:
             warning("No individual health checks were found or executed.")
 
         space()
 
         overall_status = health_report["status"]
-        if overall_status == HealthStatus.HEALTHY:
+        if overall_status == HealthStatus.HEALTHY.value:
             success("🎉 All systems are healthy and operational!")
-        elif overall_status == HealthStatus.DEGRADED:
+        elif overall_status == HealthStatus.DEGRADED.value:
             warning("⚠️  System is operational but has some issues that should be addressed.")
         else:
             error("❌ System has critical health issues that require immediate attention.")
 
-        if overall_status == HealthStatus.UNHEALTHY:
+        if overall_status == HealthStatus.UNHEALTHY.value:
             raise typer.Exit(1)
-        elif overall_status == HealthStatus.DEGRADED:
+        elif overall_status == HealthStatus.DEGRADED.value:
             raise typer.Exit(2)
 
     except Exception as e:

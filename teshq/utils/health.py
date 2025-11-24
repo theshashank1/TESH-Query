@@ -137,7 +137,7 @@ def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
     """Validates that all necessary configurations are present and correctly formatted."""
     database_url = get_database_url()
     gemini_api_key, gemini_model = get_gemini_config()
-    issues, warnings = [], []
+    issues = []
 
     if not database_url:
         issues.append("Database URL is not configured")
@@ -145,8 +145,6 @@ def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
         is_valid, msg = ConfigValidator.validate_database_url(database_url)
         if not is_valid:
             issues.append(f"Database URL: {msg}")
-        if "localhost" in database_url or "127.0.0.1" in database_url:
-            warnings.append("Database is on localhost (development setting)")
 
     if not gemini_api_key:
         issues.append("Gemini API Key is not configured")
@@ -160,13 +158,10 @@ def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
         "api_key_configured": bool(gemini_api_key),
         "model": gemini_model,
         "issues": issues,
-        "warnings": warnings,
     }
 
     if issues:
         return HealthStatus.UNHEALTHY, f"Configuration has critical issues: {'; '.join(issues)}", details
-    if warnings:
-        return HealthStatus.DEGRADED, f"Configuration has warnings: {'; '.join(warnings)}", details
     return HealthStatus.HEALTHY, "Configuration is valid and complete", details
 
 
