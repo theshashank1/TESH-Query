@@ -43,7 +43,7 @@ For more information, visit: https://github.com/theshashank1/TESH-Query
 """
 
 # Import main API classes and functions
-from .api import TeshQuery, introspect, query
+from .api import TeshQuery, health_check, introspect, query
 
 # Import version information
 try:
@@ -60,4 +60,4 @@ except ImportError:
         __version__ = "0.0.0.dev0"
 
 # Public API
-__all__ = ["TeshQuery", "introspect", "query", "__version__"]
+__all__ = ["TeshQuery", "health_check", "introspect", "query", "__version__"]

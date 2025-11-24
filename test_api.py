@@ -200,6 +200,69 @@ def test_cli_integration():
         return False
 
 
+def test_health_check_api():
+    """Test the new health check API functionality."""
+    print("\n🏥 Testing Health Check API")
+    print("=" * 50)
+
+    try:
+        # Test 1: Top-level health_check function
+        print("\n📋 Test 1: Top-level health_check function...")
+        report = teshq.health_check()
+        print("✅ Health check function executed successfully")
+        print(f"   Status: {report['status']}")
+        print(f"   Checks performed: {len(report.get('checks', []))}")
+        
+        # Test 2: TeshQuery.health_check method
+        print("\n🔍 Test 2: TeshQuery class health_check method...")
+        # Create test database for client initialization
+        db_url, db_path = create_test_database()
+        try:
+            client = teshq.TeshQuery(db_url=db_url, gemini_api_key="dummy")
+            client_report = client.health_check()
+            print("✅ Client health_check method executed successfully")
+            print(f"   Status: {client_report['status']}")
+            print(f"   Total checks: {client_report['summary']['total_checks']}")
+        finally:
+            os.unlink(db_path)
+        
+        # Test 3: Verify report structure
+        print("\n📝 Test 3: Verify health check report structure...")
+        required_keys = ['status', 'timestamp', 'duration_ms', 'checks', 'summary']
+        missing_keys = [key for key in required_keys if key not in report]
+        if not missing_keys:
+            print("✅ Report has all required keys")
+            print(f"   Keys: {', '.join(required_keys)}")
+        else:
+            print(f"❌ Report missing keys: {missing_keys}")
+            return False
+        
+        # Test 4: Verify checks structure
+        print("\n🔬 Test 4: Verify individual checks structure...")
+        checks = report.get('checks', [])
+        if checks:
+            check = checks[0]
+            check_keys = ['name', 'status', 'message', 'duration_ms', 'details', 'timestamp']
+            missing_check_keys = [key for key in check_keys if key not in check]
+            if not missing_check_keys:
+                print("✅ Check has all required keys")
+                print(f"   Sample check: {check['name']} - {check['status']}")
+            else:
+                print(f"❌ Check missing keys: {missing_check_keys}")
+                return False
+        else:
+            print("⚠️  No checks found in report")
+        
+        print("\n🎉 All health check API tests passed!")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error during health check testing: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def main():
     """Run all tests."""
     print("🚀 TESH-Query API Validation Tests")
@@ -208,6 +271,7 @@ def main():
     tests = [
         ("Basic API Functionality", test_api_basic_functionality),
         ("API with Mock LLM", test_api_with_mock_llm),
+        ("Health Check API", test_health_check_api),
         ("CLI Integration", test_cli_integration),
     ]
 

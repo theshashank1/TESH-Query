@@ -19,3 +19,13 @@
 {"timestamp": "2025-11-08T10:42:52.095089", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2394, "output_tokens": 53, "total_tokens": 2447}
 {"timestamp": "2025-11-08T10:43:54.343740", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2420, "output_tokens": 296, "total_tokens": 2716}
 {"timestamp": "2025-11-18T13:10:12.350544", "event_type": "llm_usage", "provider": "google", "model": "gemini-2.5-pro", "input_tokens": 2390, "output_tokens": 43, "total_tokens": 2433}
+{"timestamp": "2025-11-24T12:34:04.123298+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.introspect_database", "properties": {"detect_relationships": true, "include_indexes": true, "include_sample_data": false, "sample_size": 3, "save_to_files": false}}
+{"timestamp": "2025-11-24T12:34:04.134044+00:00", "event_type": "feature_usage", "feature_name": "teshq.api.introspect", "properties": {}}
+{"timestamp": "2025-11-24T12:34:04.134135+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.introspect_database", "properties": {"detect_relationships": true, "include_indexes": true, "include_sample_data": false, "sample_size": 3, "save_to_files": false}}
+{"timestamp": "2025-11-24T12:34:04.143255+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.introspect_database", "properties": {"detect_relationships": true, "include_indexes": true, "include_sample_data": false, "sample_size": 3, "save_to_files": false}}
+{"timestamp": "2025-11-24T12:34:27.431155+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.introspect_database", "properties": {"detect_relationships": true, "include_indexes": true, "include_sample_data": false, "sample_size": 3, "save_to_files": false}}
+{"timestamp": "2025-11-24T12:34:27.441176+00:00", "event_type": "feature_usage", "feature_name": "teshq.api.introspect", "properties": {}}
+{"timestamp": "2025-11-24T12:34:27.441235+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.introspect_database", "properties": {"detect_relationships": true, "include_indexes": true, "include_sample_data": false, "sample_size": 3, "save_to_files": false}}
+{"timestamp": "2025-11-24T12:34:27.449435+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.introspect_database", "properties": {"detect_relationships": true, "include_indexes": true, "include_sample_data": false, "sample_size": 3, "save_to_files": false}}
+{"timestamp": "2025-11-24T12:34:27.454313+00:00", "event_type": "feature_usage", "feature_name": "teshq.api.health_check", "properties": {}}
+{"timestamp": "2025-11-24T12:34:27.458157+00:00", "event_type": "feature_usage", "feature_name": "TeshQuery.health_check", "properties": {}}
