@@ -50,7 +50,8 @@ try:
     from ._version import __version__
 except ImportError:
     try:
-        from importlib.metadata import version, PackageNotFoundError
+        from importlib.metadata import PackageNotFoundError, version
+
         try:
             __version__ = version("teshq")
         except PackageNotFoundError:
