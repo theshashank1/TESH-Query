@@ -137,7 +137,7 @@ def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
     """Validates that all necessary configurations are present and correctly formatted."""
     database_url = get_database_url()
     gemini_api_key, gemini_model = get_gemini_config()
-    issues = []
+    issues: List[str] = []
 
     if not database_url:
         issues.append("Database URL is not configured")

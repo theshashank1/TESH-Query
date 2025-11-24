@@ -46,7 +46,7 @@ def health(
                 # Convert string status to HealthStatus enum for formatting
                 try:
                     status_enum = HealthStatus(status_str)
-                except (ValueError, KeyError):
+                except ValueError:
                     status_enum = HealthStatus.UNHEALTHY
                 
                 message = check.get("message", "")
@@ -63,17 +63,23 @@ def health(
 
         space()
 
-        overall_status = health_report["status"]
-        if overall_status == HealthStatus.HEALTHY.value:
+        # Convert overall status string to enum for consistent handling
+        overall_status_str = health_report["status"]
+        try:
+            overall_status = HealthStatus(overall_status_str)
+        except ValueError:
+            overall_status = HealthStatus.UNHEALTHY
+        
+        if overall_status == HealthStatus.HEALTHY:
             success("🎉 All systems are healthy and operational!")
-        elif overall_status == HealthStatus.DEGRADED.value:
+        elif overall_status == HealthStatus.DEGRADED:
             warning("⚠️  System is operational but has some issues that should be addressed.")
         else:
             error("❌ System has critical health issues that require immediate attention.")
 
-        if overall_status == HealthStatus.UNHEALTHY.value:
+        if overall_status == HealthStatus.UNHEALTHY:
             raise typer.Exit(1)
-        elif overall_status == HealthStatus.DEGRADED.value:
+        elif overall_status == HealthStatus.DEGRADED:
             raise typer.Exit(2)
 
     except Exception as e:
