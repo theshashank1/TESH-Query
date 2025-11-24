@@ -1,17 +1,15 @@
-# import importlib.metadata
-import json
 import sys
 from typing import Optional
 
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.cli import analytics, config, db, query, subscribe
-from teshq.utils.health import HealthChecker, HealthStatus
+from teshq.cli import analytics, config, db, health, query, subscribe
 from teshq.utils.logging import configure_global_logger
-from teshq.utils.ui import error, handle_error
+from teshq.utils.ui import handle_error
 from teshq.utils.ui import info as ui_info
-from teshq.utils.ui import success, warning
+
+# from teshq.utils.ui import success, warning
 
 app = typer.Typer(
     name="TESH Query",
@@ -21,21 +19,14 @@ app = typer.Typer(
 )
 
 
-class EnumEncoder(json.JSONEncoder):
-    """Custom JSON encoder to handle HealthStatus enum."""
-
-    def default(self, obj):
-        if isinstance(obj, HealthStatus):
-            return obj.value
-        return json.JSONEncoder.default(self, obj)
-
-
 @app.callback(invoke_without_command=True, no_args_is_help=True)
 def __main__(
     version: Optional[bool] = typer.Option(False, "--version", "-v", help="Show the application's version and exit."),
     developer: Optional[bool] = typer.Option(False, "--developer", "-d", help="Show the application's author and exit."),
     log: Optional[bool] = typer.Option(
-        False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."
+        False,
+        "--log",
+        help="Enable real-time logging output to CLI (logs are always saved to file).",
     ),
 ):
     """
@@ -57,20 +48,28 @@ def __main__(
         raise typer.Exit()
 
     if developer:
-        print("Developer: Shashank", "Linkedin: https://www.linkedin.com/in/gunda-shashank/ ")
+        print(
+            "Developer: Shashank",
+            "Linkedin: https://www.linkedin.com/in/gunda-shashank/ ",
+        )
         raise typer.Exit()
 
 
 app.add_typer(db.app)
 app.add_typer(config.app, short_help="Configure database connection details")
 app.add_typer(query.app)
-app.add_typer(analytics.app, name="analytics", help="View usage analytics.")  # Add the analytics command
+app.add_typer(analytics.app, name="analytics", help="View usage analytics.")
 app.add_typer(subscribe.app, name="subscribe", help="Subscribe to TESHQ updates and announcements.")
+app.add_typer(health.app, name="health", help="Check system health and connectivity.")
 
 
 @app.command()
 def name(
-    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+    log: bool = typer.Option(
+        False,
+        "--log",
+        help="Enable real-time logging output to CLI (logs are always saved to file).",
+    ),
 ):
     """Show the app name."""
     configure_global_logger(enable_cli_output=log)
@@ -83,42 +82,15 @@ def name(
 
 @app.command()
 def help_text(
-    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
+    log: bool = typer.Option(
+        False,
+        "--log",
+        help="Enable real-time logging output to CLI (logs are always saved to file).",
+    ),
 ):
     """Show the app help description."""
     configure_global_logger(enable_cli_output=log)
     typer.echo(f"Help: {app.info.help}")
-
-
-@app.command()
-def health(
-    log: bool = typer.Option(False, "--log", help="Enable real-time logging output to CLI (logs are always saved to file)."),
-):
-    """Check system health and connectivity."""
-    configure_global_logger(enable_cli_output=log)
-
-    try:
-        health_checker = HealthChecker()
-        health_report = health_checker.run_all_checks()
-
-        print(json.dumps(health_report, indent=2, cls=EnumEncoder))
-
-        overall_status = health_report["status"]
-        if overall_status == HealthStatus.HEALTHY.value:
-            success("🎉 All systems are healthy and operational!")
-        elif overall_status == HealthStatus.DEGRADED.value:
-            warning("⚠️  System is operational but has some issues that should be addressed")
-        else:
-            error("❌ System has critical health issues that require immediate attention")
-
-        if overall_status == HealthStatus.UNHEALTHY.value:
-            raise typer.Exit(1)
-        elif overall_status == HealthStatus.DEGRADED.value:
-            raise typer.Exit(2)
-
-    except Exception as e:
-        handle_error(e, "Health Check", suggest_action="Check system configuration and connectivity")
-        raise typer.Exit(1)
 
 
 def main():
@@ -135,7 +107,11 @@ def main():
         handle_error(e, "Module Import", suggest_action="Ensure all dependencies are installed.")
         sys.exit(1)
     except SQLAlchemyError as e:
-        handle_error(e, "Database Connection", suggest_action="Check config with: teshq config --interactive")
+        handle_error(
+            e,
+            "Database Connection",
+            suggest_action="Check config with: teshq config --interactive",
+        )
         sys.exit(1)
     except FileNotFoundError as e:
         handle_error(e, "File Operation", suggest_action="Ensure all required files exist and paths are correct")
