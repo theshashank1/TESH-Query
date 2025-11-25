@@ -38,10 +38,23 @@ from teshq.utils.ui import (
     warning,
 )
 
-# from teshq.utils.validation import ConfigValidator, validate_production_readiness
-
 app = typer.Typer()
 SUPPORTED_DBS = ["postgresql", "mysql", "sqlite"]
+
+
+def mask_database_url(db_url: str) -> str:
+    """Mask password in database URL for secure display."""
+    try:
+        url_obj = make_url(db_url)
+        if url_obj.password:
+            return str(url_obj._replace(password="********"))
+        return db_url
+    except Exception:
+        # If parsing fails, just mask everything after ://
+        if "://" in db_url:
+            protocol = db_url.split("://")[0]
+            return f"{protocol}://********"
+        return "********"
 
 
 def display_current_config():
@@ -56,13 +69,15 @@ def display_current_config():
     # For security, always mask sensitive keys in any display.
     keys_to_mask = ["GEMINI_API_KEY", "DATABASE_URL"]
 
-    # Use a simple, direct print since print_config has had issues.
     info("Current Configuration:")
     with indent_context():
         for key, value in config.items():
             display_value = value
             if key in keys_to_mask and value:
-                display_value = "********"
+                if key == "DATABASE_URL":
+                    display_value = mask_database_url(value)
+                else:
+                    display_value = "********"
             info(f"{key}: {display_value}")
 
     space()
@@ -70,6 +85,101 @@ def display_current_config():
     with indent_context():
         for key, source in sources.items():
             info(f"{key}: {source}")
+
+
+def display_config_status():
+    """
+    Display configuration status with formatted output for --show command.
+    Shows database URL, Gemini model, API key status, and all other settings.
+    """
+    config, sources = get_config_with_source()
+
+    if not config:
+        warning("No configuration found.")
+        space()
+        with indent_context():
+            tip("Run 'teshq config --interactive' to set up your configuration.")
+        return
+
+    print_header("📋 CONFIGURATION STATUS", "Current TeshQ Settings")
+
+    # Database Configuration
+    with section("Database Configuration"):
+        db_url = config.get("DATABASE_URL")
+        if db_url:
+            masked_url = mask_database_url(db_url)
+            info(f"Database URL: {masked_url}")
+
+            # Extract database type from URL
+            try:
+                url_obj = make_url(db_url)
+                info(f"Database Type: {url_obj.drivername}")
+                info(f"Database Host: {url_obj.host or 'N/A'}")
+                info(f"Database Name: {url_obj.database or 'N/A'}")
+            except Exception:
+                pass
+
+            source = sources.get("DATABASE_URL", "Unknown")
+            info(f"Source: {source}")
+        else:
+            warning("Database URL: Not configured")
+            with indent_context():
+                tip("Configure with: teshq config --db")
+
+    space()
+
+    # Gemini API Configuration
+    with section("Gemini API Configuration"):
+        api_key = config.get("GEMINI_API_KEY")
+        model_name = config.get("GEMINI_MODEL_NAME", DEFAULT_GEMINI_MODEL)
+
+        if api_key:
+            success(f"API Key: Configured (ends with ...{api_key[-4:]})")
+            source = sources.get("GEMINI_API_KEY", "Unknown")
+            info(f"Source: {source}")
+        else:
+            warning("API Key: Not configured")
+            with indent_context():
+                tip("Configure with: teshq config --gemini")
+
+        info(f"Model: {model_name}")
+        if "GEMINI_MODEL_NAME" in sources:
+            info(f"Source: {sources['GEMINI_MODEL_NAME']}")
+
+    space()
+
+    # File Path Configuration
+    file_paths = {"OUTPUT_PATH": "Output File Path", "FILE_STORE_PATH": "File Store Path"}
+
+    has_file_paths = any(config.get(key) for key in file_paths.keys())
+
+    if has_file_paths:
+        with section("File Path Configuration"):
+            for key, label in file_paths.items():
+                value = config.get(key)
+                if value:
+                    info(f"{label}: {value}")
+                    if key in sources:
+                        info(f"Source: {sources[key]}")
+                    space()
+
+    # Other Configuration
+    other_keys = [
+        k
+        for k in config.keys()
+        if k not in ["DATABASE_URL", "GEMINI_API_KEY", "GEMINI_MODEL_NAME", "OUTPUT_PATH", "FILE_STORE_PATH"]
+    ]
+
+    if other_keys:
+        with section("Other Settings"):
+            for key in other_keys:
+                value = config[key]
+                info(f"{key}: {value}")
+                if key in sources:
+                    info(f"Source: {sources[key]}")
+
+    space()
+    tip("Use 'teshq config --interactive' to modify settings.")
 
 
 def configure_database_interactive() -> str:
@@ -127,6 +237,29 @@ def configure_gemini_interactive(current_config: dict) -> tuple:
     return final_api_key, model_name
 
 
+def configure_file_paths_interactive(current_config: dict) -> dict:
+    """
+    Interactively configure file paths, preserving existing values.
+    Returns dict with OUTPUT_PATH and FILE_STORE_PATH.
+    """
+    info("Setting up file paths...")
+    space()
+
+    result = {}
+
+    current_output = current_config.get("OUTPUT_PATH", "./output")
+    if confirm("Configure output file path?", default=True):
+        output_path = prompt("Output file path", default=current_output)
+        result["OUTPUT_PATH"] = os.path.abspath(output_path)
+
+    current_store = current_config.get("FILE_STORE_PATH", "./file_store")
+    if confirm("Configure file store path?", default=True):
+        store_path = prompt("File store path", default=current_store)
+        result["FILE_STORE_PATH"] = os.path.abspath(store_path)
+
+    return result
+
+
 @app.command()
 def config(
     # Database options
@@ -146,6 +279,7 @@ def config(
     # Control flags
     save: bool = typer.Option(True, "--save/--no-save", help="Save configuration to files"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Run full interactive configuration"),
+    show: bool = typer.Option(False, "--show", help="Display current configuration status"),
     force_configure_db: bool = typer.Option(False, "--db", help="Run interactive database configuration only"),
     force_configure_gemini: bool = typer.Option(False, "--gemini", help="Run interactive Gemini API configuration only"),
     log: bool = typer.Option(False, "--log", help="Enable real-time logging output"),
@@ -156,6 +290,14 @@ def config(
     Uses a load-merge-save pattern to safely update configuration without losing
     existing settings. When you update one setting (e.g., --gemini-api-key), all
     other settings are preserved.
+
+    Examples:
+        teshq config                           # Smart assistant mode
+        teshq config --show                    # Display current configuration
+        teshq config --interactive             # Full interactive setup
+        teshq config --db                      # Configure database only
+        teshq config --gemini                  # Configure Gemini API only
+        teshq config --gemini-api-key <key>    # Set API key via flag
     """
     configure_global_logger(enable_cli_output=log)
     from teshq.utils.logging import logger
@@ -163,7 +305,10 @@ def config(
     logger.info("Starting configuration command with load-merge-save pattern")
 
     try:
-        print_header("🔧 TESHQ CONFIGURATION", "Safe Database & Gemini API Setup")
+        # === SHOW MODE: Display configuration and exit ===
+        if show:
+            display_config_status()
+            raise typer.Exit()
 
         # === STEP 1: LOAD EXISTING CONFIGURATION ===
         config_to_save = get_config()
@@ -178,6 +323,7 @@ def config(
 
         # --- Interactive Mode ---
         if interactive:
+            print_header("🔧 TESHQ CONFIGURATION", "Safe Database & Gemini API Setup")
             action_taken = True
             with section("Full Interactive Configuration"):
                 if confirm("Configure database connection?"):
@@ -192,8 +338,22 @@ def config(
                     if model_name_res:
                         config_to_save["GEMINI_MODEL_NAME"] = model_name_res
 
+                if confirm("Configure file paths?"):
+                    file_paths = configure_file_paths_interactive(config_to_save)
+                    config_to_save.update(file_paths)
+
         # --- Flag-Based Mode ---
-        else:
+        elif any(
+            [
+                db_options_provided,
+                gemini_options_provided,
+                file_path_options_provided,
+                force_configure_db,
+                force_configure_gemini,
+            ]
+        ):
+            print_header("🔧 TESHQ CONFIGURATION", "Safe Database & Gemini API Setup")
+
             # --- Database Configuration ---
             if db_url:
                 info("Applying database URL from --db-url flag.")
@@ -214,14 +374,38 @@ def config(
                     if not db_type_opt:
                         error("--db-type is required with other --db-* options.")
                         raise typer.Exit(1)
-                    # ... (original logic for building URL) ...
+
+                    db_type = db_type_opt.lower()
+                    if db_type not in SUPPORTED_DBS:
+                        error(f"Unsupported database type: {db_type}")
+                        raise typer.Exit(1)
+
+                    if db_type == "sqlite":
+                        if not db_name_opt:
+                            error("--db-name is required for SQLite.")
+                            raise typer.Exit(1)
+                        config_to_save["DATABASE_URL"] = f"sqlite:///{db_name_opt}"
+                    else:
+                        required_opts = [db_user_opt, db_host_opt, db_name_opt]
+                        if not all(required_opts):
+                            error("--db-user, --db-host, and --db-name are required for non-SQLite databases.")
+                            raise typer.Exit(1)
+
+                        password = db_password_opt or getpass("Database password: ")
+                        safe_password = quote_plus(password)
+                        port = db_port_opt or (5432 if db_type == "postgresql" else 3306)
+
+                        config_to_save["DATABASE_URL"] = (
+                            f"{db_type}://{db_user_opt}:{safe_password}@{db_host_opt}:{port}/{db_name_opt}"
+                        )
+
+                    info("Database URL constructed successfully.")
                     action_taken = True
 
             # --- Gemini Configuration ---
             if force_configure_gemini:
                 with section("Interactive Gemini API Configuration"):
                     try:
-                        # CRITICAL FIX: Pass the loaded config to the interactive function
                         api_key, model_name = configure_gemini_interactive(config_to_save)
                         if api_key:
                             config_to_save["GEMINI_API_KEY"] = api_key
@@ -255,15 +439,71 @@ def config(
                         info(f"Set file store path to: {resolved_path}")
                         action_taken = True
 
-        # === STEP 3: HANDLE NO-ACTION CASE ===
+        # === STEP 3: SMART ASSISTANT MODE (NO FLAGS OR OPTIONS) ===
         if not any([action_taken, interactive, force_configure_db, force_configure_gemini]):
-            with section("Current Configuration"):
-                display_current_config()
-            tip("Use flags like --gemini-api-key or run with --interactive to make changes.")
-            raise typer.Exit()
+            # When user runs just `teshq config`, show status and offer smart setup
+            config = get_config()
+
+            # Check what's missing
+            needs_db = not config.get("DATABASE_URL")
+            needs_gemini = not config.get("GEMINI_API_KEY")
+            needs_anything = needs_db or needs_gemini
+
+            if needs_anything:
+                # First-time setup flow
+                print_header("👋 WELCOME TO TESHQ", "Let's get you set up!")
+                space()
+
+                if needs_db:
+                    warning("⚠️  Database not configured")
+                if needs_gemini:
+                    warning("⚠️  Gemini API not configured")
+
+                space()
+                info("I can help you set this up interactively, or you can use specific commands:")
+                with indent_context():
+                    tip("Run 'teshq config --interactive' for guided setup")
+                    tip("Run 'teshq config --db' to configure database only")
+                    tip("Run 'teshq config --gemini' to configure Gemini API only")
+                    tip("Run 'teshq config --show' to see detailed status")
+
+                space()
+                if confirm("Would you like to start the interactive setup now?", default=True):
+                    # Launch interactive mode
+                    action_taken = True
+                    interactive = True
+                    space()
+                    with section("Full Interactive Configuration"):
+                        if needs_db or confirm("Configure database connection?"):
+                            db_url_result = configure_database_interactive()
+                            if db_url_result:
+                                config_to_save["DATABASE_URL"] = db_url_result
+
+                        if needs_gemini or confirm("Configure Gemini API?"):
+                            api_key_res, model_name_res = configure_gemini_interactive(config_to_save)
+                            if api_key_res:
+                                config_to_save["GEMINI_API_KEY"] = api_key_res
+                            if model_name_res:
+                                config_to_save["GEMINI_MODEL_NAME"] = model_name_res
+
+                        if confirm("Configure file paths?"):
+                            file_paths = configure_file_paths_interactive(config_to_save)
+                            config_to_save.update(file_paths)
+                else:
+                    info("No problem! Run 'teshq config --help' to see all options.")
+                    raise typer.Exit()
+            else:
+                # Already configured - show status
+                display_config_status()
+                space()
+                info("Your configuration looks good! 🎉")
+                with indent_context():
+                    tip("Use 'teshq config --interactive' to modify settings")
+                    tip("Use 'teshq config --show' for detailed status")
+                raise typer.Exit()
 
         # === STEP 4: SAVE OR PREVIEW ===
-        if save:
+        if save and action_taken:
             with section("Saving Merged Configuration"):
                 if config_to_save.get("OUTPUT_PATH"):
                     os.makedirs(os.path.dirname(config_to_save["OUTPUT_PATH"]), exist_ok=True)
@@ -278,7 +518,7 @@ def config(
                 else:
                     error("Failed to save one or more configuration files.")
                     raise typer.Exit(1)
-        else:
+        elif not save and action_taken:
             with section("Configuration Preview (Not Saved)"):
                 warning("Running in preview mode. The following changes will NOT be saved.")
                 print_config(config_to_save, "Preview of Merged Configuration", mask_keys=["GEMINI_API_KEY", "DATABASE_URL"])
@@ -301,7 +541,7 @@ def config(
 @app.command(name="validate")
 def validate_config(log: bool = typer.Option(False, "--log")):
     """Validate the current configuration for production readiness."""
-    # This function's logic can remain as it was in your correct version
+    # Validation logic placeholder
     pass
 
 
