@@ -32,14 +32,14 @@ def show_analytics():
         total_input_tokens = sum(m.get("input_tokens", 0) for m in llm_metrics)
         total_output_tokens = sum(m.get("output_tokens", 0) for m in llm_metrics)
         total_tokens = total_input_tokens + total_output_tokens
-        # total_cost = sum(m.get("cost", 0.0) for m in llm_metrics)
+        total_cost = sum(m.get("cost", 0.0) for m in llm_metrics)
 
         llm_rows = [
             ["Total LLM Calls", f"{total_llm_calls:,}"],
             ["Total Input Tokens", f"{total_input_tokens:,}"],
             ["Total Output Tokens", f"{total_output_tokens:,}"],
             ["Total Tokens", f"{total_tokens:,}"],
-            # ["Estimated Total Cost (USD)", f"${total_cost:.6f}"],
+            ["Estimated Total Cost (USD)", f"${total_cost:.6f}"],
         ]
         print_table(title="LLM Usage", headers=["Metric", "Value"], rows=llm_rows, show_lines=False)
     else:
@@ -54,7 +54,15 @@ def show_analytics():
         info("No feature usage has been recorded yet.")
 
     # --- Date Range Display ---
-    timestamps = [datetime.datetime.fromisoformat(m["timestamp"]) for m in metrics if "timestamp" in m]
+    timestamps = []
+    for m in metrics:
+        if "timestamp" in m:
+            dt = datetime.datetime.fromisoformat(m["timestamp"])
+            # Normalize timezone: if naive, assume UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            timestamps.append(dt)
+
     if timestamps:
         first_event_date = min(timestamps).strftime("%Y-%m-%d %H:%M:%S")
         last_event_date = max(timestamps).strftime("%Y-%m-%d %H:%M:%S")
