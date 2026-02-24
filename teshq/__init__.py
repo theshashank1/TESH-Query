@@ -43,18 +43,21 @@ For more information, visit: https://github.com/theshashank1/TESH-Query
 """
 
 # Import main API classes and functions
-from .api import TeshQuery, introspect, query
+from .api import TeshQuery, health_check, introspect, query
 
 # Import version information
 try:
-    from importlib.metadata import PackageNotFoundError, version
-
-    try:
-        __version__ = version("teshq")
-    except PackageNotFoundError:
-        __version__ = "unknown"
+    from ._version import __version__
 except ImportError:
-    __version__ = "unknown"
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            __version__ = version("teshq")
+        except PackageNotFoundError:
+            __version__ = "0.0.0.dev0"
+    except ImportError:
+        __version__ = "0.0.0.dev0"
 
 # Public API
-__all__ = ["TeshQuery", "introspect", "query", "__version__"]
+__all__ = ["TeshQuery", "health_check", "introspect", "query", "__version__"]

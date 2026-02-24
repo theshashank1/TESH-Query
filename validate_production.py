@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     from teshq.utils.config import get_config, is_configured
-    from teshq.utils.validation import ConfigValidator, validate_environment, validate_production_readiness
+    from teshq.utils.connection import ConfigValidator, validate_environment, validate_production_readiness
 except ImportError as e:
     print(f"❌ Failed to import TESH-Query modules: {e}")
     print("💡 Run: pip install -e . to install TESH-Query")
