@@ -1,134 +1,166 @@
 """
-Non-secret settings management for TESH-Query.
+TESH-Query v2 Settings — single source of truth for all configuration.
 
-Non-sensitive configuration (model names, output paths, etc.) is stored in
-~/.teshq/config.yaml using YAML format.  Secrets are handled separately in
-teshq.config.secrets and are never written to this file.
+Priority (highest → lowest):
+  1. Environment variables (DATABASE_URL, GEMINI_API_KEY, …)
+  2. ~/.teshq/.env  (secrets file, never committed)
+  3. ~/.teshq/config.yaml  (non-secret settings)
+  4. Hard-coded defaults below
 """
 
+from __future__ import annotations
+
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from teshq.config.paths import CONFIG_FILE, ensure_teshq_dir
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Keys that belong in the YAML settings file (non-sensitive)
-SETTINGS_KEYS = {"GEMINI_MODEL_NAME", "OUTPUT_PATH", "FILE_STORE_PATH"}
+from teshq.config.paths import CONFIG_FILE, SECRETS_FILE, ensure_teshq_dir
 
-DEFAULT_SETTINGS: Dict[str, Any] = {
-    "GEMINI_MODEL_NAME": "gemini-2.0-flash-lite",
-    "OUTPUT_PATH": str(Path.home() / ".teshq" / "output"),
-    "FILE_STORE_PATH": str(Path.home() / ".teshq" / "files"),
-}
+# ---------------------------------------------------------------------------
+# Keys that are secrets (go to .env) vs general settings (go to config.yaml)
+# ---------------------------------------------------------------------------
+SECRET_KEYS = {"DATABASE_URL", "GEMINI_API_KEY"}
+SETTINGS_KEYS = {"GEMINI_MODEL", "OUTPUT_PATH", "FILE_STORE_PATH", "NO_TELEMETRY"}
 
 
-def _load_yaml(path: Path) -> Dict[str, Any]:
+class Settings(BaseSettings):
     """
-    Load YAML from a file and return its mapping contents.
-    
-    If PyYAML is not installed, the file does not exist, the parsed content is not a mapping, or any error occurs while reading/parsing, an empty dict is returned.
-    
-    Parameters:
-        path (Path): Path to the YAML file to load.
-    
-    Returns:
-        Dict[str, Any]: Parsed YAML mapping from the file, or an empty dict on error or when no mapping is present.
+    All TESH-Query runtime configuration in one typed model.
+
+    Usage::
+
+        from teshq.config.settings import get_settings
+        s = get_settings()
+        print(s.gemini_model)
     """
-    try:
-        import yaml  # type: ignore
-    except ImportError:
-        return {}
 
-    if not path.exists():
-        return {}
-    try:
-        with open(path, "r") as fh:
-            data = yaml.safe_load(fh) or {}
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    # --- Secrets (loaded from env or ~/.teshq/.env) ---
+    database_url: str = Field(default="", alias="DATABASE_URL")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+
+    # --- Non-secret settings ---
+    gemini_model: str = Field(default="gemini-2.0-flash-lite", alias="GEMINI_MODEL")
+    output_path: Path = Field(
+        default_factory=lambda: Path.home() / ".teshq" / "output",
+        alias="OUTPUT_PATH",
+    )
+    file_store_path: Path = Field(
+        default_factory=lambda: Path.home() / ".teshq" / "files",
+        alias="FILE_STORE_PATH",
+    )
+    no_telemetry: bool = Field(default=False, alias="TESHQ_NO_TELEMETRY")
+
+    model_config = SettingsConfigDict(
+        env_file=str(SECRETS_FILE),
+        env_file_encoding="utf-8",
+        populate_by_name=True,
+        extra="ignore",
+    )
+
+    @field_validator("output_path", "file_store_path", mode="before")
+    @classmethod
+    def coerce_path(cls, v: Any) -> Path:
+        return Path(v) if not isinstance(v, Path) else v
+
+    @property
+    def is_configured(self) -> bool:
+        """Return True if both required secrets are set."""
+        return bool(self.database_url) and bool(self.gemini_api_key)
+
+    def masked_database_url(self) -> str:
+        """Return the database URL with the password replaced by ****."""
+        if not self.database_url:
+            return "(not set)"
+        try:
+            from sqlalchemy.engine import make_url
+            url = make_url(self.database_url)
+            return str(url._replace(password="****")) if url.password else self.database_url
+        except Exception:
+            return self.database_url
 
 
-def _write_yaml(path: Path, data: Dict[str, Any]) -> None:
+# ---------------------------------------------------------------------------
+# Singleton helper — cached per-process
+# ---------------------------------------------------------------------------
+_settings_cache: Optional[Settings] = None
+
+
+def get_settings(reload: bool = False) -> Settings:
+    """Return the cached Settings instance, creating it on first call."""
+    global _settings_cache
+    if _settings_cache is None or reload:
+        _settings_cache = Settings()
+    return _settings_cache
+
+
+# ---------------------------------------------------------------------------
+# Save helpers (write back to disk)
+# ---------------------------------------------------------------------------
+
+def save_secret(key: str, value: str) -> bool:
     """
-    Persist a mapping to the given filesystem path as a YAML document.
-    
-    Ensures the TESHQ configuration directory exists before writing the file.
-    
-    Parameters:
-        path (Path): Filesystem path to write the YAML data to.
-        data (Dict[str, Any]): Mapping to serialize into YAML.
-    
-    Raises:
-        RuntimeError: If PyYAML is not installed.
-        OSError: If opening or writing the file fails.
-        Exception: If YAML serialization fails; underlying exception is propagated.
-    """
-    try:
-        import yaml  # type: ignore
-    except ImportError:
-        raise RuntimeError(
-            "PyYAML is required for settings management. "
-            "Install it with: pip install pyyaml"
-        )
+    Persist a single secret key=value to ~/.teshq/.env.
 
+    Reads the existing file, updates the key, and rewrites — so other
+    secrets are not lost.
+    """
     ensure_teshq_dir()
-    with open(path, "w") as fh:
-        yaml.safe_dump(data, fh, default_flow_style=False, sort_keys=True)
+    env_vars: Dict[str, str] = {}
 
+    if SECRETS_FILE.exists():
+        for line in SECRETS_FILE.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if "=" in line and not line.startswith("#"):
+                k, _, v = line.partition("=")
+                env_vars[k.strip()] = v.strip()
 
-def load_settings() -> Dict[str, Any]:
-    """
-    Load non-secret settings from the user's config file and merge them with defaults.
-    
-    On-disk values override DEFAULT_SETTINGS; keys missing on disk are filled from DEFAULT_SETTINGS.
-    
-    Returns:
-        A dict mapping setting names to their resolved values.
-    """
-    on_disk = _load_yaml(CONFIG_FILE)
-    merged = {**DEFAULT_SETTINGS, **on_disk}
-    return merged
+    env_vars[key] = value
 
-
-def save_settings(data: Dict[str, Optional[Any]]) -> bool:
-    """
-    Persist non-secret settings to the user's config file (~/.teshq/config.yaml).
-    
-    Only keys listed in SETTINGS_KEYS are written; keys not present in `data` are left unchanged. Passing `None` for a key removes it from the on-disk settings (resetting to the default).
-    
-    Parameters:
-        data (Dict[str, Optional[Any]]): Mapping of setting keys to values. Use `None` to remove a key.
-    
-    Returns:
-        `true` if the settings were written successfully, `false` otherwise.
-    """
     try:
-        existing = _load_yaml(CONFIG_FILE)
-
-        for key, value in data.items():
-            if key not in SETTINGS_KEYS:
-                continue
-            if value is None:
-                existing.pop(key, None)
-            else:
-                existing[key] = value
-
-        _write_yaml(CONFIG_FILE, existing)
+        SECRETS_FILE.write_text(
+            "\n".join(f"{k}={v}" for k, v in env_vars.items()) + "\n",
+            encoding="utf-8",
+        )
+        SECRETS_FILE.chmod(0o600)  # owner-read-only
+        os.environ[key] = value    # update current process too
+        global _settings_cache
+        _settings_cache = None     # invalidate cache
         return True
-    except Exception as exc:
-        print(f"Warning: could not save settings to {CONFIG_FILE}: {exc}")
+    except OSError as exc:
+        print(f"Warning: could not save secret to {SECRETS_FILE}: {exc}")
         return False
 
 
-def get_setting(key: str, default: Optional[Any] = None) -> Optional[Any]:
+def save_setting(key: str, value: Any) -> bool:
     """
-    Retrieve a non-secret setting by name.
-    
-    Parameters:
-    	key (str): The setting key to look up.
-    	default (Optional[Any]): Value to return if the setting is not present.
-    
-    Returns:
-    	The stored value for `key`, or `default` if the key is not set.
+    Persist a single non-secret setting to ~/.teshq/config.yaml.
     """
-    return load_settings().get(key, default)
+    ensure_teshq_dir()
+    try:
+        import yaml
+    except ImportError:
+        print("Warning: pyyaml is required to save settings.")
+        return False
+
+    existing: Dict[str, Any] = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+                existing = yaml.safe_load(fh) or {}
+        except Exception:
+            pass
+
+    existing[key] = str(value) if isinstance(value, Path) else value
+
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(existing, fh, default_flow_style=False, sort_keys=True)
+        global _settings_cache
+        _settings_cache = None  # invalidate cache
+        return True
+    except OSError as exc:
+        print(f"Warning: could not save setting to {CONFIG_FILE}: {exc}")
+        return False

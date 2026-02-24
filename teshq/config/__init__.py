@@ -6,7 +6,7 @@ Provides a clean, single-directory configuration system rooted at ~/.teshq/.
 Sub-modules:
   paths    – canonical paths for the config directory, secrets file, schema cache
   secrets  – secure storage for DATABASE_URL and GEMINI_API_KEY
-  settings – YAML-based storage for non-secret configuration
+  settings – pydantic-settings based Settings model (v2)
 """
 
 from teshq.config.paths import (
@@ -18,18 +18,11 @@ from teshq.config.paths import (
     ensure_teshq_dir,
     get_schema_path,
 )
-from teshq.config.secrets import (
-    SECRET_KEYS,
-    get_secret,
-    load_secrets,
-    save_secrets,
-)
 from teshq.config.settings import (
-    DEFAULT_SETTINGS,
-    SETTINGS_KEYS,
-    get_setting,
-    load_settings,
-    save_settings,
+    Settings,
+    get_settings,
+    save_secret,
+    save_setting,
 )
 
 __all__ = [
@@ -41,15 +34,9 @@ __all__ = [
     "LOGS_DIR",
     "ensure_teshq_dir",
     "get_schema_path",
-    # secrets
-    "SECRET_KEYS",
-    "load_secrets",
-    "save_secrets",
-    "get_secret",
-    # settings
-    "SETTINGS_KEYS",
-    "DEFAULT_SETTINGS",
-    "load_settings",
-    "save_settings",
-    "get_setting",
+    # settings (v2)
+    "Settings",
+    "get_settings",
+    "save_secret",
+    "save_setting",
 ]

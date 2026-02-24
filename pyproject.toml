@@ -1,13 +1,12 @@
 [build-system]
 requires = [
     "setuptools>=61.0",
-    "setuptools-scm>=8.0"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "teshq"
-dynamic = ["version"]
+version = "2.0.0"
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,11 +39,13 @@ dependencies = [
     "rich>=13.0,<15.0",
     "logfire>=2.0",
     "tabulate>=0.9",
-    "pandas>=2.0,<4.0",
-    "pyyaml>=6.0",
-    "pydantic>=2.0,<3.0",
-    "email-validator>=2.0.0",   # Required by pydantic EmailStr validation
-    "requests>=2.31.0",         # Required for subscription client
+    "pandas~=2.2.2",
+    "pyyaml~=6.0",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
+    "requests>=2.31.0",  # Required for subscription client
+    "tomli>=2.0.0; python_version < '3.11'",  # TOML stdlib in 3.11+
 ]
 
 [project.optional-dependencies]
@@ -158,12 +159,16 @@ Documentation = "https://github.com/theshashank1/TESH-Query#readme"
 [project.scripts]
 teshq = "teshq.cli.main:app"
 
-[tool.setuptools_scm]
-# setuptools_scm will infer the package version from git tags.
-# Falls back to the static version below when no git tag is reachable.
-write_to = "teshq/_version.py"
-fallback_version = "2.0.0.dev0"
-
 [tool.setuptools]
-packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.config", "teshq.core", "teshq.eda", "teshq.utils"]
+packages = [
+    "teshq",
+    "teshq.cli",
+    "teshq.cli.commands",
+    "teshq.cli.ui",
+    "teshq.config",
+    "teshq.core",
+    "teshq.telemetry",
+    "teshq.subscriptions",
+    "teshq.utils",
+]
 include-package-data = true
