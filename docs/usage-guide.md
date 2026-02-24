@@ -56,15 +56,33 @@ export GEMINI_API_KEY="your-gemini-api-key"
 export GEMINI_MODEL_NAME="gemini-2.0-flash-lite"  # Optional
 ```
 
-### Method 3: Configuration Files
+### Method 3: Configuration Files (under `~/.teshq/`)
 
-Create a `.env` file in your project root:
+TESH-Query stores all configuration in `~/.teshq/`:
+
+| File | Contents | Permissions |
+|------|----------|-------------|
+| `~/.teshq/.teshq.env` | Secrets: `DATABASE_URL`, `GEMINI_API_KEY` | `0600` (owner only) |
+| `~/.teshq/config.yaml` | Non-secret settings: model name, output paths | normal |
+| `~/.teshq/schema/` | Database schema cache | directory |
+
+**Secrets file** (`~/.teshq/.teshq.env`):
 
 ```env
 DATABASE_URL=postgresql://user:password@host:port/database
 GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL_NAME=gemini-2.0-flash-lite
 ```
+
+**Settings file** (`~/.teshq/config.yaml`):
+
+```yaml
+GEMINI_MODEL_NAME: gemini-2.0-flash-lite
+OUTPUT_PATH: /home/user/.teshq/output
+FILE_STORE_PATH: /home/user/.teshq/files
+```
+
+> **Security**: Secrets are stored with `0600` permissions and never written to `config.json` or plain `.env` files in your project directory.
+
 
 ## CLI Usage
 

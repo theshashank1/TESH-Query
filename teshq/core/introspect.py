@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast  # Added cast
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 from sqlalchemy.engine import Connection  # Added import for Connection type hint
 
+from teshq.config.paths import SCHEMA_DIR, ensure_teshq_dir
 from teshq.utils.config import get_database_url as get_db_url
 
 # from sqlalchemy.engine.reflection import Inspector
@@ -183,7 +184,8 @@ def introspect_db(
     # Generate overall data model summary
     schema_info["data_model_summary"] = generate_data_model_summary(all_tables, schema_info)
 
-    save_schema_to_files(schema_info, "db_schema", "schema.json", "schema.txt")
+    ensure_teshq_dir()
+    save_schema_to_files(schema_info, str(SCHEMA_DIR), "schema.json", "schema.txt")
 
     return schema_info
 

@@ -3,10 +3,10 @@ Configuration Command for TESH-Query CLI
 
 This command sets up TeshQ's database, Gemini API, and file storage configuration.
 It uses the consolidated configuration utilities from teshq/utils/config.py that retrieve and save settings
-with fallback priorities from environment variables, the .env file, and config.json.
+with fallback priorities from environment variables, ~/.teshq/.teshq.env (secrets), and ~/.teshq/config.yaml.
 
-If `--save` is used, the configuration (e.g., DATABASE_URL, GEMINI API key, file paths) is persisted
-in .env and/or config.json through the save_config() function.
+If `--save` is used, secrets (DATABASE_URL, GEMINI_API_KEY) are persisted to ~/.teshq/.teshq.env
+and non-secret settings (model name, paths) are saved to ~/.teshq/config.yaml.
 """
 
 import os
@@ -160,7 +160,7 @@ def config(
         DEFAULT_GEMINI_MODEL, "--gemini-model", help="Gemini model to use", show_default=True
     ),
     # Control flags
-    save: bool = typer.Option(True, "--save/--no-save", help="Save configuration to files (i.e., .env and config.json)"),
+    save: bool = typer.Option(True, "--save/--no-save", help="Save configuration to ~/.teshq/ (secrets → .teshq.env, settings → config.yaml)"),
     force_configure_db: bool = typer.Option(False, "--db", "-db", help="Interactive database configuration"),
     force_configure_gemini: bool = typer.Option(False, "--gemini", "-gemini", help="Interactive Gemini API configuration"),
     output_file_path: str = typer.Option(None, "--output-file-path", help="Output file path"),
@@ -172,7 +172,8 @@ def config(
     You can use command-line options for automated (non-interactive) setup or use interactive
     configuration with flags like --db and --gemini.
 
-    When saving, the resulting configuration is written to .env and config.json,
+    When saving, secrets (DATABASE_URL, GEMINI_API_KEY) are written to ~/.teshq/.teshq.env
+    and non-secret settings are stored in ~/.teshq/config.yaml,
     ensuring all relevant environment variables and file paths persist for future sessions.
     """
     try:
@@ -285,7 +286,7 @@ def config(
                     os.makedirs(os.path.dirname(resolved_file_store_path), exist_ok=True)  # Create parent dir too
                     config_to_save["FILE_STORE_PATH"] = resolved_file_store_path
 
-                # Actually save to .env and config.json
+                # Save to ~/.teshq/ (secrets → .teshq.env, settings → config.yaml)
                 if config_to_save:
                     if save_config(config_to_save):
                         print_divider("Configuration Complete")

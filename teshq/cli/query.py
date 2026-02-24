@@ -5,6 +5,7 @@ import pandas as pd
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
+from teshq.config.paths import get_schema_path
 from teshq.core.llm import SQLQueryGenerator
 from teshq.core.query import execute_sql_query
 from teshq.utils.cli_logging import CLILogger
@@ -17,6 +18,9 @@ from teshq.utils.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
 
+# Schema file: prefer ~/.teshq/schema/schema.txt, fall back to local db_schema/schema.txt
+_TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")
+_LOCAL_SCHEMA_PATH = Path("db_schema") / "schema.txt"
 
 def get_llm_generator():
     """Initializes and returns the SQLQueryGenerator."""
@@ -154,8 +158,8 @@ def process_nl_query(
             if logging_active:
                 cli_logger.log_info("Initialization complete", generator_model=generator.model_name)
 
-        schema_dir = Path("db_schema")
-        schema_file_path = schema_dir / "schema.txt"
+        # Prefer schema from ~/.teshq/schema/, fall back to local db_schema/
+        schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
         schema = load_db_schema(generator, schema_file_path)
 
         sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)
