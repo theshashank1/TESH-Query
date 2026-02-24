@@ -19,17 +19,22 @@ def introspect_db(
     sample_size: int = 3,
 ) -> Dict[str, Any]:
     """
-    Perform database schema introspection optimized for LLM query generation.
-
-    Args:
-        db_url: Database connection URL.
-        detect_relationships: Whether to detect implicit relationships based on naming conventions.
-        include_indexes: Whether to include index information.
-        include_sample_data: Whether to include sample data from each table.
-        sample_size: Number of rows to sample from each table if include_sample_data is True.
-
+    Introspect a database and produce a structured schema description suitable for LLM query generation.
+    
+    Parameters:
+        db_url (Optional[str]): Database connection URL; if None, get_db_url() will be used.
+        detect_relationships (bool): Detect implicit relationships by naming conventions when True.
+        include_indexes (bool): Include index metadata when True.
+        include_sample_data (bool): Include example rows for each table when True.
+        sample_size (int): Maximum number of sample rows to retrieve per table when sample data is enabled.
+    
     Returns:
-        Dict containing the complete schema information.
+        Dict[str, Any]: Schema information containing keys such as "tables" (per-table column, PK, FK, index, sample, row count, description), "relationships" (explicit and implicit lists), and "data_model_summary" (textual summary).
+    
+    Raises:
+        ValueError: If no database URL is provided and get_db_url() returns none.
+        ConnectionError: If connecting to the database or reflecting metadata fails.
+        RuntimeError: If retrieving the list of table names fails.
     """
     if db_url is None:
         db_url = get_db_url()

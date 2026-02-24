@@ -140,19 +140,18 @@ class TeshQuery:
         output_dir: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Introspect the database schema.
-
-        Args:
-            detect_relationships: Whether to detect implicit relationships.
-            include_indexes: Whether to include index information.
-            include_sample_data: Whether to include sample data.
-            sample_size: Number of sample rows to include.
-            save_to_files: Whether to save schema to files.
-            output_dir: Directory to save files (if save_to_files=True).
-                        Defaults to ~/.teshq/schema/.
-
+        Introspects the configured database and returns a structured representation of its schema.
+        
+        Parameters:
+        	detect_relationships (bool): Detect implicit foreign-key relationships between tables.
+        	include_indexes (bool): Include index metadata for tables.
+        	include_sample_data (bool): Include sample rows for tables.
+        	sample_size (int): Number of sample rows to include per table when sample data is requested.
+        	save_to_files (bool): If True, persist the schema to files.
+        	output_dir (Optional[str]): Directory to write schema files when saving; defaults to the user's schema cache directory (~/.teshq/schema/).
+        
         Returns:
-            Dict containing the complete schema information.
+        	schema_info (Dict[str, Any]): A dictionary containing the complete introspected schema information.
         """
         schema_info = introspect_db(
             db_url=self.db_url,
@@ -193,15 +192,15 @@ class TeshQuery:
         self, natural_language_query: str, schema: Optional[str] = None, schema_file: Optional[Union[str, Path]] = None
     ) -> Dict[str, Any]:
         """
-        Generate SQL from a natural language query.
-
-        Args:
-            natural_language_query: The natural language query.
-            schema: Schema text. If None, will try to use cached schema or load from file.
-            schema_file: Path to schema file. Used if schema is None.
-
+        Generate a SQL statement and its parameters from a natural language query using the configured LLM and available schema.
+        
+        Parameters:
+            natural_language_query (str): Natural language description of the desired query.
+            schema (Optional[str]): Schema text to use; if provided, it is used as-is and takes precedence over cached or file-based schemas.
+            schema_file (Optional[Union[str, Path]]): Path to a schema file to load when `schema` is None.
+        
         Returns:
-            Dict containing 'query' and 'parameters' keys.
+            Dict[str, Any]: A dictionary with keys 'query' (the generated SQL string) and 'parameters' (the parameters for the query).
         """
         # Determine schema to use
         if schema is None:
