@@ -289,36 +289,75 @@ class TokenTracker:
         }
     
     def get_global_summary(self, days: int = 30) -> Dict[str, Any]:
-        """Get global token usage summary from metrics."""
+        """Get global token usage summary from persisted JSONL log files."""
+        import json as _json
+        from datetime import timezone
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        logs_dir = "logs"
+
+        total_tokens = 0
+        total_cost = 0.0
+        call_count = 0
+        max_tokens = 0
+
         try:
-            token_metrics = metrics.get_summary().get("api_tokens_used", {})
-            
-            if not token_metrics:
-                return {
-                    "total_tokens": 0,
-                    "total_calls": 0,
-                    "average_tokens_per_call": 0,
-                    "period_days": days,
-                    "estimated_total_cost": 0.0,
-                }
-            
-            total_tokens = token_metrics.get("total", 0)
-            call_count = token_metrics.get("count", 0)
-            avg_tokens = token_metrics.get("avg", 0)
-            max_tokens = token_metrics.get("max", 0)
-            
-            # Rough cost estimate (assuming average pricing)
-            estimated_cost = total_tokens * 0.002  # $2 per 1K tokens average
-            
+            import os
+            if os.path.isdir(logs_dir):
+                for filename in os.listdir(logs_dir):
+                    if not filename.startswith("token_usage_") or not filename.endswith(".jsonl"):
+                        continue
+                    filepath = os.path.join(logs_dir, filename)
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as fh:
+                            for line in fh:
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                try:
+                                    record = _json.loads(line)
+                                except _json.JSONDecodeError:
+                                    continue
+                                # Parse timestamp
+                                ts_str = record.get("timestamp", "")
+                                try:
+                                    ts = datetime.fromisoformat(ts_str)
+                                    if ts.tzinfo is None:
+                                        ts = ts.replace(tzinfo=timezone.utc)
+                                except (ValueError, TypeError):
+                                    continue
+                                if ts < cutoff:
+                                    continue
+                                tokens = int(record.get("total_tokens", 0))
+                                cost = float(record.get("cost_estimate", 0) or 0)
+                                total_tokens += tokens
+                                total_cost += cost
+                                call_count += 1
+                                if tokens > max_tokens:
+                                    max_tokens = tokens
+                    except OSError:
+                        continue
+
+            # Also include in-memory data from the current session (may not be flushed yet)
+            mem_metrics = metrics.get_summary().get("api_tokens_used", {})
+            if mem_metrics and call_count == 0:
+                # Fallback to in-memory if no log files found
+                total_tokens = int(mem_metrics.get("total", 0))
+                call_count = int(mem_metrics.get("count", 0))
+                max_tokens = int(mem_metrics.get("max", 0))
+                total_cost = total_tokens * 0.0005  # rough average
+
+            avg_tokens = round(total_tokens / call_count, 2) if call_count > 0 else 0.0
+
             return {
                 "total_tokens": total_tokens,
                 "total_calls": call_count,
-                "average_tokens_per_call": round(avg_tokens, 2),
+                "average_tokens_per_call": avg_tokens,
                 "max_tokens_single_call": max_tokens,
                 "period_days": days,
-                "estimated_total_cost": round(estimated_cost, 4),
+                "estimated_total_cost": round(total_cost, 6),
             }
-            
+
         except Exception as e:
             logger.error("Failed to get global summary", error=e)
             return {"error": str(e)}

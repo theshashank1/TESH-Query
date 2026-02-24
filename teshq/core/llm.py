@@ -57,16 +57,28 @@ class SQLQueryGenerator:
         )
 
     def _get_system_prompt(self) -> str:
-        return """You are a SQL query generator. Generate SQL queries based on database schemas and user requests.
+        return """You are a precise SQL query generator. Your only job is to output a valid JSON object.
 
-                RULES:
-                1. Use parameterized queries with :parameter_name format
-                2. Return only JSON with 'query' and 'parameters' fields
-                3. Make reasonable parameter values based on the user request
-                4. Use proper SQL syntax
+DATABASE DIALECT RULES:
+- Write standard ANSI SQL unless the schema specifies a dialect.
+- Always use table aliases for multi-table queries.
+- For parameterised values use SQLAlchemy named-parameter syntax: :param_name.
 
-                {format_instructions}
-            """
+OUTPUT FORMAT (strict — no other text):
+{{
+  "query": "<SQL statement with :named_params>",
+  "parameters": {{"param_name": <value>, ...}}
+}}
+
+RULES:
+1. Output ONLY the JSON object — no markdown, no explanation, no code fences.
+2. Every placeholder in the query MUST have a matching key in parameters.
+3. If no parameters are needed, output "parameters": {{}}.
+4. Infer reasonable, safe parameter values from the user request.
+5. Use SELECT by default; only use INSERT/UPDATE/DELETE when explicitly requested.
+6. Never DROP, TRUNCATE or ALTER tables.
+
+{format_instructions}"""
 
     def load_schema(self, schema_file: str) -> str:
         """Load schema from file"""
@@ -147,27 +159,32 @@ class SQLQueryGenerator:
                 prompt_tokens = 0
                 completion_tokens = 0
                 total_tokens = 0
-                
+
                 if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                    # For Google Gemini models
+                    # Gemini SDK returns an object; support both attribute-access and dict-access.
                     usage = response.usage_metadata
-                    prompt_tokens = usage.get('input_tokens', 0)
-                    completion_tokens = usage.get('output_tokens', 0)
+                    if hasattr(usage, 'prompt_token_count'):
+                        # google-generativeai >= 0.5 object style
+                        prompt_tokens = getattr(usage, 'prompt_token_count', 0) or 0
+                        completion_tokens = getattr(usage, 'candidates_token_count', 0) or 0
+                    elif hasattr(usage, 'input_tokens'):
+                        # langchain-google-genai dict-like style
+                        prompt_tokens = getattr(usage, 'input_tokens', 0) or 0
+                        completion_tokens = getattr(usage, 'output_tokens', 0) or 0
+                    elif isinstance(usage, dict):
+                        prompt_tokens = usage.get('input_tokens', 0) or usage.get('prompt_token_count', 0) or 0
+                        completion_tokens = usage.get('output_tokens', 0) or usage.get('candidates_token_count', 0) or 0
                     total_tokens = prompt_tokens + completion_tokens
                 elif hasattr(response, 'response_metadata') and response.response_metadata:
-                    # Alternative location for usage data
                     usage = response.response_metadata.get('usage', {})
                     prompt_tokens = usage.get('prompt_tokens', 0)
                     completion_tokens = usage.get('completion_tokens', 0)
                     total_tokens = usage.get('total_tokens', prompt_tokens + completion_tokens)
                 else:
-                    # Fallback: estimate tokens based on content length
-                    # Rough approximation: 1 token ≈ 4 characters
-                    prompt_text = user_request + schema
-                    prompt_tokens = len(prompt_text) // 4
+                    # Fallback: rough character-based estimation (1 token ≈ 4 chars)
+                    prompt_tokens = len(user_request + schema) // 4
                     completion_tokens = len(str(result)) // 4
                     total_tokens = prompt_tokens + completion_tokens
-                    
                     logger.warning(
                         "No usage metadata available, using token estimation",
                         estimated_prompt_tokens=prompt_tokens,

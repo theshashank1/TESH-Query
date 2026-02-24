@@ -13,6 +13,7 @@ from teshq.utils.config import get_database_url as get_db_url
 from teshq.utils.config import get_gemini_config as get_gemini_credentials
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
+from teshq.utils.telemetry import track_command, track_error, track_feature
 from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success
 from teshq.utils.validation import CLIValidator, ValidationError
 
@@ -97,31 +98,37 @@ def save_results(
 
 @app.command(
     name="query",
-    help="Execute the Natural Language Query on Database and return the result",
+    help="Run a natural language query against your database.",
 )
 def process_nl_query(
-    natural_language_request: str = typer.Argument(..., help="The natural language query to execute."),
-    save_csv: str = typer.Option(None, "--save-csv", help="Save the query result as a CSV file."),
-    save_excel: str = typer.Option(None, "--save-excel", help="Save the query result as an Excel file."),
-    save_sqlite: str = typer.Option(None, "--save-sqlite", help="Save the query result to a SQLite database."),
-    log: bool = typer.Option(None, "--log", help="Enable logging to file (overrides config default)"),
+    natural_language_request: str = typer.Argument(..., help="What you want to know, in plain English."),
+    save_csv: str = typer.Option(None, "--save-csv", metavar="FILE", help="Save results to a CSV file."),
+    save_excel: str = typer.Option(None, "--save-excel", metavar="FILE", help="Save results to an Excel (.xlsx) file."),
+    save_sqlite: str = typer.Option(None, "--save-sqlite", metavar="FILE", help="Save results to a SQLite database file."),
+    log: bool = typer.Option(None, "--log", help="Write detailed logs to file."),
 ):
     """
-    Process a natural language query: generate SQL, execute it against the configured database, display results, and optionally save them.
-    
-    Validates the input query and any requested save paths, initializes the LLM generator and database connection, loads the database schema, generates and runs an SQL query produced from the natural language input, prints a tabular view of results, and optionally saves results to CSV, Excel, or SQLite. Logs command lifecycle, query execution, and token usage when file logging is enabled. On failures the command reports the error to the user and exits with a non-zero status.
-    Parameters:
-        natural_language_request (str): The natural language query to execute.
-        save_csv (str | None): File path to save results as CSV; if None, CSV is not written.
-        save_excel (str | None): File path to save results as Excel; if None, Excel is not written.
-        save_sqlite (str | None): File path to save results into a SQLite database; if None, SQLite is not written.
-        log (bool | None): When True, enable logging to file (overrides configured default); when False or None, use configured logging behavior.
+    Convert a natural-language question into SQL and execute it.
+
+    Examples:
+
+      teshq query "show the top 10 customers by revenue"
+
+      teshq query "how many orders were placed last month" --save-csv monthly_orders.csv
     """
     
     # Initialize CLI logger
     cli_logger = CLILogger("query")
     logging_active = cli_logger.setup_file_logging(log)
-    
+
+    # Track command invocation (privacy-safe: no query text)
+    track_command(
+        "query",
+        save_csv=bool(save_csv),
+        save_excel=bool(save_excel),
+        save_sqlite=bool(save_sqlite),
+    )
+
     start_time = time.time()
     
     try:
@@ -163,11 +170,10 @@ def process_nl_query(
                     )
                     raise typer.Exit(1)
 
-        with status("Initializing", "Initialization Complete"):
-            time.sleep(1)
+        with status("Initializing", "Initialization complete"):
             generator = get_llm_generator()
             db_url_val = get_db_url()
-            
+
             if logging_active:
                 cli_logger.log_info("Initialization complete", generator_model=generator.model_name)
 
@@ -220,7 +226,12 @@ def process_nl_query(
         if result and (save_csv or save_excel or save_sqlite):
             df = result.dataframe
             save_results(df, save_csv, save_excel, save_sqlite)
-            
+
+            # Track feature usage
+            for fmt, path in [("save_csv", save_csv), ("save_excel", save_excel), ("save_sqlite", save_sqlite)]:
+                if path:
+                    track_feature(fmt)
+
             # Log file operations
             if logging_active:
                 for save_path, format_name in [(save_csv, "CSV"), (save_excel, "Excel"), (save_sqlite, "SQLite")]:
@@ -242,22 +253,32 @@ def process_nl_query(
     #     # Validation errors are already handled above
     #     raise
     except SQLAlchemyError as e:
+        track_error("query", "SQLAlchemyError")
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type="SQLAlchemyError")
-        handle_error(e, "Database Query Execution", suggest_action="Check your database connection and query syntax")
+        handle_error(e, "Database error", suggest_action="Check your database connection and query syntax.")
         raise typer.Exit(1)
     except FileNotFoundError as e:
+        track_error("query", "FileNotFoundError")
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type="FileNotFoundError")
-        handle_error(e, "File Operation", suggest_action="Ensure all required files exist and schema is properly configured")
+        handle_error(
+            e,
+            "Schema file not found",
+            suggest_action=(
+                "Run 'teshq introspect' first, or ensure the schema file exists at "
+                "~/.teshq/schema/schema.txt"
+            ),
+        )
         raise typer.Exit(1)
     except Exception as e:
+        track_error("query", type(e).__name__)
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type=type(e).__name__)
-        handle_error(e, "Query Processing", show_traceback=True, suggest_action="Please check your input and try again")
+        handle_error(e, "Query processing error", show_traceback=True, suggest_action="Please check your input and try again.")
         raise typer.Exit(1)
     finally:
         # Cleanup logger
