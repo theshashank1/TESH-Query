@@ -5,6 +5,7 @@ import typer
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.cli import analytics, config, db, query
+from teshq.utils.logging import configure_global_logger
 
 try:
     from teshq.cli import health, subscribe

@@ -36,24 +36,24 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build wheel twine setuptools_scm
-          # Install dev dependencies if they exist
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-          # Install the package in development mode
-          pip install -e .
+          pip install build wheel twine setuptools setuptools-scm
+          pip install -e ".[dev]"
 
       - name: Verify version detection
         run: |
-          echo "Current tag: ${GITHUB_REF#refs/tags/}"
-          python -c "from setuptools_scm import get_version; print(f'Detected version: {get_version()}')" || echo "setuptools_scm version detection failed"
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Release tag: $TAG"
+          python -c "
+          try:
+              from setuptools_scm import get_version
+              v = get_version()
+              print(f'setuptools_scm version: {v}')
+          except Exception as e:
+              print(f'setuptools_scm failed ({e}), using tag directly')
+          "
 
       - name: Run tests
-        run: |
-          if command -v pytest &>/dev/null; then
-            pytest
-          else
-            echo "No pytest found, skipping tests"
-          fi
+        run: pytest tests/unit/ -v --tb=short
 
       - name: Build package
         run: python -m build
@@ -63,12 +63,9 @@ jobs:
 
       - name: Test installation
         run: |
-          python -m venv test_env
-          source test_env/bin/activate
-          pip install dist/*.whl
-          # Try importing the package - adjust the import name if needed
-          python -c "import teshq; print('Import successful')" || echo "Import test failed"
-          deactivate
+          python -m venv /tmp/test_env
+          /tmp/test_env/bin/pip install dist/*.whl
+          /tmp/test_env/bin/python -c "import teshq; print('Import successful, version:', teshq.__version__)"
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -83,3 +80,4 @@ jobs:
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
