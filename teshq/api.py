@@ -27,6 +27,7 @@ Example usage:
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from .config.paths import SCHEMA_DIR, get_schema_path
 from .core.db import connect_database, disconnect_database
 from .core.introspect import introspect_db, save_schema_to_files
 from .core.llm import SQLQueryGenerator
@@ -136,21 +137,21 @@ class TeshQuery:
         include_sample_data: bool = False,
         sample_size: int = 3,
         save_to_files: bool = False,
-        output_dir: str = ".",
+        output_dir: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Introspect the database schema.
-
-        Args:
-            detect_relationships: Whether to detect implicit relationships.
-            include_indexes: Whether to include index information.
-            include_sample_data: Whether to include sample data.
-            sample_size: Number of sample rows to include.
-            save_to_files: Whether to save schema to files.
-            output_dir: Directory to save files (if save_to_files=True).
-
+        Introspects the configured database and returns a structured representation of its schema.
+        
+        Parameters:
+        	detect_relationships (bool): Detect implicit foreign-key relationships between tables.
+        	include_indexes (bool): Include index metadata for tables.
+        	include_sample_data (bool): Include sample rows for tables.
+        	sample_size (int): Number of sample rows to include per table when sample data is requested.
+        	save_to_files (bool): If True, persist the schema to files.
+        	output_dir (Optional[str]): Directory to write schema files when saving; defaults to the user's schema cache directory (~/.teshq/schema/).
+        
         Returns:
-            Dict containing the complete schema information.
+        	schema_info (Dict[str, Any]): A dictionary containing the complete introspected schema information.
         """
         schema_info = introspect_db(
             db_url=self.db_url,
@@ -165,9 +166,10 @@ class TeshQuery:
 
         # Save to files if requested
         if save_to_files:
+            save_dir = output_dir if output_dir is not None else str(SCHEMA_DIR)
             save_schema_to_files(
                 schema_info,
-                output_dir=output_dir,
+                output_dir=save_dir,
                 json_filename="schema.json",
                 text_filename="schema.txt",
             )
@@ -190,15 +192,15 @@ class TeshQuery:
         self, natural_language_query: str, schema: Optional[str] = None, schema_file: Optional[Union[str, Path]] = None
     ) -> Dict[str, Any]:
         """
-        Generate SQL from a natural language query.
-
-        Args:
-            natural_language_query: The natural language query.
-            schema: Schema text. If None, will try to use cached schema or load from file.
-            schema_file: Path to schema file. Used if schema is None.
-
+        Generate a SQL statement and its parameters from a natural language query using the configured LLM and available schema.
+        
+        Parameters:
+            natural_language_query (str): Natural language description of the desired query.
+            schema (Optional[str]): Schema text to use; if provided, it is used as-is and takes precedence over cached or file-based schemas.
+            schema_file (Optional[Union[str, Path]]): Path to a schema file to load when `schema` is None.
+        
         Returns:
-            Dict containing 'query' and 'parameters' keys.
+            Dict[str, Any]: A dictionary with keys 'query' (the generated SQL string) and 'parameters' (the parameters for the query).
         """
         # Determine schema to use
         if schema is None:
@@ -208,8 +210,10 @@ class TeshQuery:
                 # Use cached schema - convert to text format
                 schema = self._format_schema_for_llm(self._schema_cache)
             else:
-                # Try to load from default location
-                default_schema_path = Path("db_schema/schema.txt")
+                # Prefer ~/.teshq/schema/schema.txt, fall back to local db_schema/schema.txt
+                teshq_schema = get_schema_path("schema.txt")
+                local_schema = Path("db_schema/schema.txt")
+                default_schema_path = teshq_schema if teshq_schema.exists() else local_schema
                 if default_schema_path.exists():
                     schema = self.load_schema_from_file(default_schema_path)
                 else:
@@ -218,7 +222,7 @@ class TeshQuery:
                         "1. Pass schema text directly\n"
                         "2. Pass schema_file path\n"
                         "3. Run introspect_database() first\n"
-                        "4. Ensure db_schema/schema.txt exists"
+                        "4. Run 'teshq introspect' to generate schema cache in ~/.teshq/schema/"
                     )
 
         return self.llm_generator.generate_sql(natural_language_query, schema)

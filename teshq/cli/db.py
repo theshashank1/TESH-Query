@@ -18,14 +18,23 @@ def database(
     disconnect: bool = typer.Option(False, "--disconnect", help="Disconnect from the database (after connection)"),
 ):
     """
-    Manage database connection lifecycle: connect and optionally disconnect.
+    Manage the database connection lifecycle for the CLI command.
+    
+    Connects to the configured database when `connect` is true and optionally disconnects immediately when `disconnect` is also true. Exits the process with a non-zero code if no database URL is configured or if a connection attempt fails.
+    
+    Parameters:
+        connect (bool): If true, establish a database connection.
+        disconnect (bool): If true and `connect` is also true, disconnect after a successful connection; has no effect otherwise.
+    
+    Returns:
+        Connection object if a connection was established, `None` otherwise.
     """
     print_header("Database Connection Manager", level=2)
 
     db_url = get_configured_database_url()
 
     if not db_url:
-        error("DATABASE_URL not set in environment variables or config.json.")
+        error("DATABASE_URL not set. Configure it with: teshq config --db")
         raise typer.Exit(code=1)
     conn = None
     if connect:

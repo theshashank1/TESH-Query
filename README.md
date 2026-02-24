@@ -99,15 +99,25 @@ teshq --version
 Run the interactive configuration wizards to set up your database connection and Gemini API key:
 
 ```bash
-# Configure database connection details
-teshq config --config-db
-# you can also use `teshq config --db-url postgresql://myuser:********@localhost:5432/mydatabase`
+# Interactive database setup
+teshq config --db
 
-# Configure your Google Gemini API key
-teshq config --config-gemini
+# You can also pass a full URL directly
+teshq config --db-url postgresql://myuser:********@localhost:5432/mydatabase
+
+# Interactive Gemini API key setup
+teshq config --gemini
 ```
 
-These commands will guide you through the necessary steps and securely store your credentials.
+Configuration is stored securely in `~/.teshq/`:
+
+| File | Purpose |
+|------|---------|
+| `~/.teshq/.teshq.env` | Secrets: `DATABASE_URL`, `GEMINI_API_KEY` (permissions: 0600) |
+| `~/.teshq/config.yaml` | Non-secret settings: model name, output paths |
+| `~/.teshq/schema/` | Database schema cache (written by `teshq introspect`) |
+
+> **Note**: Secrets are never stored in `config.json` or plain `.env` files in your project directory.
 
 ### 3. Database schema Introspection
 
@@ -228,8 +238,10 @@ TESH-Query simplifies data access through a robust process:
 The project is structured into key modules:
 
 - **`cli/`**: Handles command-line interface logic and user interaction (Typer).
+- **`config/`**: Clean, single-directory configuration system. Manages `~/.teshq/` paths, secrets (`.teshq.env`), and YAML settings.
 - **`core/`**: Contains core business logic, including AI interaction, SQL execution, and schema handling.
-- **`utils/`**: Provides shared utility functions (configuration, database helpers, formatting).
+- **`utils/`**: Provides shared utility functions (configuration façade, database helpers, formatting).
+- **`api.py`**: Programmatic SDK (`TeshQuery` class) for integration into applications.
 
 ---
 
@@ -244,7 +256,7 @@ TESH-Query is built using the following technologies:
 | **Database ORM/Kit**   | SQLAlchemy                                                                       | \      |
 | **Database Drivers**   | psycopg2-binary (PostgreSQL), mysql-connector-python (MySQL), sqlite3 (Built-in) | \      |
 | **AI/LLM Integration** | Langchain, langchain-google-genai (Google Gemini)                                | \      |
-| **Configuration**      | python-dotenv, JSON                                                              | \      |
+| **Configuration**      | PyYAML, python-dotenv                                                           | \      |
 | **Data Display**       | Tabulate                                                                         | \      |
 | **Build & Packaging**  | Setuptools, setuptools-scm, Build, Twine                                         | \      |
 | **Code Quality**       | Black, isort, Flake8 (enforced via pre-commit)                                   | \      |
@@ -288,44 +300,18 @@ TESH-Query is under active development with planned future enhancements.
 
 ## 🤝 Contributing
 
-We welcome contributions! If you'd like to help improve TESH-Query, please follow these steps:
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
-### Getting Started
+Quick start:
 
-1.  **Fork & Clone**: Fork the repository and clone it locally.
-    ```bash
-    git clone https://github.com/YOUR_USERNAME/TESH-Query.git
-    cd TESH-Query
-    ```
-2.  **Virtual Environment**: Create and activate a Python virtual environment.
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate  # Windows: .venv\Scripts\activate
-    ```
-3.  **Install Dependencies**: Install in editable mode with development dependencies.
-    ```bash
-    pip install -e ".[dev]"
-    ```
-4.  **Pre-commit Hooks**: Set up automated code quality checks.
-`bash
-    pre-commit install
-    `
-<!-- 5.  **Run Tests**: Ensure existing tests pass.
-    ```bash
-    pytest
-    ``` -->
-
-### Contribution Workflow
-
-1.  Create a new branch (`git checkout -b feature/your-feature`).
-2.  Implement changes and add/update tests.
-3.  Run `pytest` and `pre-commit run --all-files`.
-4.  Commit and push your branch.
-5.  Open a Pull Request to `main`.
-
-### Versioning
-
-Versioning is automated via Git tags (`vX.Y.Z`) and `setuptools-scm`.
+```bash
+git clone https://github.com/YOUR_USERNAME/TESH-Query.git
+cd TESH-Query
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pre-commit install
+pytest tests/unit/
+```
 
 ---
 
@@ -335,9 +321,9 @@ Encountering issues? Here's some help:
 
 ### Common Issues
 
-- **Connection Problems**: Use `teshq config --config-db`. Check credentials, host, port, network.
-  - Otherway to solve is `teshq config --db-url <dialect>://<username>:<password>@<host>:<port>/<database>`
-  - Example `teshq config --db-url postgresql://myuser:123456789@localhost:5432/mydatabase`
+- **Connection Problems**: Use `teshq config --db`. Check credentials, host, port, network.
+  - Or pass a full URL: `teshq config --db-url postgresql://myuser:password@localhost:5432/mydatabase`
+- **Config file location**: All config lives in `~/.teshq/`. Run `teshq config` to view the current state.
 - **AI Generation Issues**: Rephrase query, be specific, simplify requests.
 - **Permission Errors**: Ensure database user has read access.
 

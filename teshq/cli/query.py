@@ -5,6 +5,7 @@ import pandas as pd
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
+from teshq.config.paths import get_schema_path
 from teshq.core.llm import SQLQueryGenerator
 from teshq.core.query import execute_sql_query
 from teshq.utils.cli_logging import CLILogger
@@ -17,9 +18,17 @@ from teshq.utils.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
 
+# Schema file: prefer ~/.teshq/schema/schema.txt, fall back to local db_schema/schema.txt
+_TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")
+_LOCAL_SCHEMA_PATH = Path("db_schema") / "schema.txt"
 
 def get_llm_generator():
-    """Initializes and returns the SQLQueryGenerator."""
+    """
+    Create a SQLQueryGenerator configured with Gemini credentials from the current configuration.
+    
+    Returns:
+        SQLQueryGenerator: An instance configured with the Gemini API key and model.
+    """
     gemini_api_key, gemini_model = get_gemini_credentials()
     return SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model)
 
@@ -98,7 +107,15 @@ def process_nl_query(
     log: bool = typer.Option(None, "--log", help="Enable logging to file (overrides config default)"),
 ):
     """
-    Processes a natural language query, generates SQL, executes it, and prints the results.
+    Process a natural language query: generate SQL, execute it against the configured database, display results, and optionally save them.
+    
+    Validates the input query and any requested save paths, initializes the LLM generator and database connection, loads the database schema, generates and runs an SQL query produced from the natural language input, prints a tabular view of results, and optionally saves results to CSV, Excel, or SQLite. Logs command lifecycle, query execution, and token usage when file logging is enabled. On failures the command reports the error to the user and exits with a non-zero status.
+    Parameters:
+        natural_language_request (str): The natural language query to execute.
+        save_csv (str | None): File path to save results as CSV; if None, CSV is not written.
+        save_excel (str | None): File path to save results as Excel; if None, Excel is not written.
+        save_sqlite (str | None): File path to save results into a SQLite database; if None, SQLite is not written.
+        log (bool | None): When True, enable logging to file (overrides configured default); when False or None, use configured logging behavior.
     """
     
     # Initialize CLI logger
@@ -154,8 +171,8 @@ def process_nl_query(
             if logging_active:
                 cli_logger.log_info("Initialization complete", generator_model=generator.model_name)
 
-        schema_dir = Path("db_schema")
-        schema_file_path = schema_dir / "schema.txt"
+        # Prefer schema from ~/.teshq/schema/, fall back to local db_schema/
+        schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
         schema = load_db_schema(generator, schema_file_path)
 
         sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)
