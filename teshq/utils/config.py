@@ -34,11 +34,12 @@ CONFIG_KEYS = list(SECRET_KEYS) + list(SETTINGS_KEYS)
 
 def get_config() -> Dict[str, Optional[str]]:
     """
-    Return merged configuration with the following priority (highest first):
-
-    1. Environment variables
-    2. ``~/.teshq/.teshq.env`` (secrets)
-    3. ``~/.teshq/config.yaml`` (non-secret settings)
+    Merge configuration values from settings, secrets, and environment with environment variables taking precedence.
+    
+    For each known configuration key the returned mapping contains the highest-priority available value: environment variables override secrets (~/.teshq/.teshq.env), which override non-secret settings (~/.teshq/config.yaml).
+    
+    Returns:
+        Dict[str, Optional[str]]: Mapping of configuration keys to their values (strings) or None when unset.
     """
     config: Dict[str, Optional[str]] = {}
 
@@ -58,7 +59,16 @@ def get_config() -> Dict[str, Optional[str]]:
 
 
 def get_config_with_source() -> Tuple[Dict[str, Optional[str]], Dict[str, str]]:
-    """Return (config_dict, sources_dict) so callers can show where each value came from."""
+    """
+    Merge configuration values from settings, secrets, and environment and report the origin of each value.
+    
+    Loads non-secret settings from ~/.teshq/config.yaml, then overlays secrets from ~/.teshq/.teshq.env, and finally overlays environment variables (highest priority). Only keys with non-empty values are included in the returned mappings.
+    
+    Returns:
+        Tuple[Dict[str, Optional[str]], Dict[str, str]]: 
+            - config: Mapping of configuration keys to their resolved values.
+            - sources: Mapping of configuration keys to a short source identifier: "environment", "~/.teshq/.teshq.env", or "~/.teshq/config.yaml".
+    """
     from teshq.config.paths import CONFIG_FILE, SECRETS_FILE
     from teshq.config.secrets import _read_env_file
     from teshq.config.settings import _load_yaml
@@ -96,16 +106,15 @@ def get_config_with_source() -> Tuple[Dict[str, Optional[str]], Dict[str, str]]:
 
 def save_config(data: Dict[str, Optional[str]]) -> bool:
     """
-    Save configuration to ``~/.teshq/``.
-
-    - Secret keys (DATABASE_URL, GEMINI_API_KEY) → ``~/.teshq/.teshq.env``
-    - Non-secret keys                             → ``~/.teshq/config.yaml``
-
-    Args:
-        data: Mapping of config key → value.  Pass ``None`` to remove a key.
-
+    Save configuration entries to the user's TESH-Query config directory (~/.teshq/).
+    
+    Secret keys (DATABASE_URL, GEMINI_API_KEY) are written to ~/.teshq/.teshq.env; non-secret settings are written to ~/.teshq/config.yaml.
+    
+    Parameters:
+        data (Dict[str, Optional[str]]): Mapping of configuration keys to values. Use None to remove a key.
+    
     Returns:
-        bool: True if all writes succeeded.
+        `true` if all writes succeeded, `false` otherwise.
     """
     secrets_data = {k: v for k, v in data.items() if k in SECRET_KEYS}
     settings_data = {k: v for k, v in data.items() if k in SETTINGS_KEYS}
@@ -119,12 +128,24 @@ def save_config(data: Dict[str, Optional[str]]) -> bool:
 
 
 def get_database_url() -> Optional[str]:
-    """Get database URL."""
+    """
+    Retrieve the configured database connection URL.
+    
+    Returns:
+        The `DATABASE_URL` value from the merged configuration, or `None` if it is not set.
+    """
     return get_config().get("DATABASE_URL")
 
 
 def get_gemini_config() -> Tuple[Optional[str], str]:
-    """Get Gemini API key and model name."""
+    """
+    Retrieve the Gemini API key and the Gemini model name from the merged configuration.
+    
+    Returns:
+        tuple: (api_key, model_name)
+            api_key (str | None): The Gemini API key if configured, otherwise `None`.
+            model_name (str): The Gemini model name from configuration or `DEFAULT_GEMINI_MODEL` when not set.
+    """
     config = get_config()
     api_key = config.get("GEMINI_API_KEY")
     model = config.get("GEMINI_MODEL_NAME", DEFAULT_GEMINI_MODEL)
@@ -132,7 +153,12 @@ def get_gemini_config() -> Tuple[Optional[str], str]:
 
 
 def get_paths() -> Tuple[str, str]:
-    """Get output and file store paths."""
+    """
+    Retrieve the configured output and file storage paths.
+    
+    Returns:
+        A tuple (output_path, file_store_path) where each value is taken from the merged configuration if present; otherwise the corresponding default from DEFAULT_SETTINGS["OUTPUT_PATH"] and DEFAULT_SETTINGS["FILE_STORE_PATH"] is returned.
+    """
     config = get_config()
     output_path = config.get("OUTPUT_PATH", DEFAULT_SETTINGS["OUTPUT_PATH"])
     file_store_path = config.get("FILE_STORE_PATH", DEFAULT_SETTINGS["FILE_STORE_PATH"])
@@ -140,13 +166,22 @@ def get_paths() -> Tuple[str, str]:
 
 
 def is_configured() -> bool:
-    """Return True when both DATABASE_URL and GEMINI_API_KEY are set."""
+    """
+    Determine whether the required configuration values for operation are present.
+    
+    Returns:
+        `true` if both `DATABASE_URL` and `GEMINI_API_KEY` are set, `false` otherwise.
+    """
     config = get_config()
     return bool(config.get("DATABASE_URL") and config.get("GEMINI_API_KEY"))
 
 
 def print_config_debug():
-    """Print configuration debug information."""
+    """
+    Print a human-readable debug summary of the current configuration and the source of each value.
+    
+    For each key in CONFIG_KEYS this prints whether the key is set, the recorded source (environment, secrets file, settings file, or not found), and a masked or partial value when present. GEMINI_API_KEY is fully masked. For DATABASE_URL the password component is masked if URL parsing via SQLAlchemy is available; otherwise the value is shown as "configured (masked)".
+    """
     config, sources = get_config_with_source()
 
     print("🔍 Configuration Status")

@@ -22,7 +22,17 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
-    """Load a YAML file and return its contents as a dict."""
+    """
+    Load YAML from a file and return its mapping contents.
+    
+    If PyYAML is not installed, the file does not exist, the parsed content is not a mapping, or any error occurs while reading/parsing, an empty dict is returned.
+    
+    Parameters:
+        path (Path): Path to the YAML file to load.
+    
+    Returns:
+        Dict[str, Any]: Parsed YAML mapping from the file, or an empty dict on error or when no mapping is present.
+    """
     try:
         import yaml  # type: ignore
     except ImportError:
@@ -39,7 +49,20 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
 
 
 def _write_yaml(path: Path, data: Dict[str, Any]) -> None:
-    """Write a dict to a YAML file."""
+    """
+    Persist a mapping to the given filesystem path as a YAML document.
+    
+    Ensures the TESHQ configuration directory exists before writing the file.
+    
+    Parameters:
+        path (Path): Filesystem path to write the YAML data to.
+        data (Dict[str, Any]): Mapping to serialize into YAML.
+    
+    Raises:
+        RuntimeError: If PyYAML is not installed.
+        OSError: If opening or writing the file fails.
+        Exception: If YAML serialization fails; underlying exception is propagated.
+    """
     try:
         import yaml  # type: ignore
     except ImportError:
@@ -55,12 +78,12 @@ def _write_yaml(path: Path, data: Dict[str, Any]) -> None:
 
 def load_settings() -> Dict[str, Any]:
     """
-    Load non-secret settings from ~/.teshq/config.yaml.
-
-    Falls back to DEFAULT_SETTINGS for any missing keys.
-
+    Load non-secret settings from the user's config file and merge them with defaults.
+    
+    On-disk values override DEFAULT_SETTINGS; keys missing on disk are filled from DEFAULT_SETTINGS.
+    
     Returns:
-        Dict of setting key → value.
+        A dict mapping setting names to their resolved values.
     """
     on_disk = _load_yaml(CONFIG_FILE)
     merged = {**DEFAULT_SETTINGS, **on_disk}
@@ -69,16 +92,15 @@ def load_settings() -> Dict[str, Any]:
 
 def save_settings(data: Dict[str, Optional[Any]]) -> bool:
     """
-    Persist non-secret settings to ~/.teshq/config.yaml.
-
-    Only keys listed in SETTINGS_KEYS are written.  Existing values for keys
-    not present in *data* are preserved.
-
-    Args:
-        data: Mapping of setting key → value. Pass ``None`` to reset to default.
-
+    Persist non-secret settings to the user's config file (~/.teshq/config.yaml).
+    
+    Only keys listed in SETTINGS_KEYS are written; keys not present in `data` are left unchanged. Passing `None` for a key removes it from the on-disk settings (resetting to the default).
+    
+    Parameters:
+        data (Dict[str, Optional[Any]]): Mapping of setting keys to values. Use `None` to remove a key.
+    
     Returns:
-        bool: True on success, False on failure.
+        `true` if the settings were written successfully, `false` otherwise.
     """
     try:
         existing = _load_yaml(CONFIG_FILE)
@@ -99,5 +121,14 @@ def save_settings(data: Dict[str, Optional[Any]]) -> bool:
 
 
 def get_setting(key: str, default: Optional[Any] = None) -> Optional[Any]:
-    """Return a single setting value, or *default* if not set."""
+    """
+    Retrieve a non-secret setting by name.
+    
+    Parameters:
+    	key (str): The setting key to look up.
+    	default (Optional[Any]): Value to return if the setting is not present.
+    
+    Returns:
+    	The stored value for `key`, or `default` if the key is not set.
+    """
     return load_settings().get(key, default)

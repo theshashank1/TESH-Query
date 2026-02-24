@@ -25,10 +25,12 @@ LOGS_DIR = TESHQ_DIR / "logs"
 
 def ensure_teshq_dir() -> Path:
     """
-    Ensure the ~/.teshq/ directory and its sub-directories exist.
-
+    Ensure the TESHQ base directory and its schema/log subdirectories exist.
+    
+    Creates the base directory with mode 0o700 (owner read/write/execute) and creates the schema and logs directories if missing.
+    
     Returns:
-        Path: The ~/.teshq/ directory path.
+        Path: The base TESHQ directory path.
     """
     TESHQ_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     SCHEMA_DIR.mkdir(parents=True, exist_ok=True)
@@ -37,5 +39,9 @@ def ensure_teshq_dir() -> Path:
 
 
 def get_schema_path(filename: str = "schema.txt") -> Path:
-    """Return the path to a schema file inside ~/.teshq/schema/."""
+    """
+    Get the filesystem path for a schema file located in the schema cache directory.
+    
+    @returns Path to the specified schema file inside the schema directory.
+    """
     return SCHEMA_DIR / filename

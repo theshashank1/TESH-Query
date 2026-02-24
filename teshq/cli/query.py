@@ -23,7 +23,12 @@ _TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")
 _LOCAL_SCHEMA_PATH = Path("db_schema") / "schema.txt"
 
 def get_llm_generator():
-    """Initializes and returns the SQLQueryGenerator."""
+    """
+    Create a SQLQueryGenerator configured with Gemini credentials from the current configuration.
+    
+    Returns:
+        SQLQueryGenerator: An instance configured with the Gemini API key and model.
+    """
     gemini_api_key, gemini_model = get_gemini_credentials()
     return SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model)
 
@@ -102,7 +107,15 @@ def process_nl_query(
     log: bool = typer.Option(None, "--log", help="Enable logging to file (overrides config default)"),
 ):
     """
-    Processes a natural language query, generates SQL, executes it, and prints the results.
+    Process a natural language query: generate SQL, execute it against the configured database, display results, and optionally save them.
+    
+    Validates the input query and any requested save paths, initializes the LLM generator and database connection, loads the database schema, generates and runs an SQL query produced from the natural language input, prints a tabular view of results, and optionally saves results to CSV, Excel, or SQLite. Logs command lifecycle, query execution, and token usage when file logging is enabled. On failures the command reports the error to the user and exits with a non-zero status.
+    Parameters:
+        natural_language_request (str): The natural language query to execute.
+        save_csv (str | None): File path to save results as CSV; if None, CSV is not written.
+        save_excel (str | None): File path to save results as Excel; if None, Excel is not written.
+        save_sqlite (str | None): File path to save results into a SQLite database; if None, SQLite is not written.
+        log (bool | None): When True, enable logging to file (overrides configured default); when False or None, use configured logging behavior.
     """
     
     # Initialize CLI logger

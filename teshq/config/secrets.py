@@ -19,7 +19,17 @@ SECRET_KEYS = {"DATABASE_URL", "GEMINI_API_KEY"}
 
 
 def _read_env_file(path: Path) -> Dict[str, str]:
-    """Parse a KEY=VALUE file and return a dict (skips blank lines and comments)."""
+    """
+    Parse a file of KEY=VALUE lines into a dictionary.
+    
+    Blank lines and lines starting with `#` are ignored. Lines without an `=` are skipped; keys and values have surrounding whitespace stripped. If the path does not exist or an I/O error occurs while reading, the function returns whatever was parsed up to that point (empty dict if nothing parsed).
+    
+    Parameters:
+        path (Path): Path to the KEY=VALUE file to read.
+    
+    Returns:
+        Dict[str, str]: Mapping of keys to their corresponding values from the file.
+    """
     result: Dict[str, str] = {}
     if not path.exists():
         return result
@@ -38,7 +48,16 @@ def _read_env_file(path: Path) -> Dict[str, str]:
 
 
 def _write_env_file(path: Path, data: Dict[str, str]) -> None:
-    """Write a KEY=VALUE file with restricted permissions (0o600)."""
+    """
+    Write key/value pairs to a file in KEY=VALUE format and set the file to owner read/write only.
+    
+    Parameters:
+        path (Path): Filesystem path to write the KEY=VALUE file to.
+        data (Dict[str, str]): Mapping of keys to values to write; each pair is written as `KEY=VALUE` on its own line.
+    
+    Notes:
+        Ensures the TESHQ configuration directory exists before writing and sets the file permission to 0o600 (owner read/write).
+    """
     ensure_teshq_dir()
     content = "".join(f"{k}={v}\n" for k, v in data.items())
     path.write_text(content)
@@ -48,12 +67,12 @@ def _write_env_file(path: Path, data: Dict[str, str]) -> None:
 
 def load_secrets() -> Dict[str, str]:
     """
-    Load secrets from ~/.teshq/.teshq.env, then overlay environment variables.
-
-    Environment variables always take precedence over the secrets file.
-
+    Load managed secrets from the local secrets file and apply environment-variable overrides.
+    
+    Environment variables with matching names take precedence over values read from the file.
+    
     Returns:
-        Dict mapping secret key names to their values.
+        dict: Mapping of secret names to their values (environment variables override file values).
     """
     secrets = _read_env_file(SECRETS_FILE)
 
@@ -68,16 +87,15 @@ def load_secrets() -> Dict[str, str]:
 
 def save_secrets(data: Dict[str, Optional[str]]) -> bool:
     """
-    Persist secrets to ~/.teshq/.teshq.env.
-
-    Only keys listed in SECRET_KEYS are written.  Existing values for keys
-    not present in *data* are preserved.
-
-    Args:
-        data: Mapping of secret key → value. Pass ``None`` to remove a key.
-
+    Persist the allowed secret keys to the local secrets file (~/.teshq/.teshq.env).
+    
+    Only keys present in SECRET_KEYS are written; keys not included in `data` are left unchanged. Passing `None` for a key removes it from the file.
+    
+    Parameters:
+        data (Dict[str, Optional[str]]): Mapping of secret key to value. Use `None` to remove a key.
+    
     Returns:
-        bool: True on success, False on failure.
+        True if the file was written successfully, False otherwise.
     """
     try:
         existing = _read_env_file(SECRETS_FILE)
@@ -99,5 +117,13 @@ def save_secrets(data: Dict[str, Optional[str]]) -> bool:
 
 
 def get_secret(key: str) -> Optional[str]:
-    """Return a single secret value, or None if not set."""
+    """
+    Retrieve the stored secret value for the given key.
+    
+    Parameters:
+        key (str): Name of the secret to fetch (e.g., one of the keys in SECRET_KEYS).
+    
+    Returns:
+        The secret value for `key`, or `None` if it is not set.
+    """
     return load_secrets().get(key)
