@@ -64,14 +64,13 @@ dev = [
 
 # MySQL support (pure Python, no system dependencies)
 mysql = [
-    "PyMySQL>=1.0.0",
-    "mysql-connector-python>=8.0.0",
+    "PyMySQL~=1.1.0",
+    "mysql-connector-python~=8.4.0",
 ]
 
 # MariaDB support (REQUIRES SYSTEM DEPENDENCIES)
 # Before installing: sudo apt-get install libmariadb-dev (Debian/Ubuntu)
 #                    or brew install mariadb-connector-c (macOS)
-# Alternative: use PyMySQL which works with MariaDB and has no system deps
 mariadb = [
     "PyMySQL>=1.0.0",  # Pure Python, works with MariaDB, no system deps required
 ]
@@ -87,15 +86,20 @@ mssql = [
 ]
 
 # MSSQL with ODBC (REQUIRES SYSTEM DEPENDENCIES)
-# Before installing: Install Microsoft ODBC Driver for SQL Server
 mssql-odbc = [
     "pyodbc>=4.0.0",  # Requires: ODBC driver installed on system
 ]
 
 # Oracle support (REQUIRES SYSTEM DEPENDENCIES)
-# Before installing: Install Oracle Instant Client
 oracle = [
-    "oracledb>=1.0.0",  # Requires: Oracle Instant Client
+    "cx_Oracle~=8.3.0",
+    "oracledb~=2.0.0",  # Requires: Oracle Instant Client
+]
+
+# Cassandra support
+cassandra = [
+    "cassandra-driver~=3.29.0",
+    "cqlalchemy~=1.0.0",
 ]
 
 # Extras for data export / Excel output
@@ -103,10 +107,15 @@ export = [
     "openpyxl~=3.1.2",
 ]
 
+# Analytics and monitoring (optional)
+langsmith = [
+    "langsmith~=0.1.0",
+]
+
 # Convenience "all" extra - installs drivers that DON'T require system dependencies
 all = [
-    "PyMySQL>=1.0.0",
-    "mysql-connector-python>=8.0.0",
+    "PyMySQL~=1.1.0",
+    "mysql-connector-python~=8.4.0",
     "pymssql>=2.2.0",
     "openpyxl~=3.1.2",
     "mkdocs-material",
@@ -115,46 +124,32 @@ all = [
 # Full extras including drivers that require system dependencies
 # USE WITH CAUTION - ensure you have all system dependencies installed first
 all-native = [
-    "PyMySQL>=1.0.0",
-    "mysql-connector-python>=8.0.0",
+    "PyMySQL~=1.1.0",
+    "mysql-connector-python~=8.4.0",
     "mariadb>=1.1.0",
     "pyodbc>=4.0.0",
     "pymssql>=2.2.0",
-    "oracledb>=1.0.0",
+    "cx_Oracle~=8.3.0",
+    "oracledb~=2.0.0",
     "openpyxl~=3.1.2",
     "mkdocs-material",
 ]
-# Database drivers (optional)
-mysql = [
-    "PyMySQL~=1.1.0",
-    "mysql-connector-python~=8.4.0",
-]
-oracle = [
-    "cx_Oracle~=8.3.0",
-    "oracledb~=2.0.0",
-]
-cassandra = [
-    "cassandra-driver~=3.29.0",
-    "cqlalchemy~=1.0.0",
-]
-# Analytics and monitoring (optional)
-langsmith = [
-    "langsmith~=0.1.0",
-]
+
 # All database drivers
 all-databases = [
     "PyMySQL~=1.1.0",
     "mysql-connector-python~=8.4.0",
-    "cx_Oracle~=8.3.0",  
+    "cx_Oracle~=8.3.0",
     "oracledb~=2.0.0",
     "cassandra-driver~=3.29.0",
     "cqlalchemy~=1.0.0",
 ]
+
 # All optional features
 all-features = [
     "PyMySQL~=1.1.0",
     "mysql-connector-python~=8.4.0",
-    "cx_Oracle~=8.3.0",  
+    "cx_Oracle~=8.3.0",
     "oracledb~=2.0.0",
     "cassandra-driver~=3.29.0",
     "cqlalchemy~=1.0.0",
