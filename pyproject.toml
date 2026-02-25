@@ -43,6 +43,7 @@ dependencies = [
     "pydantic~=2.0",
     "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
     "requests>=2.31.0",  # Required for subscription client
+    "sqlparse>=0.4.4",  # SQL normalization
 ]
 
 [project.optional-dependencies]
@@ -138,5 +139,5 @@ write_to = "teshq/_version.py"
 fallback_version = "0.0.0.dev0"
 
 [tool.setuptools]
-packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils"]
+packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils", "teshq.telemetry"]
 include-package-data = true

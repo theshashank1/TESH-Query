@@ -94,6 +94,21 @@ def process_nl_query(
         "--log",
         help="Enable real-time logging output to CLI (logs are always saved to file).",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Generate and validate SQL but do NOT execute it against the database.",
+    ),
+    explain: bool = typer.Option(
+        False,
+        "--explain",
+        help="Print the query plan, selected tables, generated SQL, and execution time.",
+    ),
+    schema_preview: bool = typer.Option(
+        False,
+        "--schema-preview",
+        help="Print the compressed schema that will be sent to the LLM, then exit.",
+    ),
 ):
     """
     Processes a natural language query, generates SQL, executes it, and prints the results.
@@ -109,6 +124,22 @@ def process_nl_query(
         enable_cli_output=log,
         log_file_path=storage_paths.metrics / "teshq.log",
     )
+
+    # --schema-preview: print compressed schema and exit (no LLM needed)
+    if schema_preview:
+        try:
+            from teshq.core.engine import TeshEngine
+
+            engine = TeshEngine()
+            preview = engine.get_schema_preview(natural_language_request)
+            info("📋 Compressed schema sent to LLM:")
+            from rich.console import Console
+
+            Console().print(preview)
+        except Exception as e:
+            handle_error(e, "Schema Preview", show_traceback=True)
+            raise typer.Exit(code=1)
+        raise typer.Exit(code=0)
 
     try:
         # Validate natural language query
@@ -228,10 +259,29 @@ def process_nl_query(
         if parameters:
             info(f"🔧 Query parameters: {parameters}")
 
+        # --dry-run: validate but do not execute
+        if dry_run:
+            from teshq.core.sql_validator import validate_sql
+            from teshq.utils.validation import ValidationError as _VE
+
+            try:
+                validate_sql(sql_query)
+                success("✅ SQL is valid. Dry-run complete — query was NOT executed.")
+            except _VE as ve:
+                error(f"❌ Invalid SQL generated.\nReason: {ve}\nSuggestion: Refine your query.")
+                raise typer.Exit(code=1)
+            if explain:
+                info(f"📊 Explain:\n  SQL: {sql_query}\n  Parameters: {parameters}")
+            raise typer.Exit(code=0)
+
         query_execution_result = run_sql_query(db_url_val, sql_query, parameters)
 
         success("✅ SQL query executed successfully!")
         print_divider()
+
+        if explain:
+            info(f"📊 Explain:\n  SQL: {sql_query}\n  Parameters: {parameters}")
+
         print_query_table(natural_language_request, sql_query, parameters, query_execution_result)
 
         # Saving results if applicable

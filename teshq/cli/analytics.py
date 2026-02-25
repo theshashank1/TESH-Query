@@ -3,6 +3,7 @@ from collections import Counter
 
 import typer
 
+from teshq.telemetry.events import get_query_metrics
 from teshq.utils.analytics import get_usage_metrics
 from teshq.utils.ui import info, print_config, print_header, print_table, warning
 
@@ -13,7 +14,7 @@ app = typer.Typer(help="View usage analytics and cost information.")
 def show_analytics():
     """
     Reads usage metrics and displays a summary of LLM calls, token usage,
-    estimated costs, and feature usage frequency using verified UI components.
+    estimated costs, feature usage frequency, and AI query performance metrics.
     """
     metrics = get_usage_metrics()
 
@@ -53,6 +54,26 @@ def show_analytics():
     else:
         info("No feature usage has been recorded yet.")
 
+    # --- AI Query Performance Metrics (v2) ---
+    query_events = get_query_metrics()
+    if query_events:
+        total_queries = len(query_events)
+        successful = sum(1 for e in query_events if e.get("success"))
+        success_rate = (successful / total_queries * 100) if total_queries else 0.0
+
+        avg_plan = sum(e.get("plan_ms", 0) for e in query_events) / total_queries
+        avg_sql = sum(e.get("sql_ms", 0) for e in query_events) / total_queries
+        avg_exec = sum(e.get("exec_ms", 0) for e in query_events) / total_queries
+
+        perf_rows = [
+            ["Total Queries", f"{total_queries:,}"],
+            ["Success Rate", f"{success_rate:.1f}%"],
+            ["Avg Plan Latency (ms)", f"{avg_plan:.0f}"],
+            ["Avg SQL Latency (ms)", f"{avg_sql:.0f}"],
+            ["Avg Execution Latency (ms)", f"{avg_exec:.0f}"],
+        ]
+        print_table(title="AI Query Performance", headers=["Metric", "Value"], rows=perf_rows, show_lines=False)
+
     # --- Date Range Display ---
     timestamps = []
     for m in metrics:
@@ -71,3 +92,4 @@ def show_analytics():
             "Last Event": last_event_date,
         }
         print_config(date_range_config, title="Tracking Period")
+
