@@ -24,7 +24,7 @@ def normalize_sql(sql: str) -> str:
         Normalized SQL string.
     """
     if not sql or not sql.strip():
-        return sql
+        return ""
 
     formatted = sqlparse.format(
         sql,
