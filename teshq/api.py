@@ -27,6 +27,7 @@ Example usage:
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from .config.paths import SCHEMA_DIR, get_schema_path
 from .core.db import connect_database, disconnect_database
 from .core.introspect import introspect_db, save_schema_to_files
 from .core.llm import SQLQueryGenerator
@@ -34,6 +35,7 @@ from .core.query import execute_sql_query
 from .utils.analytics import track_feature_usage  # Correctly import the tracking function
 from .utils.config import get_config, save_config
 from .utils.health import HealthChecker
+from .utils.output import QueryResult
 
 
 class TeshQuery:
@@ -137,10 +139,21 @@ class TeshQuery:
         include_sample_data: bool = False,
         sample_size: int = 3,
         save_to_files: bool = False,
-        output_dir: str = ".",
+        output_dir: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Introspect the database schema.
+        Introspects the configured database and returns a structured representation of its schema.
+
+        Parameters:
+        	detect_relationships (bool): Detect implicit foreign-key relationships between tables.
+        	include_indexes (bool): Include index metadata for tables.
+        	include_sample_data (bool): Include sample rows for tables.
+        	sample_size (int): Number of sample rows to include per table when sample data is requested.
+        	save_to_files (bool): If True, persist the schema to files.
+        	output_dir (Optional[str]): Directory to write schema files when saving; defaults to the user's schema cache directory (~/.teshq/schema/).
+
+        Returns:
+        	schema_info (Dict[str, Any]): A dictionary containing the complete introspected schema information.
         """
         # Track this high-level feature call
         track_feature_usage(
@@ -165,9 +178,10 @@ class TeshQuery:
         self._schema_cache = schema_info
 
         if save_to_files:
+            save_dir = output_dir if output_dir is not None else str(SCHEMA_DIR)
             save_schema_to_files(
                 schema_info,
-                output_dir=output_dir,
+                output_dir=save_dir,
                 json_filename="schema.json",
                 text_filename="schema.txt",
             )
@@ -184,7 +198,15 @@ class TeshQuery:
         self, natural_language_query: str, schema: Optional[str] = None, schema_file: Optional[Union[str, Path]] = None
     ) -> Dict[str, Any]:
         """
-        Generate SQL from a natural language query.
+        Generate a SQL statement and its parameters from a natural language query using the configured LLM and available schema.
+
+        Parameters:
+            natural_language_query (str): Natural language description of the desired query.
+            schema (Optional[str]): Schema text to use; if provided, it is used as-is and takes precedence over cached or file-based schemas.
+            schema_file (Optional[Union[str, Path]]): Path to a schema file to load when `schema` is None.
+
+        Returns:
+            Dict[str, Any]: A dictionary with keys 'query' (the generated SQL string) and 'parameters' (the parameters for the query).
         """
         current_schema = schema
         if current_schema is None:
@@ -193,19 +215,36 @@ class TeshQuery:
             elif self._schema_cache:
                 current_schema = self._format_schema_for_llm(self._schema_cache)
             else:
-                default_schema_path = Path("db_schema/schema.txt")
+                # Prefer ~/.teshq/schema/schema.txt, fall back to local db_schema/schema.txt
+                teshq_schema = get_schema_path("schema.txt")
+                local_schema = Path("db_schema/schema.txt")
+                default_schema_path = teshq_schema if teshq_schema.exists() else local_schema
                 if default_schema_path.exists():
                     current_schema = self.load_schema_from_file(default_schema_path)
                 else:
-                    raise ValueError("No schema provided. Please run introspect_database() first or provide a schema.")
+                    raise ValueError(
+                        "No schema provided. Either:\n"
+                        "1. Pass schema text directly\n"
+                        "2. Pass schema_file path\n"
+                        "3. Run introspect_database() first\n"
+                        "4. Run 'teshq introspect' to generate schema cache in ~/.teshq/schema/"
+                    )
 
         return self.llm_generator.generate_sql(natural_language_query, current_schema)
 
-    def execute_query(self, sql_query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def execute_query(self, sql_query: str, parameters: Optional[Dict[str, Any]] = None) -> QueryResult:
         """
         Execute a SQL query against the database.
+
+        Args:
+            sql_query: The SQL query to execute.
+            parameters: Optional parameters for the query.
+
+        Returns:
+            QueryResult object with normalized, consistent results.
         """
-        return execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters or {})
+        raw_results = execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters or {})
+        return QueryResult(raw_results, sql_query, parameters)
 
     def query(
         self,
@@ -213,9 +252,19 @@ class TeshQuery:
         schema: Optional[str] = None,
         schema_file: Optional[Union[str, Path]] = None,
         return_sql: bool = False,
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any], QueryResult]:
         """
         Complete workflow: generate SQL from natural language and execute it.
+
+        Args:
+            natural_language_query: The natural language query.
+            schema: Schema text. If None, will try to use cached schema or load from file.
+            schema_file: Path to schema file. Used if schema is None.
+            return_sql: If True, returns dict with 'sql', 'parameters', and 'results'.
+
+        Returns:
+            Query results as list of dicts, complete info dict if return_sql=True,
+            or QueryResult object for advanced use cases.
         """
         # Track this primary user-facing feature
         track_feature_usage(
@@ -226,17 +275,40 @@ class TeshQuery:
         sql_query = sql_info["query"]
         parameters = sql_info["parameters"]
 
-        results = self.execute_query(sql_query, parameters)
+        # Execute query and get QueryResult object
+        raw_results = execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters)
+        result = QueryResult(raw_results, sql_query, parameters, natural_language_query)
 
         if return_sql:
-            return {
-                "sql": sql_query,
-                "parameters": parameters,
-                "results": results,
-                "natural_language_query": natural_language_query,
-            }
+            return result.to_dict(include_sql=True)
         else:
-            return results
+            return result.results
+
+    def query_advanced(
+        self,
+        natural_language_query: str,
+        schema: Optional[str] = None,
+        schema_file: Optional[Union[str, Path]] = None,
+    ) -> QueryResult:
+        """
+        Advanced query method that returns a QueryResult object with full functionality.
+
+        Args:
+            natural_language_query: The natural language query.
+            schema: Schema text. If None, will try to use cached schema or load from file.
+            schema_file: Path to schema file. Used if schema is None.
+
+        Returns:
+            QueryResult object with normalized data, DataFrame access, and display methods.
+        """
+        # Generate SQL
+        sql_info = self.generate_sql(natural_language_query, schema, schema_file)
+        sql_query = sql_info["query"]
+        parameters = sql_info["parameters"]
+
+        # Execute query and get QueryResult object
+        raw_results = execute_sql_query(db_url=self.db_url, query=sql_query, parameters=parameters)
+        return QueryResult(raw_results, sql_query, parameters, natural_language_query)
 
     def _format_schema_for_llm(self, schema_info: Dict[str, Any]) -> str:
         """

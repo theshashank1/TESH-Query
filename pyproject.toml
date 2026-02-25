@@ -1,13 +1,12 @@
 [build-system]
 requires = [
     "setuptools>=61.0",
-    "setuptools-scm>=8.0"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "teshq"
-dynamic = ["version"]
+version = "2.0.0"
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,33 +26,40 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# Core runtime dependencies (keep pins compatible with requirements.txt)
+# Core runtime dependencies — intentionally broad upper bounds so the package
+# installs cleanly in modern environments while still receiving security fixes.
 dependencies = [
-    "SQLAlchemy~=2.0.41",
-    "python-dotenv~=1.1.0",
-    "psycopg2-binary~=2.9.10",   # PostgreSQL driver (included by default)
-    "langchain~=0.3.25",
-    "langchain-core~=0.3.61",
-    "langchain-google-genai~=2.1.4",
-    "typer[all]~=0.15.4",
-    "rich~=14.0.0",
-    "logfire~=3.16.0",
-    "tabulate~=0.9.0",
-    "pandas~=2.2.2",
+    "SQLAlchemy>=2.0,<3.0",
+    "python-dotenv>=1.0",
+    "psycopg2-binary>=2.9",       # PostgreSQL driver (included by default)
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-google-genai>=2.0",
+    "typer[all]>=0.9,<1.0",
+    "rich>=13.0,<15.0",
+    "logfire>=2.0",
+    "tabulate>=0.9",
+    "pandas>=2.2,<3.0",
+    "pyyaml~=6.0",
     "pydantic~=2.0",
+    "pydantic-settings~=2.0",
     "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
     "requests>=2.31.0",  # Required for subscription client
+<<<<<<< HEAD
     "sqlparse>=0.4.4",  # SQL normalization
+=======
+    "tomli>=2.0.0; python_version < '3.11'",  # TOML stdlib in 3.11+
+>>>>>>> copilot/redesign-package-management
 ]
 
 [project.optional-dependencies]
 # Development & CI tools
 dev = [
-    "pytest~=8.3.5",
-    "autopep8~=2.3.2",
-    "pre-commit~=4.2.0",
-    "flake8~=6.1.0",
-    "isort~=5.13.2",
+    "pytest>=8.0",
+    "autopep8>=2.0",
+    "pre-commit>=3.0",
+    "flake8>=6.0",
+    "isort>=5.12",
     "build",
     "mkdocs-material",
 ]
@@ -64,65 +70,89 @@ dev = [
 
 # MySQL support (pure Python, no system dependencies)
 mysql = [
-    "PyMySQL>=1.0.0",
-    "mysql-connector-python>=8.0.0",
+    "PyMySQL>=1.1",
+    "mysql-connector-python>=8.4",
 ]
 
 # MariaDB support (REQUIRES SYSTEM DEPENDENCIES)
 # Before installing: sudo apt-get install libmariadb-dev (Debian/Ubuntu)
 #                    or brew install mariadb-connector-c (macOS)
-# Alternative: use PyMySQL which works with MariaDB and has no system deps
 mariadb = [
-    "PyMySQL>=1.0.0",  # Pure Python, works with MariaDB, no system deps required
+    "PyMySQL>=1.0",  # Pure Python, works with MariaDB, no system deps required
 ]
 
 # MariaDB native driver (use only if you have MariaDB Connector/C installed)
 mariadb-native = [
-    "mariadb>=1.1.0",  # Requires: libmariadb-dev or mariadb-connector-c
+    "mariadb>=1.1",  # Requires: libmariadb-dev or mariadb-connector-c
 ]
 
 # Microsoft SQL Server support
 mssql = [
-    "pymssql>=2.2.0",  # Pure Python, recommended (easier to install)
+    "pymssql>=2.2",  # Pure Python, recommended (easier to install)
 ]
 
 # MSSQL with ODBC (REQUIRES SYSTEM DEPENDENCIES)
-# Before installing: Install Microsoft ODBC Driver for SQL Server
 mssql-odbc = [
-    "pyodbc>=4.0.0",  # Requires: ODBC driver installed on system
+    "pyodbc>=4.0",  # Requires: ODBC driver installed on system
 ]
 
 # Oracle support (REQUIRES SYSTEM DEPENDENCIES)
-# Before installing: Install Oracle Instant Client
 oracle = [
-    "oracledb>=1.0.0",  # Requires: Oracle Instant Client
+    "oracledb>=2.0",  # Requires: Oracle Instant Client
+]
+
+# Cassandra support
+cassandra = [
+    "cassandra-driver>=3.29",
 ]
 
 # Extras for data export / Excel output
 export = [
-    "openpyxl~=3.1.2",
+    "openpyxl>=3.1",
+]
+
+# Analytics and monitoring (optional)
+langsmith = [
+    "langsmith>=0.1",
 ]
 
 # Convenience "all" extra - installs drivers that DON'T require system dependencies
 all = [
-    "PyMySQL>=1.0.0",
-    "mysql-connector-python>=8.0.0",
-    "pymssql>=2.2.0",
-    "openpyxl~=3.1.2",
+    "PyMySQL>=1.1",
+    "mysql-connector-python>=8.4",
+    "pymssql>=2.2",
+    "openpyxl>=3.1",
     "mkdocs-material",
 ]
 
 # Full extras including drivers that require system dependencies
 # USE WITH CAUTION - ensure you have all system dependencies installed first
 all-native = [
-    "PyMySQL>=1.0.0",
-    "mysql-connector-python>=8.0.0",
-    "mariadb>=1.1.0",
-    "pyodbc>=4.0.0",
-    "pymssql>=2.2.0",
-    "oracledb>=1.0.0",
-    "openpyxl~=3.1.2",
+    "PyMySQL>=1.1",
+    "mysql-connector-python>=8.4",
+    "mariadb>=1.1",
+    "pyodbc>=4.0",
+    "pymssql>=2.2",
+    "oracledb>=2.0",
+    "openpyxl>=3.1",
     "mkdocs-material",
+]
+
+# All database drivers
+all-databases = [
+    "PyMySQL>=1.1",
+    "mysql-connector-python>=8.4",
+    "oracledb>=2.0",
+    "cassandra-driver>=3.29",
+]
+
+# All optional features
+all-features = [
+    "PyMySQL>=1.1",
+    "mysql-connector-python>=8.4",
+    "oracledb>=2.0",
+    "cassandra-driver>=3.29",
+    "langsmith>=0.1",
 ]
 
 [project.urls]
@@ -133,11 +163,20 @@ Documentation = "https://github.com/theshashank1/TESH-Query#readme"
 [project.scripts]
 teshq = "teshq.cli.main:app"
 
-[tool.setuptools_scm]
-# setuptools_scm will infer the package version from git tags
-write_to = "teshq/_version.py"
-fallback_version = "0.0.0.dev0"
-
 [tool.setuptools]
+<<<<<<< HEAD
 packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils", "teshq.telemetry"]
+=======
+packages = [
+    "teshq",
+    "teshq.cli",
+    "teshq.cli.commands",
+    "teshq.cli.ui",
+    "teshq.config",
+    "teshq.core",
+    "teshq.telemetry",
+    "teshq.subscriptions",
+    "teshq.utils",
+]
+>>>>>>> copilot/redesign-package-management
 include-package-data = true

@@ -8,8 +8,10 @@ with monitoring systems using logfire.
 import logging
 import os
 import sys
+from collections import defaultdict
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
 
@@ -151,3 +153,85 @@ def configure_global_logger(enable_cli_output: bool = False, log_file_path: Opti
     global logger
     logger = TeshqLogger(enable_cli_output=enable_cli_output, log_file_path=log_file_path)
     return logger
+
+
+# ---------------------------------------------------------------------------
+# Metrics collector
+# ---------------------------------------------------------------------------
+
+class MetricsCollector:
+    """Simple in-process metrics aggregator for counters and data points."""
+
+    def __init__(self):
+        self._counters: Dict[str, int] = defaultdict(int)
+        self._points: Dict[str, List[float]] = defaultdict(list)
+
+    def increment_counter(self, name: str, amount: int = 1, tags: Optional[Dict[str, Any]] = None):
+        """Increment a named counter. ``tags`` are accepted for API compatibility."""
+        self._counters[name] += amount
+
+    def add_point(self, name: str, value: float, tags: Optional[Dict[str, Any]] = None):
+        """Record a data point for a metric. ``tags`` are accepted for API compatibility."""
+        self._points[name].append(value)
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Return a summary dict of all recorded metrics."""
+        summary: Dict[str, Any] = {}
+        for name, pts in self._points.items():
+            if pts:
+                summary[name] = {
+                    "count": len(pts),
+                    "total": sum(pts),
+                    "avg": sum(pts) / len(pts),
+                    "min": min(pts),
+                    "max": max(pts),
+                }
+        for name, count in self._counters.items():
+            summary.setdefault(name, {})["counter"] = count
+        return summary
+
+    def reset(self):
+        """Clear all collected metrics."""
+        self._counters.clear()
+        self._points.clear()
+
+
+# Global metrics instance
+metrics = MetricsCollector()
+
+
+# ---------------------------------------------------------------------------
+# Convenience helpers expected by core modules
+# ---------------------------------------------------------------------------
+
+def log_api_call(
+    provider: str,
+    model: str,
+    tokens_used: int = 0,
+    execution_time_seconds: float = 0.0,
+    **kwargs,
+):
+    """Log an LLM API call to the global logger and metrics."""
+    logger.info(
+        "LLM API call",
+        provider=provider,
+        model=model,
+        tokens_used=tokens_used,
+        execution_time_seconds=round(execution_time_seconds, 3),
+        **kwargs,
+    )
+    metrics.increment_counter("api_calls_total")
+    metrics.add_point("api_tokens_used", tokens_used)
+    metrics.add_point("api_execution_time_seconds", execution_time_seconds)
+
+
+@contextmanager
+def log_operation(operation_name: str, **context):
+    """Context manager that logs the start/end of a named operation."""
+    logger.info(f"Starting {operation_name}", **context)
+    try:
+        yield
+        logger.info(f"Completed {operation_name}", **context)
+    except Exception as exc:
+        logger.error(f"Failed {operation_name}", error=exc, **context)
+        raise

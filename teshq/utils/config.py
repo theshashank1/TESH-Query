@@ -1,286 +1,149 @@
 """
-Simple Configuration Utilities for TESH-Query
+Configuration Utilities for TESH-Query (v2 compatibility shim)
 
-Provides functions for retrieving, saving, and validating configuration
-from environment variables, .env file, and config.json file.
+All functions delegate to teshq.config.settings.Settings (pydantic-settings).
+The public API is preserved for backward compatibility with existing CLI code.
 
 Functions:
-- get_config(): Retrieve merged configuration.
-- save_config(): Save configuration data to .env and config.json files.
-- get_database_url(): Get the database connection URL.
-- get_gemini_config(): Get Gemini API key and model name.
-- get_storage_paths(): Get and create storage paths for query results, schema, and metrics.
-- is_configured(): Check if essential configuration is present.
-- print_config_debug(): Print detailed configuration status for debugging.
+- get_config()            → merged config as a plain dict
+- save_config()           → persist config (secrets → .env, rest → yaml)
+- get_database_url()      → DATABASE_URL value
+- get_gemini_config()     → (api_key, model_name) tuple
+- get_paths()             → (output_path, file_store_path) tuple
+- is_configured()         → True if both secrets are set
+- print_config_debug()    → human-readable debug summary
 """
 
-import json
 import os
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, NamedTuple, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-# Constants
-ENV_FILE = ".env"
-JSON_CONFIG_FILE = "config.json"
-DEFAULT_GEMINI_MODEL = "gemini-1.5-flash-latest"
-DEFAULT_STORAGE_BASE_PATH = "teshq_storage"
+from teshq.config.secrets import SECRET_KEYS, save_secrets
+from teshq.config.settings import save_secret, save_setting, get_settings
 
-CONFIG_KEYS = [
-    "DATABASE_URL",
-    "GEMINI_API_KEY",
-    "GEMINI_MODEL_NAME",
-    "STORAGE_BASE_PATH",
-    "SUBSCRIBER_EMAIL",
-    "SUBSCRIBER_ID",
-]
+# Settings constants (kept for backward compat)
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash-lite"
+SETTINGS_KEYS = {"GEMINI_MODEL", "OUTPUT_PATH", "FILE_STORE_PATH"}
+CONFIG_KEYS = list(SECRET_KEYS) + list(SETTINGS_KEYS)
 
 
-class StoragePaths(NamedTuple):
-    base: Path
-    query_results: Path
-    schema: Path
-    metrics: Path
-
-
-def get_current_timestamp() -> str:
-    """Get current UTC timestamp."""
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def get_current_user() -> str:
-    """Get current user login."""
-    return os.getenv("USER") or os.getenv("USERNAME") or "theshashank1"
-
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
 
 def get_config() -> Dict[str, Optional[str]]:
-    """
-    Get configuration with fallback priority:
-    1. Environment variables
-    2. .env file
-    3. config.json file
-    """
-    config = {}
-
-    # Start with JSON file (lowest priority)
-    if os.path.exists(JSON_CONFIG_FILE):
-        try:
-            with open(JSON_CONFIG_FILE, "r") as f:
-                data = json.load(f)
-                for key in CONFIG_KEYS:
-                    if key in data and data[key]:
-                        config[key] = data[key]
-        except (IOError, json.JSONDecodeError):
-            pass
-
-    # Override with .env file (medium priority)
-    if os.path.exists(ENV_FILE):
-        try:
-            with open(ENV_FILE, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if "=" in line and not line.startswith("#"):
-                        key, value = line.split("=", 1)
-                        key = key.strip()
-                        if key in CONFIG_KEYS and value.strip():
-                            config[key] = value.strip()
-        except IOError as e:
-            print(f"Error reading .env file: {e}")
-
-    # Override with environment variables (highest priority)
-    for key in CONFIG_KEYS:
-        env_value = os.getenv(key)
-        if env_value:
-            config[key] = env_value
-
-    return config
-
-
-def get_storage_paths() -> StoragePaths:
-    """
-    Get storage paths and create directories if they don't exist.
-    """
-    config = get_config()
-    base_path = Path(config.get("STORAGE_BASE_PATH", DEFAULT_STORAGE_BASE_PATH))
-
-    paths = StoragePaths(
-        base=base_path,
-        query_results=base_path / "query_results",
-        schema=base_path / "schema",
-        metrics=base_path / "metrics",
-    )
-
-    for path in paths:
-        path.mkdir(parents=True, exist_ok=True)
-
-    return paths
+    """Return merged configuration as a plain dict (env vars win)."""
+    s = get_settings(reload=True)
+    return {
+        "DATABASE_URL": s.database_url or None,
+        "GEMINI_API_KEY": s.gemini_api_key or None,
+        "GEMINI_MODEL": s.gemini_model,
+        "OUTPUT_PATH": str(s.output_path),
+        "FILE_STORE_PATH": str(s.file_store_path),
+        "TESHQ_NO_TELEMETRY": str(s.no_telemetry).lower(),
+    }
 
 
 def get_config_with_source() -> Tuple[Dict[str, Optional[str]], Dict[str, str]]:
-    """Get configuration with source information."""
-    config = {}
-    sources = {}
+    """Return (config, sources) — sources maps key → origin string."""
+    from teshq.config.paths import CONFIG_FILE, SECRETS_FILE
+    from teshq.config.secrets import _read_env_file
 
+    config = get_config()
+    sources: Dict[str, str] = {}
+
+    # Check secrets file
+    env_data = _read_env_file(SECRETS_FILE)
+    for key in SECRET_KEYS:
+        if key in env_data and env_data[key]:
+            sources[key] = "~/.teshq/.teshq.env"
+
+    # Check YAML
+    try:
+        import yaml
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+                yaml_data = yaml.safe_load(fh) or {}
+            for key in yaml_data:
+                if key not in sources:
+                    sources[key] = "~/.teshq/config.yaml"
+    except Exception:
+        pass
+
+    # Env vars win
     for key in CONFIG_KEYS:
-        value = None
-        source = "not_found"
+        if os.environ.get(key):
+            sources[key] = "environment"
 
-        # Check environment variable first
-        env_value = os.getenv(key)
-        if env_value:
-            value = env_value
-            source = "environment"
-        else:
-            # Check .env file
-            if os.path.exists(ENV_FILE):
-                try:
-                    with open(ENV_FILE, "r") as f:
-                        for line in f:
-                            line = line.strip()
-                            if "=" in line and not line.startswith("#"):
-                                k, v = line.split("=", 1)
-                                if k.strip() == key and v.strip():
-                                    value = v.strip()
-                                    source = "env_file"
-                                    break
-                except IOError as e:
-                    print(f"Error reading .env file in get_config_with_source: {e}")
-
-            # Check JSON file if not found in .env
-            if not value and os.path.exists(JSON_CONFIG_FILE):
-                try:
-                    with open(JSON_CONFIG_FILE, "r") as f:
-                        data = json.load(f)
-                        if key in data and data[key]:
-                            value = data[key]
-                            source = "json_file"
-                except (IOError, json.JSONDecodeError) as e:
-                    print(f"Error reading config.json in get_config_with_source: {e}")
-                    pass
-
-        if value:
-            config[key] = value
-            sources[key] = source
-
+    config = {k: v for k, v in config.items() if v}
+    sources = {k: v for k, v in sources.items() if k in config}
     return config, sources
 
 
 def save_config(data: Dict[str, Optional[str]]) -> bool:
-    """Save configuration to both .env and JSON files."""
-    try:
-        # Update .env file
-        env_vars = {}
-        if os.path.exists(ENV_FILE):
-            with open(ENV_FILE, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" in line:
-                        key, value = line.split("=", 1)
-                        env_vars[key.strip()] = value.strip()
-
-        # Update with new data
-        for key, value in data.items():
-            if value is not None:
-                env_vars[key] = str(value)
-            elif key in env_vars:
-                del env_vars[key]
-
-        # Write .env file
-        with open(ENV_FILE, "w") as f:
-            for key, value in env_vars.items():
-                f.write(f"{key}={value}\n")
-
-        # Update JSON file (same data + metadata)
-        json_config = {}
-        if os.path.exists(JSON_CONFIG_FILE):
-            try:
-                with open(JSON_CONFIG_FILE, "r") as f:
-                    json_config = json.load(f)
-            except (IOError, json.JSONDecodeError):
-                pass
-
-        # Update with new data
-        for key, value in data.items():
-            if value is not None:
-                json_config[key] = value
-            elif key in json_config:
-                del json_config[key]
-
-        # Add metadata
-        json_config["last_updated"] = get_current_timestamp()
-        json_config["updated_by"] = get_current_user()
-
-        # Write JSON file
-        with open(JSON_CONFIG_FILE, "w") as f:
-            json.dump(json_config, f, indent=4)
-
-        return True
-    except IOError as e:
-        print(f"IOError saving config: {e}")
-        return False
+    """Save config entries — secrets to .env, others to config.yaml."""
+    ok = True
+    for key, value in data.items():
+        if value is None:
+            continue
+        if key in SECRET_KEYS:
+            ok = save_secret(key, value) and ok
+        else:
+            ok = save_setting(key, value) and ok
+    return ok
 
 
 def get_database_url() -> Optional[str]:
-    """Get database URL."""
-    config = get_config()
-    return config.get("DATABASE_URL")
+    """Return the configured DATABASE_URL, or None if not set."""
+    return get_settings().database_url or None
 
 
 def get_gemini_config() -> Tuple[Optional[str], str]:
-    """Get Gemini API key and model."""
-    config = get_config()
-    api_key = config.get("GEMINI_API_KEY")
-    model = config.get("GEMINI_MODEL_NAME", DEFAULT_GEMINI_MODEL)
-    return api_key, model
+    """Return (api_key, model_name) from current settings."""
+    s = get_settings()
+    return (s.gemini_api_key or None), s.gemini_model
+
+
+def get_paths() -> Tuple[str, str]:
+    """Return (output_path, file_store_path) from current settings."""
+    s = get_settings()
+    return str(s.output_path), str(s.file_store_path)
 
 
 def is_configured() -> bool:
-    """Check if required configuration is present."""
-    config = get_config()
-    return bool(config.get("DATABASE_URL") and config.get("GEMINI_API_KEY"))
+    """Return True if DATABASE_URL and GEMINI_API_KEY are both set."""
+    return get_settings().is_configured
 
 
-def print_config_debug():
-    """Print configuration debug information."""
+def print_config_debug() -> None:
+    """Print a human-readable debug summary of the current configuration."""
     config, sources = get_config_with_source()
+    s = get_settings()
 
     print("🔍 Configuration Status")
     print("=" * 40)
 
     for key in CONFIG_KEYS:
         value = config.get(key)
-        source = sources.get(key, "not_found")
+        source = sources.get(key, "not found")
 
         # Mask sensitive values
         display_value = value
         if key == "GEMINI_API_KEY" and value:
-            display_value = "********"
+            display_value = "****" + value[-4:] if len(value) > 4 else "****"
         elif key == "DATABASE_URL" and value:
-            try:
-                from sqlalchemy.engine.url import make_url
+            display_value = s.masked_database_url()
 
-                url_obj = make_url(value)
-                display_value = str(url_obj._replace(password="********")) if url_obj.password else value
-            except ImportError:
-                display_value = "configured (masked)"
-
-        status = "✅ SET" if value else "❌ NOT SET"
-        print(f"{key}: {status} (from {source})")
+        status_str = "✅ SET" if value else "❌ NOT SET"
+        print(f"{key}: {status_str} (from {source})")
         if display_value and value:
             print(f"  Value: {display_value}")
         print()
 
 
-if __name__ == "__main__":
-    print("Get all config:", get_config())
-    print("Get config with source:", get_config_with_source())
-    # print("Save config:", save_config({"DATABASE_URL": "postgresql://user:pass@host:port/dbname"}))
-    print("Get DB URL:", get_database_url())
-    print("Get Gemini config:", get_gemini_config())
-    storage_paths = get_storage_paths()
-    print("Get storage paths:", storage_paths)
-    print(f"Query results path: {storage_paths.query_results}")
-    print("Is configured:", is_configured())
+if __name__ == "__main__":  # pragma: no cover
+    print("Config:", get_config())
+    print("DB URL:", get_database_url())
+    print("Gemini:", get_gemini_config())
+    print("Paths:", get_paths())
+    print("Configured:", is_configured())
     print_config_debug()

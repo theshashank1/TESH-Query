@@ -1,204 +1,241 @@
 import json
 import os
-import re
+import re  # Moved import to top level
 import time
+
+# from pathlib import Path
 from typing import Any, Dict
 
-from langchain_core.exceptions import OutputParserException
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.exceptions import OutputParserException  # Added for specific exception handling
+from langchain_core.output_parsers import PydanticOutputParser  # Updated import
+from langchain_core.prompts import ChatPromptTemplate  # Updated import
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 
-from teshq.utils.analytics import track_llm_usage
-from teshq.utils.logging import logger
+from teshq.utils.logging import log_api_call, log_operation, logger
 from teshq.utils.retry import RetryableError, retry_api_call
+from teshq.utils.token_tracking import get_token_tracker
 
 
 class SQLQueryResponse(BaseModel):
-    """Pydantic model for a structured SQL query response."""
+    """Simple SQL query response model"""
 
     query: str
     parameters: Dict[str, Any]
 
 
 class SQLQueryGenerator:
-    """
-    A robust SQL Query Generator using Google Generative AI and LangChain.
+    """SQL Query Generator using Google GenAI and LangChain"""
 
-    This class is responsible for taking a user's natural language request
-    and converting it into a structured SQL query. It leverages a large
-    language model, handles API retries, and includes detailed logging and
-    usage analytics.
-    """
-
-    DEFAULT_MODEL_NAME = "gemini-1.5-flash"
-    PROVIDER = "google"  # The LLM provider, used for cost tracking.
+    DEFAULT_MODEL_NAME = "gemini-2.0-flash-lite"  # Class attribute for default model
 
     def __init__(self, api_key: str = None, model_name: str = None):
-        """
-        Initializes the SQLQueryGenerator.
-
-        Args:
-            api_key: The Google API key. If not provided, it's read from the
-                     `GOOGLE_API_KEY` environment variable.
-            model_name: The specific Gemini model to use. Defaults to `DEFAULT_MODEL_NAME`.
-        """
+        # Use class default if no model_name is provided
         self.model_name = model_name if model_name is not None else self.DEFAULT_MODEL_NAME
 
-        # Set up the Google API key from argument or environment variable.
+        # Set API key
         if not os.getenv("GOOGLE_API_KEY") and api_key:
             os.environ["GOOGLE_API_KEY"] = api_key
         elif not os.getenv("GOOGLE_API_KEY"):
-            raise ValueError("GOOGLE_API_KEY must be set as an environment variable or " "passed during initialization.")
+            raise ValueError("GOOGLE_API_KEY must be set")
 
-        # Initialize the LangChain components.
+        # Initialize model
         self.llm = ChatGoogleGenerativeAI(model=self.model_name, temperature=0.1)
+
+        # Setup output parser
         self.output_parser = PydanticOutputParser(pydantic_object=SQLQueryResponse)
+
+        # Create prompt template
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", self._get_system_prompt()),
                 (
                     "human",
-                    "Schema:\\n{schema}\\n\\nUser Request: {user_request}\\n\\n" "Generate SQL query with parameters.",
+                    "Schema:\n{schema}\n\nUser Request: {user_request}\n\nGenerate SQL query with parameters.",
                 ),
             ]
         )
 
     def _get_system_prompt(self) -> str:
-        """Returns the system prompt, including format instructions for the LLM."""
-        return """You are an expert SQL query generator. Your task is to generate SQL queries based on database schemas
-        and user requests.
+        return """You are a precise SQL query generator. Your only job is to output a valid JSON object.
 
-                RULES:
-                1. Always use parameterized queries. Use the `:parameter_name` format for placeholders.
-                2. Return ONLY a single valid JSON object with 'query' and 'parameters' fields.
-                3. Based on the user request, make reasonable and safe assumptions for parameter values.
-                4. Ensure the generated SQL syntax is correct and secure.
+DATABASE DIALECT RULES:
+- Write standard ANSI SQL unless the schema specifies a dialect.
+- Always use table aliases for multi-table queries.
+- For parameterised values use SQLAlchemy named-parameter syntax: :param_name.
 
-                {format_instructions}
-            """
+OUTPUT FORMAT (strict — no other text):
+{{
+  "query": "<SQL statement with :named_params>",
+  "parameters": {{"param_name": <value>, ...}}
+}}
+
+RULES:
+1. Output ONLY the JSON object — no markdown, no explanation, no code fences.
+2. Every placeholder in the query MUST have a matching key in parameters.
+3. If no parameters are needed, output "parameters": {{}}.
+4. Infer reasonable, safe parameter values from the user request.
+5. Use SELECT by default; only use INSERT/UPDATE/DELETE when explicitly requested.
+6. Never DROP, TRUNCATE or ALTER tables.
+
+{format_instructions}"""
 
     def load_schema(self, schema_file: str) -> str:
-        """Loads a database schema from a file."""
-        with open(schema_file, "r") as f:
+        """Load schema from file"""
+        with open(schema_file, "r") as f:  # Corrected to use schema_file argument
             return f.read().strip()
 
     @retry_api_call("llm_api_call")
     def generate_sql(self, user_request: str, schema: str) -> Dict[str, Any]:
-        """
-        Generates a SQL query from a user request and a database schema.
-
-        This method includes retry logic for API calls, detailed logging, and
-        a fallback mechanism for parsing the LLM's response. It also tracks
-        LLM usage and cost via the analytics module.
-
-        Args:
-            user_request: The natural language request from the user.
-            schema: The database schema as a string.
-
-        Returns:
-            A dictionary containing the generated 'query' and its 'parameters'.
-
-        Raises:
-            RetryableError: If a transient API error occurs.
-            Exception: If a critical error occurs during generation or parsing.
-        """
+        """Generate SQL query from user request and schema with retry logic and logging."""
         start_time = time.time()
-        logger.info(
-            "Starting SQL generation",
-            model=self.model_name,
-            request_length=len(user_request),
-        )
 
         try:
-            # Format the prompt with all necessary information.
-            messages = self.prompt.format_messages(
-                format_instructions=self.output_parser.get_format_instructions(),
-                schema=schema,
-                user_request=user_request,
-            )
-
-            # Make the API call to the LLM.
-            try:
-                response = self.llm.invoke(messages)
-                # In modern LangChain, token info is in the `usage_metadata` attribute of the AIMessage.
-                usage_metadata = response.usage_metadata or {}
-            except Exception as e:
-                # Isolate and handle network-related errors that are safe to retry.
-                error_type = str(type(e).__name__).lower()
-                is_retryable = any(err_keyword in error_type for err_keyword in ["connection", "timeout", "network", "http"])
-                if is_retryable:
-                    logger.warning(f"API call failed with retryable error: {e}")
-                    raise RetryableError(f"API call failed: {e}") from e
-                else:
-                    raise  # Re-raise other, non-retryable API errors.
-
-            # First, try to parse the response with the Pydantic parser for structured output.
-            try:
-                parsed = self.output_parser.parse(response.content)
-                result = {"query": parsed.query, "parameters": parsed.parameters}
-            except OutputParserException as e:
-                # If Pydantic parsing fails, fall back to a more lenient regex-based JSON extraction.
-                logger.warning(
-                    "PydanticOutputParser failed, falling back to regex JSON extraction",
-                    error=e,
-                    response_content_preview=response.content[:200],
+            with log_operation("generate_sql", model=self.model_name, request_length=len(user_request)):
+                # Format prompt
+                format_instructions = self.output_parser.get_format_instructions()
+                messages = self.prompt.format_messages(
+                    format_instructions=format_instructions,
+                    schema=schema,
+                    user_request=user_request,
                 )
-                json_match = re.search(r"\{[\s\S]*\}", response.content)
-                if json_match:
-                    try:
-                        result = json.loads(json_match.group())
-                    except json.JSONDecodeError as json_e:
+
+                # Get response from model with retry on network errors
+                try:
+                    response = self.llm.invoke(messages)
+                except Exception as e:
+                    # Convert network/API errors to retryable errors
+                    if any(
+                        error_type in str(type(e).__name__).lower()
+                        for error_type in ["connection", "timeout", "network", "http"]
+                    ):
+                        logger.warning(f"API call failed with retryable error: {e}")
+                        raise RetryableError(f"API call failed: {e}") from e
+                    else:
+                        raise
+
+                # Parse response
+                try:
+                    parsed = self.output_parser.parse(response.content)
+                    result = {"query": parsed.query, "parameters": parsed.parameters}
+
+                except OutputParserException as e:  # More specific exception
+                    logger.warning(
+                        "PydanticOutputParser failed, falling back to regex JSON extraction",
+                        error=e,
+                        response_content_preview=response.content[:200],
+                    )
+
+                    # Fallback: extract JSON manually
+                    json_match = re.search(r"\{[\s\S]*\}", response.content)  # Improved regex for multiline JSON
+                    if json_match:
+                        try:
+                            result = json.loads(json_match.group())
+                        except json.JSONDecodeError as json_e:
+                            logger.error(
+                                "Could not parse response content as JSON after Pydantic failure",
+                                json_error=json_e,
+                                response_content=response.content,
+                            )
+                            raise Exception(
+                                f"Could not parse response content as JSON after Pydantic failure. Content: {response.content}. Error: {json_e}"  # noqa: E501
+                            )
+                    else:
                         logger.error(
-                            "Could not parse response as JSON after Pydantic failure",
-                            json_error=json_e,
+                            "Could not find JSON in response content after Pydantic failure",
                             response_content=response.content,
                         )
-                        raise Exception("Could not parse response content as JSON. " f"Error: {json_e}") from json_e
+                        raise Exception(
+                            f"Could not parse response or find JSON in content after Pydantic failure. Content: {response.content}"  # noqa: E501
+                        )
+
+                # Log successful API call with enhanced token tracking
+                execution_time = time.time() - start_time
+
+                # Get token tracker
+                tracker = get_token_tracker()
+                
+                # Extract token usage information from response
+                prompt_tokens = 0
+                completion_tokens = 0
+                total_tokens = 0
+
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    # Gemini SDK returns an object; support both attribute-access and dict-access.
+                    usage = response.usage_metadata
+                    if hasattr(usage, 'prompt_token_count'):
+                        # google-generativeai >= 0.5 object style
+                        prompt_tokens = getattr(usage, 'prompt_token_count', 0) or 0
+                        completion_tokens = getattr(usage, 'candidates_token_count', 0) or 0
+                    elif hasattr(usage, 'input_tokens'):
+                        # langchain-google-genai dict-like style
+                        prompt_tokens = getattr(usage, 'input_tokens', 0) or 0
+                        completion_tokens = getattr(usage, 'output_tokens', 0) or 0
+                    elif isinstance(usage, dict):
+                        prompt_tokens = usage.get('input_tokens', 0) or usage.get('prompt_token_count', 0) or 0
+                        completion_tokens = usage.get('output_tokens', 0) or usage.get('candidates_token_count', 0) or 0
+                    total_tokens = prompt_tokens + completion_tokens
+                elif hasattr(response, 'response_metadata') and response.response_metadata:
+                    usage = response.response_metadata.get('usage', {})
+                    prompt_tokens = usage.get('prompt_tokens', 0)
+                    completion_tokens = usage.get('completion_tokens', 0)
+                    total_tokens = usage.get('total_tokens', prompt_tokens + completion_tokens)
                 else:
-                    logger.error(
-                        "Could not find JSON in response after Pydantic failure",
-                        response_content=response.content,
+                    # Fallback: rough character-based estimation (1 token ≈ 4 chars)
+                    prompt_tokens = len(user_request + schema) // 4
+                    completion_tokens = len(str(result)) // 4
+                    total_tokens = prompt_tokens + completion_tokens
+                    logger.warning(
+                        "No usage metadata available, using token estimation",
+                        estimated_prompt_tokens=prompt_tokens,
+                        estimated_completion_tokens=completion_tokens
                     )
-                    raise Exception("Could not parse response or find JSON in content " "after Pydantic failure.")
 
-            execution_time = time.time() - start_time
+                # Track token usage with comprehensive analytics
+                execution_time_ms = execution_time * 1000
+                token_usage = tracker.track_usage(
+                    model=self.model_name,
+                    provider="google",  # Since we're using Google Gemini
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    natural_language_query=user_request,
+                    generated_sql=result.get("query"),
+                    execution_time_ms=execution_time_ms,
+                )
 
-            # Correctly extract token usage from the `usage_metadata` object.
-            input_tokens = usage_metadata.get("input_tokens", 0)
-            output_tokens = usage_metadata.get("output_tokens", 0)
-            total_tokens = usage_metadata.get("total_tokens", 0)
+                # Legacy logging for backward compatibility
+                log_api_call(
+                    provider="google_genai",
+                    model=self.model_name,
+                    tokens_used=total_tokens,
+                    execution_time_seconds=execution_time,
+                    request_length=len(user_request),
+                    schema_length=len(schema),
+                    response_length=len(str(result)),
+                )
 
-            # Track LLM usage and cost via the analytics module.
-            track_llm_usage(
-                model=self.model_name,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                provider=self.PROVIDER,
-            )
+                logger.success(
+                    "SQL query generated successfully with comprehensive token tracking",
+                    execution_time_seconds=execution_time,
+                    query_id=token_usage.query_id,
+                    total_tokens=total_tokens,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost_estimate=f"${token_usage.cost_estimate:.6f}" if token_usage.cost_estimate else "N/A",
+                    query_length=len(result.get("query", "")),
+                    has_parameters=bool(result.get("parameters")),
+                )
 
-            # Log a detailed success message with the correct token counts.
-            logger.success(
-                "SQL query generated successfully",
-                execution_time_seconds=round(execution_time, 2),
-                prompt_tokens=input_tokens,
-                completion_tokens=output_tokens,
-                total_tokens=total_tokens,
-                query_length=len(result.get("query", "")),
-                has_parameters=bool(result.get("parameters")),
-            )
-
-            return result
+                return result
 
         except Exception as e:
-            # Catch any exception that occurred during the process and log a detailed error.
             execution_time = time.time() - start_time
+
             logger.error(
                 "SQL generation failed",
                 error=e,
-                execution_time_seconds=round(execution_time, 2),
+                execution_time_seconds=execution_time,
                 model=self.model_name,
                 request_length=len(user_request),
             )
-            raise  # Re-raise the exception to be handled by the caller.
+            raise

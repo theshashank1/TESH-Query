@@ -26,14 +26,14 @@ class TestConfigValidator:
         """Test valid SQLite database URL."""
         is_valid, message = ConfigValidator.validate_database_url("sqlite:///test.db")
         assert is_valid
-        assert "Valid database URL format" in message
+        assert "Valid sqlite database URL format" in message
 
     def test_validate_database_url_valid_postgresql(self):
         """Test valid PostgreSQL database URL."""
         url = "postgresql://user:password@localhost:5432/testdb"
         is_valid, message = ConfigValidator.validate_database_url(url)
         assert is_valid
-        assert "Valid database URL format" in message
+        assert "Valid postgresql database URL format" in message
 
     def test_validate_database_url_invalid_empty(self):
         """Test invalid empty database URL."""
@@ -41,9 +41,15 @@ class TestConfigValidator:
         assert not is_valid
         assert "cannot be empty" in message
 
+    def test_validate_database_url_valid_oracle(self):
+        """Test valid Oracle database URL (now supported)."""
+        is_valid, message = ConfigValidator.validate_database_url("oracle://user:pass@host:1521/db")
+        assert is_valid
+        assert "Valid oracle database URL format" in message
+
     def test_validate_database_url_invalid_scheme(self):
         """Test invalid database scheme."""
-        is_valid, message = ConfigValidator.validate_database_url("oracle://user@host/db")
+        is_valid, message = ConfigValidator.validate_database_url("unsupported://user@host/db")
         assert not is_valid
         assert "Unsupported database type" in message
 

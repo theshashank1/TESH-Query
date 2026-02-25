@@ -1,1 +1,1 @@
-# Telemetry package for TESH-Query v2.
+"""teshq.telemetry — Logfire observability + local JSONL analytics."""
