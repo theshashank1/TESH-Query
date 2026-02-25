@@ -17,6 +17,7 @@ def introspect_db(
     include_indexes: bool = True,
     include_sample_data: bool = False,
     sample_size: int = 3,
+    schema_mode: str = "minimal",
 ) -> Dict[str, Any]:
     """
     Introspect a database and produce a structured schema description suitable for LLM query generation.
@@ -190,7 +191,7 @@ def introspect_db(
     schema_info["data_model_summary"] = generate_data_model_summary(all_tables, schema_info)
 
     ensure_teshq_dir()
-    save_schema_to_files(schema_info, str(SCHEMA_DIR), "schema.json", "schema.txt")
+    save_schema_to_files(schema_info, str(SCHEMA_DIR), "schema.json", "schema.txt", mode=schema_mode)
 
     return schema_info
 
@@ -423,6 +424,71 @@ def generate_data_model_summary(all_tables: List[str], schema_info: Dict[str, An
     )
 
 
+def format_schema_minimal(schema_info: Dict[str, Any]) -> str:
+    """
+    Format schema as compact DDL-style text — optimised for minimal LLM token usage.
+
+    Keeps everything SQL generation needs:
+      - All table names, column names, types
+      - NOT NULL constraints
+      - Primary key markers
+      - All explicit foreign keys (shown as inline arrows)
+      - Explicit JOIN relationships section
+
+    Strips noise:
+      - Row counts, index names, implicit relationship confidence tags
+      - Verbose headers and separator lines
+      - Default values, column comments, nullable=True info (positive-only: only NOT NULL shown)
+
+    Example output line::
+        orders(id INT PK, customer_id INT NOT NULL, amount REAL, status TEXT NOT NULL)
+        -- FK: orders.customer_id -> customers.id
+    """
+    lines: List[str] = []
+
+    # DB-level header (single compact line)
+    n_tables = len(schema_info.get("tables", {}))
+    lines.append(f"-- {n_tables} table(s)")
+
+    # Map table -> set of FK columns for inline annotation
+    fk_cols: Dict[str, Dict[str, str]] = {}  # table -> {col: referred_table.col}
+    for table_name, tdata in schema_info.get("tables", {}).items():
+        fk_cols[table_name] = {}
+        for fk in tdata.get("foreign_keys", []):
+            for c, rc in zip(fk["constrained_columns"], fk["referred_columns"]):
+                fk_cols[table_name][c] = f"{fk['referred_table']}.{rc}"
+
+    # One line per table
+    for table_name, tdata in sorted(schema_info["tables"].items()):
+        col_parts: List[str] = []
+        for col in tdata["columns"]:
+            ctype = col["type"]
+            flags: List[str] = []
+            if col.get("is_primary_key"):
+                flags.append("PK")
+            if not col.get("nullable", True):
+                flags.append("NOT NULL")
+            fk_ref = fk_cols[table_name].get(col["name"])
+            if fk_ref:
+                flags.append(f"FK->{fk_ref}")
+            flag_str = " " + " ".join(flags) if flags else ""
+            col_parts.append(f"{col['name']} {ctype}{flag_str}")
+        lines.append(f"{table_name}({', '.join(col_parts)})")
+
+    # Explicit JOIN section (compact, no implicit/inferred noise)
+    explicit_rels = schema_info.get("relationships", {}).get("explicit", [])
+    if explicit_rels:
+        lines.append("-- JOINS:")
+        seen = set()
+        for rel in explicit_rels:
+            entry = f"  {rel['from_table']}.{rel['from_column']} -> {rel['to_table']}.{rel['to_column']}"
+            if entry not in seen:
+                lines.append(entry)
+                seen.add(entry)
+
+    return "\n".join(lines)
+
+
 def format_schema_outputs(schema_info: Dict[str, Any], pretty_json: bool = True) -> Dict[str, str]:
     """
     Formats the schema information into JSON and a human-readable text format.
@@ -526,45 +592,65 @@ def save_schema_to_files(
     output_dir: str = ".",
     json_filename: str = "schema.json",
     text_filename: str = "schema.txt",
+    mode: str = "minimal",
 ) -> Tuple[str, str]:
     """
     Saves the schema information to JSON and text files.
+
+    When mode='minimal' (default):
+      - schema.json  — full structured data (for programmatic use)
+      - schema.txt   — compact DDL-style minimal text (used by LLM queries by default)
+
+    When mode='full':
+      - schema.json     — full structured data
+      - schema.txt      — compact minimal text (still the default for queries)
+      - schema_full.txt — verbose text with row counts, indexes, relationships
+        (use with `teshq query --full-schema` for highest SQL accuracy)
 
     Args:
         schema_info: The schema information dictionary
         output_dir: Directory to save the files in
         json_filename: Name for the JSON file
-        text_filename: Name for the text file
+        text_filename: Name for the minimal text file
+        mode: 'minimal' (default) or 'full' (also saves schema_full.txt)
 
     Returns:
-        Tuple of (json_file_path, text_file_path)
+        Tuple of (json_file_path, minimal_text_file_path)
     """
     # Ensure output directory exists
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Get formatted outputs
-    outputs = format_schema_outputs(schema_info, pretty_json=True)
-
-    # Full paths for the files
     json_path = os.path.join(output_dir, json_filename)
     text_path = os.path.join(output_dir, text_filename)
 
-    # Write JSON file
+    # Always write the structured JSON (used for programmatic access)
     try:
+        json_output = json.dumps(schema_info, indent=2, ensure_ascii=False)
         with open(json_path, "w", encoding="utf-8") as f:
-            f.write(outputs["json_output"])
+            f.write(json_output)
     except IOError as e:
         print(f"Error writing JSON file: {e}")
         json_path = None  # type: ignore
 
-    # Write text file
+    # Always write the minimal schema (used by default for LLM queries)
     try:
+        minimal_text = format_schema_minimal(schema_info)
         with open(text_path, "w", encoding="utf-8") as f:
-            f.write(outputs["text_output"])
+            f.write(minimal_text)
     except IOError as e:
-        print(f"Error writing text file: {e}")
+        print(f"Error writing minimal schema file: {e}")
         text_path = None  # type: ignore
+
+    # Optionally write the full verbose schema (only when --all is requested)
+    if mode == "full":
+        full_text_path = os.path.join(output_dir, "schema_full.txt")
+        try:
+            outputs = format_schema_outputs(schema_info, pretty_json=False)
+            with open(full_text_path, "w", encoding="utf-8") as f:
+                f.write(outputs["text_output"])
+        except IOError as e:
+            print(f"Error writing full schema file: {e}")
 
     return json_path, text_path  # type: ignore
 

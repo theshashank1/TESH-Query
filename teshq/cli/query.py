@@ -19,9 +19,12 @@ from teshq.utils.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
 
-# Schema file: prefer ~/.teshq/schema/schema.txt, fall back to local db_schema/schema.txt
-_TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")
+# Schema files: prefer ~/.teshq/schema/, fall back to local db_schema/
+_SCHEMA_DIR = get_schema_path("schema.txt").parent
+_TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")       # default: compact minimal
+_TESHQ_SCHEMA_FULL_PATH = get_schema_path("schema_full.txt")  # optional: full verbose
 _LOCAL_SCHEMA_PATH = Path("db_schema") / "schema.txt"
+_LOCAL_SCHEMA_FULL_PATH = Path("db_schema") / "schema_full.txt"
 
 def get_llm_generator():
     """
@@ -105,6 +108,11 @@ def process_nl_query(
     save_csv: str = typer.Option(None, "--save-csv", metavar="FILE", help="Save results to a CSV file."),
     save_excel: str = typer.Option(None, "--save-excel", metavar="FILE", help="Save results to an Excel (.xlsx) file."),
     save_sqlite: str = typer.Option(None, "--save-sqlite", metavar="FILE", help="Save results to a SQLite database file."),
+    full_schema: bool = typer.Option(
+        False,
+        "--full-schema",
+        help="Use full verbose schema (schema_full.txt) for highest SQL accuracy. Requires prior: teshq db introspect --all",
+    ),
     log: bool = typer.Option(None, "--log", help="Write detailed logs to file."),
 ):
     """
@@ -177,8 +185,17 @@ def process_nl_query(
             if logging_active:
                 cli_logger.log_info("Initialization complete", generator_model=generator.model_name)
 
-        # Prefer schema from ~/.teshq/schema/, fall back to local db_schema/
-        schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
+        # Pick schema file: full verbose if --full-schema is set and available, else compact minimal
+        if full_schema:
+            full_path = _TESHQ_SCHEMA_FULL_PATH if _TESHQ_SCHEMA_FULL_PATH.exists() else _LOCAL_SCHEMA_FULL_PATH
+            if full_path.exists():
+                schema_file_path = full_path
+                info("📖 Using full schema (schema_full.txt) for highest SQL accuracy.")
+            else:
+                schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
+                info("⚠️  schema_full.txt not found; falling back to compact schema. Run: teshq db introspect --all")
+        else:
+            schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
         schema = load_db_schema(generator, schema_file_path)
 
         sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)

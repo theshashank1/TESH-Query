@@ -1,4 +1,5 @@
 import time
+from typing import Optional
 import typer
 from dotenv import load_dotenv
 
@@ -81,6 +82,11 @@ def introspect(
         "-r",
         help="Detect implicit relationships from naming conventions.",
     ),
+    full_schema: bool = typer.Option(
+        False,
+        "--all",
+        help="Also save full verbose schema (schema_full.txt) with row counts, indexes, and inferred relationships.",
+    ),
     log: bool = typer.Option(None, "--log", help="Enable logging to file (overrides config default)"),
 ):
     """
@@ -104,13 +110,20 @@ def introspect(
                 "log": log
             })
         
+        schema_mode = "full" if full_schema else "minimal"
+
         # Introspection logic handles db_url if None
         with status(
             "Performing database introspection...",
             success_message="Introspection complete.",
         ):
             # introspect_db will handle finding the db_url if not provided
-            result = introspect_db(db_url=db_url, detect_relationships=detect_relationships)
+            result = introspect_db(
+                db_url=db_url,
+                detect_relationships=detect_relationships,
+                include_indexes=full_schema,  # Only collect indexes when --all is set
+                schema_mode=schema_mode,
+            )
             
             if logging_active:
                 # Log introspection results
@@ -119,7 +132,10 @@ def introspect(
                                   tables_count=tables_count,
                                   detect_relationships=detect_relationships)
         
-        tip("Schema details have been processed and are ready for use.")
+        if full_schema:
+            tip("Schema saved: schema.txt (compact, default) + schema_full.txt (full detail with indexes & row counts).")
+        else:
+            tip("Schema saved: schema.txt (compact, token-efficient). Use --all to also save full detail schema.")
         
         # Log successful completion
         if logging_active:

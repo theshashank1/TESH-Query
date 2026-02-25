@@ -44,6 +44,9 @@ def _callback(
     version: Optional[bool] = typer.Option(
         None, "--version", "-v", is_eager=True, help="Show version and exit."
     ),
+    developer: Optional[bool] = typer.Option(
+        None, "--developer", "-d", is_eager=True, help="Show developer info and exit."
+    ),
     log: bool = typer.Option(
         False, "--log", help="Print log output to the terminal (always saved to file)."
     ),
@@ -62,6 +65,12 @@ def _callback(
         except ImportError:
             typer.echo("teshq: version unknown")
         raise typer.Exit()
+
+    if developer:
+        typer.echo("Developer: Shashank")
+        typer.echo("LinkedIn: https://www.linkedin.com/in/gunda-shashank/")
+        raise typer.Exit()
+
 
 
 # Register sub-typers

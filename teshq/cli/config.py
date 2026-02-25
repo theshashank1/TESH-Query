@@ -42,7 +42,7 @@ from teshq.utils.ui import (  # handle_error,
 )
 from teshq.utils.validation import ConfigValidator, validate_production_readiness
 
-app = typer.Typer()
+app = typer.Typer(invoke_without_command=True)
 # Get supported database types from unified connector
 SUPPORTED_DBS = UnifiedDatabaseConnector.get_supported_databases()
 
