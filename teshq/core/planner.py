@@ -7,10 +7,9 @@ aggregations, and joins will be needed — without generating SQL yet.
 """
 
 import time
-from typing import Any, Dict
+from typing import Any, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from teshq.core.models import QueryPlan
 from teshq.utils.logging import logger
@@ -30,9 +29,10 @@ class QueryPlanner:
     LLM-based query planner (Stage 1 of two-stage SQL generation).
 
     Uses structured output mode with temperature=0 for deterministic results.
+    Accepts any LangChain BaseChatModel (Gemini, Azure OpenAI, etc.).
     """
 
-    def __init__(self, llm: ChatGoogleGenerativeAI):
+    def __init__(self, llm: Any):
         self._llm = llm
         self._structured_llm = llm.with_structured_output(QueryPlan)
         self._prompt = ChatPromptTemplate.from_messages(
@@ -72,26 +72,34 @@ class QueryPlanner:
             raise
 
 
-def build_planner(api_key: str, model_name: str) -> QueryPlanner:
+def build_planner(
+    api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
+    provider: str = "google",
+    **kwargs: Any,
+) -> QueryPlanner:
     """
     Create a QueryPlanner backed by a deterministic LLM.
 
     Args:
-        api_key: Google Gemini API key.
-        model_name: Gemini model identifier.
+        api_key:   API key for the chosen provider (falls back to env var).
+        model_name: Model/deployment name.
+        provider:  ``"google"`` (Gemini) or ``"azure"`` (Azure OpenAI).
+        **kwargs:  Extra keyword arguments forwarded to ``build_llm()``.
 
     Returns:
         Configured QueryPlanner.
     """
-    import os
+    from teshq.core.llm_factory import build_llm
 
-    if not os.getenv("GOOGLE_API_KEY") and api_key:
-        os.environ["GOOGLE_API_KEY"] = api_key
-
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
+    llm = build_llm(
+        provider=provider,
+        api_key=api_key,
+        model_name=model_name,
         temperature=0,
         top_p=1,
         top_k=1,
+        **kwargs,
     )
     return QueryPlanner(llm)
+

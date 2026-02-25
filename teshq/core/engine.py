@@ -20,7 +20,7 @@ from teshq.core.sql_normalizer import normalize_sql
 from teshq.core.sql_validator import validate_sql
 from teshq.core.token_counter import DEFAULT_TOKEN_THRESHOLD, exceeds_threshold
 from teshq.telemetry.events import track_query_event
-from teshq.utils.config import get_database_url, get_gemini_config
+from teshq.utils.config import get_database_url, get_llm_config
 from teshq.utils.logging import logger
 from teshq.utils.validation import ValidationError
 
@@ -47,6 +47,10 @@ class TeshEngine:
     """
     Deterministic AI SQL Compiler.
 
+    Supports Google Gemini and Azure OpenAI via the LLM factory.
+    Provider is determined by the current application configuration
+    (``LLM_PROVIDER`` env var or ``~/.teshq/config.yaml``).
+
     Flow:
       query()
         → load SchemaGraph (introspect or cached)
@@ -65,11 +69,22 @@ class TeshEngine:
         db_url: Optional[str] = None,
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
+        provider: Optional[str] = None,
+        # Azure-specific overrides
+        azure_endpoint: Optional[str] = None,
+        azure_deployment: Optional[str] = None,
+        azure_api_version: Optional[str] = None,
     ):
-        cfg_api_key, cfg_model = get_gemini_config()
+        # Load provider config from settings (caller overrides win)
+        cfg = get_llm_config()
+
         self._db_url = db_url or get_database_url()
-        self._api_key = api_key or cfg_api_key
-        self._model_name = model_name or cfg_model
+        self._provider = provider or cfg["provider"]
+        self._api_key = api_key or cfg["api_key"]
+        self._model_name = model_name or cfg["model_name"]
+        self._azure_endpoint = azure_endpoint or cfg.get("azure_endpoint")
+        self._azure_deployment = azure_deployment or cfg.get("azure_deployment")
+        self._azure_api_version = azure_api_version or cfg.get("azure_api_version")
 
         self._planner: Optional[QueryPlanner] = None
         self._sql_gen: Optional[SQLGenerator] = None
@@ -79,14 +94,34 @@ class TeshEngine:
     # Lazy initialisation helpers
     # ------------------------------------------------------------------
 
+    def _llm_kwargs(self) -> Dict[str, Any]:
+        """Collect Azure-specific keyword arguments (empty for Google)."""
+        if self._provider == "azure":
+            return {
+                "azure_endpoint": self._azure_endpoint,
+                "azure_deployment": self._azure_deployment,
+                "azure_api_version": self._azure_api_version,
+            }
+        return {}
+
     def _get_planner(self) -> QueryPlanner:
         if self._planner is None:
-            self._planner = build_planner(self._api_key, self._model_name)
+            self._planner = build_planner(
+                api_key=self._api_key,
+                model_name=self._model_name,
+                provider=self._provider,
+                **self._llm_kwargs(),
+            )
         return self._planner
 
     def _get_sql_gen(self) -> SQLGenerator:
         if self._sql_gen is None:
-            self._sql_gen = build_sql_generator(self._api_key, self._model_name)
+            self._sql_gen = build_sql_generator(
+                api_key=self._api_key,
+                model_name=self._model_name,
+                provider=self._provider,
+                **self._llm_kwargs(),
+            )
         return self._sql_gen
 
     def _get_schema_graph(self) -> SchemaGraph:
@@ -123,6 +158,7 @@ class TeshEngine:
         rows: List[Dict[str, Any]] = []
         error: Optional[str] = None
         success = True
+        schema_str = ""
 
         try:
             graph = schema_graph or self._get_schema_graph()
@@ -220,3 +256,4 @@ class TeshEngine:
         graph = schema_graph or self._get_schema_graph()
         relevant_tables = prune_schema(graph, nl_query)
         return graph.compressed_schema(relevant_tables)
+

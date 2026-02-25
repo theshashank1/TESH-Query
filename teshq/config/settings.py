@@ -2,7 +2,7 @@
 TESH-Query v2 Settings — single source of truth for all configuration.
 
 Priority (highest → lowest):
-  1. Environment variables (DATABASE_URL, GEMINI_API_KEY, …)
+  1. Environment variables (DATABASE_URL, GEMINI_API_KEY, AZURE_OPENAI_API_KEY, …)
   2. ~/.teshq/.env  (secrets file, never committed)
   3. ~/.teshq/config.yaml  (non-secret settings)
   4. Hard-coded defaults below
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,8 +22,21 @@ from teshq.config.paths import CONFIG_FILE, SECRETS_FILE, ensure_teshq_dir
 # ---------------------------------------------------------------------------
 # Keys that are secrets (go to .env) vs general settings (go to config.yaml)
 # ---------------------------------------------------------------------------
-SECRET_KEYS = {"DATABASE_URL", "GEMINI_API_KEY"}
-SETTINGS_KEYS = {"GEMINI_MODEL", "OUTPUT_PATH", "FILE_STORE_PATH", "NO_TELEMETRY"}
+SECRET_KEYS = {
+    "DATABASE_URL",
+    "GEMINI_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+}
+SETTINGS_KEYS = {
+    "GEMINI_MODEL",
+    "OUTPUT_PATH",
+    "FILE_STORE_PATH",
+    "NO_TELEMETRY",
+    "LLM_PROVIDER",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_DEPLOYMENT",
+    "AZURE_OPENAI_API_VERSION",
+}
 
 
 class Settings(BaseSettings):
@@ -35,14 +48,28 @@ class Settings(BaseSettings):
         from teshq.config.settings import get_settings
         s = get_settings()
         print(s.gemini_model)
+        print(s.llm_provider)  # "google" or "azure"
     """
 
     # --- Secrets (loaded from env or ~/.teshq/.env) ---
     database_url: str = Field(default="", alias="DATABASE_URL")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
 
-    # --- Non-secret settings ---
+    # --- Azure OpenAI secrets ---
+    azure_openai_api_key: str = Field(default="", alias="AZURE_OPENAI_API_KEY")
+
+    # --- LLM provider selection ---
+    llm_provider: str = Field(default="google", alias="LLM_PROVIDER")
+
+    # --- Non-secret settings (Google Gemini) ---
     gemini_model: str = Field(default="gemini-2.0-flash-lite", alias="GEMINI_MODEL")
+
+    # --- Non-secret settings (Azure OpenAI) ---
+    azure_openai_endpoint: str = Field(default="", alias="AZURE_OPENAI_ENDPOINT")
+    azure_openai_deployment: str = Field(default="", alias="AZURE_OPENAI_DEPLOYMENT")
+    azure_openai_api_version: str = Field(default="2024-02-01", alias="AZURE_OPENAI_API_VERSION")
+
+    # --- Storage paths ---
     output_path: Path = Field(
         default_factory=lambda: Path.home() / ".teshq" / "output",
         alias="OUTPUT_PATH",
@@ -67,8 +94,28 @@ class Settings(BaseSettings):
 
     @property
     def is_configured(self) -> bool:
-        """Return True if both required secrets are set."""
-        return bool(self.database_url) and bool(self.gemini_api_key)
+        """Return True if the database and at least one LLM provider are configured."""
+        db_ok = bool(self.database_url)
+        google_ok = bool(self.gemini_api_key)
+        azure_ok = bool(self.azure_openai_api_key) and bool(self.azure_openai_endpoint) and bool(self.azure_openai_deployment)
+        return db_ok and (google_ok or azure_ok)
+
+    @property
+    def effective_provider(self) -> str:
+        """
+        Return the effective LLM provider string.
+
+        If ``LLM_PROVIDER`` is explicitly set to ``"azure"`` (or Azure keys are
+        present and no Gemini key is set), return ``"azure"``; otherwise
+        ``"google"``.
+        """
+        if self.llm_provider.lower() == "azure":
+            return "azure"
+        # Auto-detect: if Azure is fully configured but Gemini key is absent
+        azure_ready = bool(self.azure_openai_api_key) and bool(self.azure_openai_endpoint)
+        if azure_ready and not self.gemini_api_key:
+            return "azure"
+        return "google"
 
     def masked_database_url(self) -> str:
         """Return the database URL with the password replaced by ****."""
@@ -164,3 +211,4 @@ def save_setting(key: str, value: Any) -> bool:
     except OSError as exc:
         print(f"Warning: could not save setting to {CONFIG_FILE}: {exc}")
         return False
+

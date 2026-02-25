@@ -8,21 +8,30 @@ Functions:
 - get_config()            → merged config as a plain dict
 - save_config()           → persist config (secrets → .env, rest → yaml)
 - get_database_url()      → DATABASE_URL value
-- get_gemini_config()     → (api_key, model_name) tuple
+- get_gemini_config()     → (api_key, model_name) tuple   [legacy: Gemini only]
+- get_llm_config()        → dict with provider + all LLM settings
 - get_paths()             → (output_path, file_store_path) tuple
-- is_configured()         → True if both secrets are set
+- is_configured()         → True if DB + at least one LLM provider are set
 - print_config_debug()    → human-readable debug summary
 """
 
 import os
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from teshq.config.secrets import SECRET_KEYS, save_secrets
 from teshq.config.settings import save_secret, save_setting, get_settings
 
 # Settings constants (kept for backward compat)
 DEFAULT_GEMINI_MODEL = "gemini-2.0-flash-lite"
-SETTINGS_KEYS = {"GEMINI_MODEL", "OUTPUT_PATH", "FILE_STORE_PATH"}
+SETTINGS_KEYS = {
+    "GEMINI_MODEL",
+    "OUTPUT_PATH",
+    "FILE_STORE_PATH",
+    "LLM_PROVIDER",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_DEPLOYMENT",
+    "AZURE_OPENAI_API_VERSION",
+}
 CONFIG_KEYS = list(SECRET_KEYS) + list(SETTINGS_KEYS)
 
 
@@ -40,6 +49,12 @@ def get_config() -> Dict[str, Optional[str]]:
         "OUTPUT_PATH": str(s.output_path),
         "FILE_STORE_PATH": str(s.file_store_path),
         "TESHQ_NO_TELEMETRY": str(s.no_telemetry).lower(),
+        # Azure OpenAI
+        "LLM_PROVIDER": s.llm_provider,
+        "AZURE_OPENAI_API_KEY": s.azure_openai_api_key or None,
+        "AZURE_OPENAI_ENDPOINT": s.azure_openai_endpoint or None,
+        "AZURE_OPENAI_DEPLOYMENT": s.azure_openai_deployment or None,
+        "AZURE_OPENAI_API_VERSION": s.azure_openai_api_version or None,
     }
 
 
@@ -98,9 +113,63 @@ def get_database_url() -> Optional[str]:
 
 
 def get_gemini_config() -> Tuple[Optional[str], str]:
-    """Return (api_key, model_name) from current settings."""
+    """Return (api_key, model_name) from current settings (Google Gemini)."""
     s = get_settings()
     return (s.gemini_api_key or None), s.gemini_model
+
+
+def get_llm_config() -> Dict[str, Any]:
+    """
+    Return a provider-agnostic LLM configuration dict.
+
+    Keys returned:
+      - provider      → "google" | "azure"
+      - api_key       → key for the chosen provider (may be None if not set)
+      - model_name    → Gemini model name (Google) or deployment name (Azure)
+      - azure_endpoint     → Azure OpenAI endpoint URL (Azure only)
+      - azure_deployment   → Azure deployment name (Azure only)
+      - azure_api_version  → Azure API version string (Azure only)
+    """
+    s = get_settings()
+    provider = s.effective_provider
+    if provider == "azure":
+        return {
+            "provider": "azure",
+            "api_key": s.azure_openai_api_key or None,
+            "model_name": s.azure_openai_deployment or None,
+            "azure_endpoint": s.azure_openai_endpoint or None,
+            "azure_deployment": s.azure_openai_deployment or None,
+            "azure_api_version": s.azure_openai_api_version,
+        }
+    return {
+        "provider": "google",
+        "api_key": s.gemini_api_key or None,
+        "model_name": s.gemini_model,
+        "azure_endpoint": None,
+        "azure_deployment": None,
+        "azure_api_version": None,
+    }
+
+
+def get_storage_paths():
+    """
+    Get storage paths (backward compatibility shim).
+
+    Returns a simple namespace with .schema, .metrics, .query_results paths.
+    """
+    s = get_settings()
+    base = s.output_path.parent  # ~/.teshq/
+
+    class _Paths:
+        schema = base / "schema"
+        metrics = base / "metrics"
+        query_results = s.output_path
+
+    paths = _Paths()
+    paths.schema.mkdir(parents=True, exist_ok=True)
+    paths.metrics.mkdir(parents=True, exist_ok=True)
+    paths.query_results.mkdir(parents=True, exist_ok=True)
+    return paths
 
 
 def get_paths() -> Tuple[str, str]:
@@ -110,7 +179,7 @@ def get_paths() -> Tuple[str, str]:
 
 
 def is_configured() -> bool:
-    """Return True if DATABASE_URL and GEMINI_API_KEY are both set."""
+    """Return True if DATABASE_URL and at least one LLM provider are set."""
     return get_settings().is_configured
 
 
@@ -128,7 +197,7 @@ def print_config_debug() -> None:
 
         # Mask sensitive values
         display_value = value
-        if key == "GEMINI_API_KEY" and value:
+        if key in ("GEMINI_API_KEY", "AZURE_OPENAI_API_KEY") and value:
             display_value = "****" + value[-4:] if len(value) > 4 else "****"
         elif key == "DATABASE_URL" and value:
             display_value = s.masked_database_url()
@@ -144,6 +213,8 @@ if __name__ == "__main__":  # pragma: no cover
     print("Config:", get_config())
     print("DB URL:", get_database_url())
     print("Gemini:", get_gemini_config())
+    print("LLM Config:", get_llm_config())
     print("Paths:", get_paths())
     print("Configured:", is_configured())
     print_config_debug()
+

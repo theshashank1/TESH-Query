@@ -45,11 +45,9 @@ dependencies = [
     "pydantic-settings~=2.0",
     "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
     "requests>=2.31.0",  # Required for subscription client
-<<<<<<< HEAD
     "sqlparse>=0.4.4",  # SQL normalization
-=======
     "tomli>=2.0.0; python_version < '3.11'",  # TOML stdlib in 3.11+
->>>>>>> copilot/redesign-package-management
+    "langchain-openai>=0.2",  # Azure OpenAI / OpenAI support
 ]
 
 [project.optional-dependencies]
@@ -164,9 +162,6 @@ Documentation = "https://github.com/theshashank1/TESH-Query#readme"
 teshq = "teshq.cli.main:app"
 
 [tool.setuptools]
-<<<<<<< HEAD
-packages = ["teshq", "teshq.cli", "teshq.cli.commands", "teshq.cli.ui", "teshq.core", "teshq.eda", "teshq.utils", "teshq.telemetry"]
-=======
 packages = [
     "teshq",
     "teshq.cli",
@@ -174,9 +169,9 @@ packages = [
     "teshq.cli.ui",
     "teshq.config",
     "teshq.core",
+    "teshq.eda",
     "teshq.telemetry",
     "teshq.subscriptions",
     "teshq.utils",
 ]
->>>>>>> copilot/redesign-package-management
 include-package-data = true

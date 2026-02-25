@@ -15,7 +15,7 @@ from typing import Dict, Optional
 from teshq.config.paths import SECRETS_FILE, ensure_teshq_dir
 
 # Keys considered sensitive — stored only in the secrets file
-SECRET_KEYS = {"DATABASE_URL", "GEMINI_API_KEY"}
+SECRET_KEYS = {"DATABASE_URL", "GEMINI_API_KEY", "AZURE_OPENAI_API_KEY"}
 
 
 def _read_env_file(path: Path) -> Dict[str, str]:
