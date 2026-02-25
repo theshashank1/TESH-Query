@@ -28,13 +28,17 @@ _LOCAL_SCHEMA_FULL_PATH = Path("db_schema") / "schema_full.txt"
 
 def get_llm_generator():
     """
-    Create a SQLQueryGenerator configured with Gemini credentials from the current configuration.
-    
-    Returns:
-        SQLQueryGenerator: An instance configured with the Gemini API key and model.
+    Create a SQLQueryGenerator using the provider configured in settings.
+
+    Reads LLM_PROVIDER from ~/.teshq/.teshq.env (or env vars):
+      - "google"  → uses GEMINI_API_KEY + GEMINI_MODEL
+      - "azure"   → uses AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_DEPLOYMENT
+
+    Auto-detects Azure if AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT are set
+    and GEMINI_API_KEY is absent.
     """
-    gemini_api_key, gemini_model = get_gemini_credentials()
-    return SQLQueryGenerator(api_key=gemini_api_key, model_name=gemini_model)
+    from teshq.core.llm_factory import build_llm_from_config
+    return SQLQueryGenerator(llm=build_llm_from_config())
 
 
 def load_db_schema(generator: SQLQueryGenerator, schema_path: Path):

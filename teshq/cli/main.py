@@ -75,9 +75,9 @@ def _callback(
 
 # Register sub-typers
 app.add_typer(db.app, name="db", help="Manage database connections and schema introspection.")
-app.add_typer(config.app, name="config", short_help="Configure database and API credentials.")
+app.add_typer(config.app, name="config", help="Configure database and API credentials.")
 app.add_typer(query.app)  # already named "query" internally
-app.add_typer(analytics.app, name="analytics", short_help="View token usage and cost analytics.")
+app.add_typer(analytics.app, name="analytics", help="View token usage and cost analytics.")
 if _HEALTH_AVAILABLE:
     app.add_typer(health.app, name="health", help="Check system health and connectivity.")
     app.add_typer(subscribe.app, name="subscribe", help="Subscribe to TESH-Query updates.")

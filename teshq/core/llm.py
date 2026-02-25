@@ -25,22 +25,43 @@ class SQLQueryResponse(BaseModel):
 
 
 class SQLQueryGenerator:
-    """SQL Query Generator using Google GenAI and LangChain"""
+    """SQL Query Generator — provider-agnostic via LangChain.
 
-    DEFAULT_MODEL_NAME = "gemini-2.0-flash-lite"  # Class attribute for default model
+    Preferred usage (v2)::
 
-    def __init__(self, api_key: str = None, model_name: str = None):
-        # Use class default if no model_name is provided
-        self.model_name = model_name if model_name is not None else self.DEFAULT_MODEL_NAME
+        from teshq.core.llm_factory import build_llm_from_config
+        generator = SQLQueryGenerator(llm=build_llm_from_config())
 
-        # Set API key
-        if not os.getenv("GOOGLE_API_KEY") and api_key:
-            os.environ["GOOGLE_API_KEY"] = api_key
-        elif not os.getenv("GOOGLE_API_KEY"):
-            raise ValueError("GOOGLE_API_KEY must be set")
+    Legacy usage (Google-only, kept for backward compat)::
 
-        # Initialize model
-        self.llm = ChatGoogleGenerativeAI(model=self.model_name, temperature=0.1)
+        generator = SQLQueryGenerator(api_key="...", model_name="gemini-...")
+    """
+
+    DEFAULT_MODEL_NAME = "gemini-2.0-flash-lite"
+
+    def __init__(self, api_key: str = None, model_name: str = None, llm=None):
+        self.model_name = model_name or self.DEFAULT_MODEL_NAME
+
+        if llm is not None:
+            # v2 path: use the pre-built LLM (Gemini, Azure, or any provider)
+            self.llm = llm
+            # Try to get a model name for logging; fall back to class default
+            self.model_name = (
+                getattr(llm, "model_name", None)
+                or getattr(llm, "deployment_name", None)
+                or getattr(llm, "model", None)
+                or self.DEFAULT_MODEL_NAME
+            )
+        else:
+            # Legacy Google-only path — kept for backward compatibility
+            if not os.getenv("GOOGLE_API_KEY") and api_key:
+                os.environ["GOOGLE_API_KEY"] = api_key
+            elif not os.getenv("GOOGLE_API_KEY") and not api_key:
+                raise ValueError(
+                    "No LLM provided and GOOGLE_API_KEY is not set. "
+                    "Pass llm=build_llm_from_config() or set GOOGLE_API_KEY."
+                )
+            self.llm = ChatGoogleGenerativeAI(model=self.model_name, temperature=0.1)
 
         # Setup output parser
         self.output_parser = PydanticOutputParser(pydantic_object=SQLQueryResponse)

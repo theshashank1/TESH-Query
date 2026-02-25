@@ -196,7 +196,8 @@ def save_setting(key: str, value: Any) -> bool:
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
-                existing = yaml.safe_load(fh) or {}
+                loaded = yaml.safe_load(fh)
+                existing = loaded if isinstance(loaded, dict) else {}
         except Exception:
             pass
 

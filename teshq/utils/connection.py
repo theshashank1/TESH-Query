@@ -61,14 +61,26 @@ class ConnectionManager:
         @event.listens_for(Pool, "checkout")
         def checkout(dbapi_connection, connection_record, connection_proxy):
             metrics.increment_counter("db_checkouts_total", tags={"engine": engine_name})
-            pool = connection_proxy.dbapi_connection.pool
-            metrics.set_gauge("db_pool_connections", pool.size(), tags={"engine": engine_name})
-            metrics.set_gauge("db_pool_checkedout", pool.checkedout(), tags={"engine": engine_name})
+            # dbapi_connection can be None when a failed connection is being cleaned up
+            if dbapi_connection is None:
+                return
+            try:
+                pool = connection_proxy._pool
+                metrics.set_gauge("db_pool_connections", pool.size(), tags={"engine": engine_name})
+                metrics.set_gauge("db_pool_checkedout", pool.checkedout(), tags={"engine": engine_name})
+            except Exception:
+                pass  # Never crash the CLI due to metrics
 
         @event.listens_for(Pool, "checkin")
         def checkin(dbapi_connection, connection_record):
-            pool = dbapi_connection.pool
-            metrics.set_gauge("db_pool_checkedin", pool.checkedin(), tags={"engine": engine_name})
+            # dbapi_connection is None when SQLAlchemy cleans up after a failed checkout
+            if dbapi_connection is None:
+                return
+            try:
+                pool = connection_record._pool
+                metrics.set_gauge("db_pool_checkedin", pool.checkedin(), tags={"engine": engine_name})
+            except Exception:
+                pass  # Never crash the CLI due to metrics
 
         @event.listens_for(Pool, "soft_invalidate")
         def soft_invalidate(dbapi_connection, connection_record, exception):

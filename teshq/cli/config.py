@@ -169,7 +169,7 @@ def configure_azure_interactive() -> dict:
     }
 
 
-@app.command()
+@app.callback(invoke_without_command=True)
 def config(
     # Database options
     db_url: str = typer.Option(None, "--db-url", help="Full database URL (e.g. postgresql://user:pass@host:port/dbname)"),
