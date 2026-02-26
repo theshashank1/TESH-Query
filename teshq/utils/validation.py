@@ -11,9 +11,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
-
 from teshq.utils.database_connectors import UnifiedDatabaseConnector
 
 
@@ -58,13 +55,21 @@ class ConfigValidator:
             # Special validation for SQLite
             if detected_type == "sqlite":
                 if parsed.path:
-                    db_path = Path(parsed.path)
                     import os
-                    # Check if directory exists and is writable instead of creating it
-                    if not db_path.parent.exists():
-                        return False, f"Directory for SQLite database does not exist: {db_path.parent}"
-                    if not os.access(db_path.parent, os.W_OK):
-                        return False, f"Directory for SQLite database is not writable: {db_path.parent}"
+                    path_str = parsed.path
+                    # sqlite:////absolute/path.db → parsed.path = '//absolute/path.db'
+                    # sqlite:///relative.db      → parsed.path = '/relative.db' (relative to CWD)
+                    if path_str.startswith("//"):
+                        # Absolute path (4 slashes total): strip exactly one leading slash
+                        db_path = Path(path_str[1:])
+                    else:
+                        # Relative path (3 slashes total): resolve against CWD
+                        db_path = Path.cwd() / path_str[1:]
+                    parent = db_path.parent
+                    if not parent.exists():
+                        return False, f"Directory for SQLite database does not exist: {parent}"
+                    if not os.access(parent, os.W_OK):
+                        return False, f"Directory for SQLite database is not writable: {parent}"
                 else:
                     return False, "SQLite URL must include a path to the database file"
 
@@ -295,14 +300,13 @@ def validate_environment() -> Tuple[bool, List[str]]:
     if sys.version_info < (3, 9):
         issues.append(f"Python version {sys.version_info[0]}.{sys.version_info[1]} is not supported. Minimum: 3.9")
 
-    # Check required packages
+    # Check required packages (optional DB drivers like psycopg2 are excluded)
     required_packages = [
         "sqlalchemy",
         "typer",
         "rich",
         "langchain",
-        "psycopg2",
-        "dotenv",  # Changed from python-dotenv to dotenv (the import name)
+        "dotenv",  # python-dotenv import name
     ]
 
     for package in required_packages:
