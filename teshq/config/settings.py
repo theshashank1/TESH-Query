@@ -31,7 +31,7 @@ SETTINGS_KEYS = {
     "GEMINI_MODEL",
     "OUTPUT_PATH",
     "FILE_STORE_PATH",
-    "NO_TELEMETRY",
+    "TESHQ_NO_TELEMETRY",
     "LLM_PROVIDER",
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_DEPLOYMENT",
@@ -126,7 +126,9 @@ class Settings(BaseSettings):
             url = make_url(self.database_url)
             return str(url._replace(password="****")) if url.password else self.database_url
         except Exception:
-            return self.database_url
+            # Safe fallback: redact password portion with regex instead of returning raw credentials
+            import re
+            return re.sub(r'(://[^:@]*:)[^@]*(@)', r'\1****\2', self.database_url)
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +156,15 @@ def save_secret(key: str, value: str) -> bool:
     Reads the existing file, updates the key, and rewrites — so other
     secrets are not lost.
     """
+    import re
+    # Validate key: must be safe env-var name
+    if not re.match(r'^[A-Z_][A-Z0-9_]*$', key):
+        print(f"Warning: invalid secret key '{key}' — skipping.")
+        return False
+    # Validate value: no newlines
+    if isinstance(value, str) and ('\n' in value or '\r' in value):
+        print(f"Warning: secret value for '{key}' contains newlines — rejecting.")
+        return False
     ensure_teshq_dir()
     env_vars: Dict[str, str] = {}
 
@@ -162,16 +173,34 @@ def save_secret(key: str, value: str) -> bool:
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")
-                env_vars[k.strip()] = v.strip()
+                # Strip surrounding quotes from parsed values
+                v = v.strip()
+                if len(v) >= 2 and ((v[0] == '"' and v[-1] == '"') or (v[0] == "'" and v[-1] == "'")):
+                    v = v[1:-1]
+                env_vars[k.strip()] = v
 
     env_vars[key] = value
 
     try:
-        SECRETS_FILE.write_text(
-            "\n".join(f"{k}={v}" for k, v in env_vars.items()) + "\n",
-            encoding="utf-8",
-        )
-        SECRETS_FILE.chmod(0o600)  # owner-read-only
+        content = "\n".join(f"{k}={v}" for k, v in env_vars.items()) + "\n"
+        
+        # Write atomically using a temporary file
+        import os as _os
+        import tempfile as _tempfile
+        
+        # Create a temp file in the same directory to ensure it's on the same filesystem
+        fd, temp_path = _tempfile.mkstemp(dir=str(SECRETS_FILE.parent), prefix=".teshq.env.tmp.", text=False)
+        try:
+            # Write with restrictive permissions
+            _os.chmod(temp_path, 0o600)
+            _os.write(fd, content.encode("utf-8"))
+            _os.fsync(fd)
+        finally:
+            _os.close(fd)
+            
+        # Atomically replace the original file
+        _os.replace(temp_path, str(SECRETS_FILE))
+
         os.environ[key] = value    # update current process too
         global _settings_cache
         _settings_cache = None     # invalidate cache
@@ -185,6 +214,10 @@ def save_setting(key: str, value: Any) -> bool:
     """
     Persist a single non-secret setting to ~/.teshq/config.yaml.
     """
+    # Validate key against allowlist to prevent YAML injection
+    if key not in SETTINGS_KEYS:
+        print(f"Warning: '{key}' is not an allowed settings key — skipping.")
+        return False
     ensure_teshq_dir()
     try:
         import yaml

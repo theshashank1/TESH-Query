@@ -42,19 +42,32 @@ def _load() -> dict:
 
 
 def _save(data: dict) -> None:
+    import os
     path = _state_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
 def get_state() -> SubscriptionState:
-    return SubscriptionState(_load().get("state", SubscriptionState.NEVER_SHOWN))
+    raw = _load().get("state", SubscriptionState.NEVER_SHOWN)
+    try:
+        return SubscriptionState(raw)
+    except ValueError:
+        return SubscriptionState.NEVER_SHOWN
 
 
 def should_show_prompt() -> bool:
     """Return True if it's time to show the subscription prompt."""
     data = _load()
-    state = SubscriptionState(data.get("state", SubscriptionState.NEVER_SHOWN))
+    raw_state = data.get("state", SubscriptionState.NEVER_SHOWN)
+    try:
+        state = SubscriptionState(raw_state)
+    except ValueError:
+        state = SubscriptionState.NEVER_SHOWN
 
     if state in (SubscriptionState.SUBSCRIBED, SubscriptionState.OPTED_OUT):
         return False
@@ -84,13 +97,13 @@ def mark_declined() -> None:
 
 
 def mark_subscribed(name: str, email: str) -> None:
-    """User subscribed — never prompt again."""
+    """User subscribed — never prompt again. Does not persist raw PII."""
     _save({
         "state": SubscriptionState.SUBSCRIBED,
         "last_prompted": date.today().isoformat(),
         "next_prompt_after": None,
-        "name": name,
-        "email": email,
+        # Store only a masked email (first char + domain) to confirm subscription without storing PII
+        "email_domain": email.split("@")[-1] if "@" in email else "unknown",
     })
 
 

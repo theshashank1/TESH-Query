@@ -70,7 +70,7 @@ def display_current_config():
             with indent_context():
                 for key, value in config.items():
                     # Mask sensitive values
-                    if key == "GEMINI_API_KEY" and value:
+                    if key in ("GEMINI_API_KEY", "AZURE_OPENAI_API_KEY") and value:
                         display_value = "********"
                     else:
                         display_value = value
@@ -187,7 +187,6 @@ def config(
         DEFAULT_GEMINI_MODEL, "--gemini-model", help="Gemini model to use", show_default=True
     ),
     # Azure OpenAI options
-    azure_api_key_opt: str = typer.Option(None, "--azure-api-key", help="Azure OpenAI API key"),
     azure_endpoint_opt: str = typer.Option(None, "--azure-endpoint", help="Azure OpenAI endpoint URL"),
     azure_deployment_opt: str = typer.Option(None, "--azure-deployment", help="Azure OpenAI deployment name"),
     azure_api_version_opt: str = typer.Option(None, "--azure-api-version", help="Azure OpenAI API version (default: 2024-02-01)"),
@@ -222,7 +221,7 @@ def config(
         db_options_provided = any([db_url, db_type_opt, db_user_opt, db_password_opt, db_host_opt, db_port_opt, db_name_opt])
         file_path_options_provided = any([output_file_path, file_store_path])
         gemini_options_provided = gemini_api_key_opt is not None or gemini_model_name_opt != DEFAULT_GEMINI_MODEL
-        azure_options_provided = any([azure_api_key_opt, azure_endpoint_opt, azure_deployment_opt, azure_api_version_opt])
+        azure_options_provided = any([azure_endpoint_opt, azure_deployment_opt, azure_api_version_opt])
 
         action_taken = False
 
@@ -293,9 +292,20 @@ def config(
         elif azure_options_provided:
             with section("Azure OpenAI Configuration"):
                 info("Using provided Azure OpenAI configuration.")
+                # Validate required fields
+                azure_api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+                if not azure_api_key:
+                    error("AZURE_OPENAI_API_KEY must be set as an environment variable (export AZURE_OPENAI_API_KEY=...).")
+                    raise typer.Exit(1)
+                if not azure_endpoint_opt:
+                    error("--azure-endpoint is required when using Azure OpenAI.")
+                    raise typer.Exit(1)
+                if not azure_deployment_opt:
+                    error("--azure-deployment is required when using Azure OpenAI.")
+                    raise typer.Exit(1)
                 azure_config_to_save = {
                     k: v for k, v in {
-                        "AZURE_OPENAI_API_KEY": azure_api_key_opt,
+                        "AZURE_OPENAI_API_KEY": azure_api_key,
                         "AZURE_OPENAI_ENDPOINT": azure_endpoint_opt,
                         "AZURE_OPENAI_DEPLOYMENT": azure_deployment_opt,
                         "AZURE_OPENAI_API_VERSION": azure_api_version_opt or "2024-02-01",

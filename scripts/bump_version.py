@@ -77,7 +77,7 @@ def main() -> None:
     print(f"  ✓ Updated pyproject.toml")
 
     run(["git", "add", "pyproject.toml"])
-    run(["git", "commit", "-m", f"chore: bump version to {new_version}"])
+    run(["git", "commit", "pyproject.toml", "-m", f"chore: bump version to {new_version}"])
     print(f"  ✓ Committed")
 
     run(["git", "tag", f"v{new_version}"])

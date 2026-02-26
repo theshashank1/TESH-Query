@@ -29,7 +29,7 @@ def load_events(event_type: Optional[str] = None) -> List[Dict[str, Any]]:
                 continue
             try:
                 record = json.loads(line)
-                if event_type is None or record.get("event") == event_type:
+                if event_type is None or record.get("event_type") == event_type:
                     events.append(record)
             except json.JSONDecodeError:
                 continue
@@ -39,9 +39,9 @@ def load_events(event_type: Optional[str] = None) -> List[Dict[str, Any]]:
 def get_summary() -> Dict[str, Any]:
     """Return an aggregated analytics summary for `teshq analytics show`."""
     all_events = load_events()
-    queries = [e for e in all_events if e.get("event") == "query"]
-    commands = [e for e in all_events if e.get("event") == "command"]
-    errors = [e for e in all_events if e.get("event") == "error"]
+    queries = [e for e in all_events if e.get("event_type") == "query"]
+    commands = [e for e in all_events if e.get("event_type") == "command"]
+    errors = [e for e in all_events if e.get("event_type") == "error"]
 
     total_tokens = sum(e.get("tokens", 0) for e in queries)
     successful_queries = sum(1 for e in queries if e.get("success"))

@@ -63,9 +63,10 @@ def get_validated_email() -> str:
     """Get and validate email with Pydantic"""
     while True:
         email = prompt("Enter your email", default="")
+        email = email.strip()
         try:
             SubscriptionRequest(name="Test User", email=email, cli_version=__version__)
-            return email.strip()
+            return email
         except ValidationError as e:
             errors = e.errors()
             email_errors = [err for err in errors if "email" in str(err.get("loc", []))]

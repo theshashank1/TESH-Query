@@ -64,15 +64,16 @@ class TeshQuery:
         """
         self.db_url = db_url
         self.gemini_api_key = gemini_api_key
-        self.gemini_model = gemini_model or "gemini-1.5-flash"
+        self.gemini_model = gemini_model  # May be None; resolved below after config lookup
         self.auto_save_config = auto_save_config
 
         # Try to get configuration if not provided
-        if not self.db_url or not self.gemini_api_key:
+        if not self.db_url or not self.gemini_api_key or not self.gemini_model:
             config = get_config()
             self.db_url = self.db_url or config.get("DATABASE_URL")
             self.gemini_api_key = self.gemini_api_key or config.get("GEMINI_API_KEY")
-            self.gemini_model = self.gemini_model or config.get("GEMINI_MODEL_NAME", "gemini-1.5-flash")
+            # Prefer arg → config → fallback default
+            self.gemini_model = self.gemini_model or config.get("GEMINI_MODEL_NAME") or "gemini-1.5-flash"
 
         # Validate required parameters
         if not self.db_url:

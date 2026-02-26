@@ -30,9 +30,7 @@ class ConfigValidator:
     """Validates configuration values for production readiness."""
 
     # Use unified connector's supported database list
-    @property 
-    def SUPPORTED_DB_TYPES(self):
-        return set(UnifiedDatabaseConnector.get_supported_databases())
+    SUPPORTED_DB_TYPES: set = set(UnifiedDatabaseConnector.get_supported_databases())
     
     GEMINI_API_KEY_PATTERN = re.compile(r"^AIza[0-9A-Za-z-_]{35}$")
 
@@ -61,11 +59,12 @@ class ConfigValidator:
             if detected_type == "sqlite":
                 if parsed.path:
                     db_path = Path(parsed.path)
-                    try:
-                        # Check if directory is writable
-                        db_path.parent.mkdir(parents=True, exist_ok=True)
-                    except PermissionError:
-                        return False, f"Cannot create directory for SQLite database: {db_path.parent}"
+                    import os
+                    # Check if directory exists and is writable instead of creating it
+                    if not db_path.parent.exists():
+                        return False, f"Directory for SQLite database does not exist: {db_path.parent}"
+                    if not os.access(db_path.parent, os.W_OK):
+                        return False, f"Directory for SQLite database is not writable: {db_path.parent}"
                 else:
                     return False, "SQLite URL must include a path to the database file"
 
@@ -119,12 +118,9 @@ class ConfigValidator:
             if must_exist and not path_obj.exists():
                 return False, f"Path does not exist: {path_obj}"
 
-            # Check if directory exists or can be created
+            # Check if directory exists
             if not path_obj.parent.exists():
-                try:
-                    path_obj.parent.mkdir(parents=True, exist_ok=True)
-                except PermissionError:
-                    return False, f"Cannot create directory: {path_obj.parent}"
+                return False, f"Directory does not exist: {path_obj.parent}"
 
             # Check write permissions
             if must_be_writable:
@@ -279,10 +275,11 @@ def validate_production_readiness(config: Dict[str, Any]) -> Tuple[bool, List[st
         required_dirs.append(config["FILE_STORE_PATH"])
 
     for dir_path in required_dirs:
-        try:
-            Path(dir_path).parent.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            issues.append(f"Directory creation failed for {dir_path}: {str(e)}")
+        path_obj = Path(dir_path)
+        if not path_obj.exists():
+            issues.append(f"Directory does not exist: {dir_path}")
+        elif not os.access(path_obj, os.W_OK):
+            issues.append(f"Directory is not writable: {dir_path}")
 
     is_ready = len(issues) == 0
     return is_ready, issues

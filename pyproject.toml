@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
@@ -31,7 +32,8 @@ classifiers = [
 dependencies = [
     "SQLAlchemy>=2.0,<3.0",
     "python-dotenv>=1.0",
-    "psycopg2-binary>=2.9",       # PostgreSQL driver (included by default)
+    # PostgreSQL: NOT a hard dep — install the 'postgres' extra or set it up separately.
+    # psycopg2-binary has no Python 3.13+ wheel yet; asyncpg is the recommended alternative.
     "langchain>=0.3",
     "langchain-core>=0.3",
     "langchain-google-genai>=2.0",
@@ -44,16 +46,17 @@ dependencies = [
     "pydantic~=2.0",
     "pydantic-settings~=2.0",
     "email-validator>=2.0.0",  # Required by pydantic EmailStr validation
-    "requests>=2.31.0",  # Required for subscription client
-    "sqlparse>=0.4.4",  # SQL normalization
+    "requests>=2.31.0",         # Required for subscription client
+    "sqlparse>=0.4.4",           # SQL normalization
     "tomli>=2.0.0; python_version < '3.11'",  # TOML stdlib in 3.11+
-    "langchain-openai>=0.2",  # Azure OpenAI / OpenAI support
+    "langchain-openai>=0.2",     # Azure OpenAI / OpenAI support
 ]
 
 [project.optional-dependencies]
 # Development & CI tools
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=4.0",
     "autopep8>=2.0",
     "pre-commit>=3.0",
     "flake8>=6.0",
@@ -65,6 +68,18 @@ dev = [
 # Database drivers that are supported but not installed by default.
 # SQLite: builtin to Python (no extra package).
 # PostgreSQL: psycopg2-binary is included in core dependencies above.
+
+# PostgreSQL via pure-Python driver (no pg_config / system packages needed)
+# Works on Python 3.9–3.14+
+postgres = [
+    "asyncpg>=0.29",             # Async pure-Python PostgreSQL (recommended, no build deps)
+]
+
+# PostgreSQL via psycopg2-binary (pre-built wheel — Python 3.9–3.12 only)
+# If binary wheel is not available for your Python version, use the 'postgres' extra instead.
+postgres-binary = [
+    "psycopg2-binary>=2.9",
+]
 
 # MySQL support (pure Python, no system dependencies)
 mysql = [
@@ -175,3 +190,29 @@ packages = [
     "teshq.utils",
 ]
 include-package-data = true
+
+# ---------------------------------------------------------------------------
+# uv configuration
+# ---------------------------------------------------------------------------
+[tool.uv]
+# These packages require system libraries (pg_config, libmariadb, ODBC, etc.)
+# to build from source. Tell uv to always use pre-built binary wheels.
+# If no binary wheel is available for the current Python version, the install
+# will fail with a clear message instead of a confusing build error.
+no-build-package = [
+    "psycopg2-binary",
+    "psycopg2",
+    "greenlet",          # SQLAlchemy async dep; pure source build is slow
+    "pyodbc",
+    "mariadb",
+]
+
+# ---------------------------------------------------------------------------
+# Pytest configuration
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

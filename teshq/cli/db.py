@@ -163,4 +163,4 @@ if __name__ == "__main__":
     # This script runs as a Typer CLI application.
     # Execute `python -m teshq.cli.main --help` to see commands.
     app()
-print_footer()
+    print_footer()

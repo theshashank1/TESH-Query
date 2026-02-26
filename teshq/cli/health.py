@@ -82,6 +82,8 @@ def health(
         elif overall_status == HealthStatus.DEGRADED:
             raise typer.Exit(2)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         handle_error(e, "Health Check", suggest_action="Check system configuration and connectivity.")
         raise typer.Exit(1)

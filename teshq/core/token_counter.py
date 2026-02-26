@@ -25,7 +25,7 @@ def estimate_tokens(text: str) -> int:
     Returns:
         Estimated token count (integer).
     """
-    return max(1, len(text) // _CHARS_PER_TOKEN)
+    return max(1, (len(text) + _CHARS_PER_TOKEN - 1) // _CHARS_PER_TOKEN)
 
 
 def exceeds_threshold(text: str, threshold: int = DEFAULT_TOKEN_THRESHOLD) -> bool:

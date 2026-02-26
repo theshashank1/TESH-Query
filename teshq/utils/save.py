@@ -92,6 +92,13 @@ def save_to_sqlite(
             os.makedirs(db_dir, exist_ok=True)
 
         with sqlite3.connect(db_path) as conn:
+            # Validate table_name against a safe SQL identifier pattern
+            import re as _re
+            if not _re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+                raise ValueError(
+                    f"Unsafe table name '{table_name}'. "
+                    "Use only letters, digits, and underscores, starting with a letter or underscore."
+                )
             df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
 
         logger.success(

@@ -8,10 +8,16 @@ from teshq.cli import analytics, config, db, query
 from teshq.utils.logging import configure_global_logger
 
 try:
-    from teshq.cli import health, subscribe
+    from teshq.cli import health
     _HEALTH_AVAILABLE = True
 except ImportError:
     _HEALTH_AVAILABLE = False
+
+try:
+    from teshq.cli import subscribe
+    _SUBSCRIBE_AVAILABLE = True
+except ImportError:
+    _SUBSCRIBE_AVAILABLE = False
 
 try:
     from teshq.cli import telemetry as telemetry_cmd
@@ -80,6 +86,7 @@ app.add_typer(query.app)  # already named "query" internally
 app.add_typer(analytics.app, name="analytics", help="View token usage and cost analytics.")
 if _HEALTH_AVAILABLE:
     app.add_typer(health.app, name="health", help="Check system health and connectivity.")
+if _SUBSCRIBE_AVAILABLE:
     app.add_typer(subscribe.app, name="subscribe", help="Subscribe to TESH-Query updates.")
 if _TELEMETRY_CMD_AVAILABLE:
     app.add_typer(telemetry_cmd.app, name="telemetry", help="Manage anonymous usage telemetry.")

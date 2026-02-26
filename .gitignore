@@ -148,7 +148,14 @@ test_logging_refactor.py
 
 db_schema/*
 
+logs/
 logs/*
 */usage_metrics.jsonl
+usage_metrics.jsonl
+
+# Internal audit/task lists
+issues.txt
+/audit/
+/docs/internal/
 
 teshq_storage/

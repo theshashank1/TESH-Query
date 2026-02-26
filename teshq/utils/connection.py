@@ -51,14 +51,17 @@ class ConnectionManager:
         self.config = config or ConnectionConfig()
         self._engines: Dict[str, Engine] = {}
 
-    def _setup_metrics_listeners(self, engine_name: str):
-        """Set up event listeners for metrics for a given engine."""
-
-        @event.listens_for(Pool, "connect")
+    def _setup_metrics_listeners(self, engine: Engine, engine_name: str):
+        """Set up event listeners for metrics for a given engine's pool."""
+        # Prevent double-registering if get_engine is called multiple times for the same engine
+        if getattr(engine, "_metrics_listeners_installed", False):
+            return
+            
+        @event.listens_for(engine.pool, "connect")
         def connect(dbapi_connection, connection_record):
             metrics.increment_counter("db_connections_total", tags={"engine": engine_name})
 
-        @event.listens_for(Pool, "checkout")
+        @event.listens_for(engine.pool, "checkout")
         def checkout(dbapi_connection, connection_record, connection_proxy):
             metrics.increment_counter("db_checkouts_total", tags={"engine": engine_name})
             # dbapi_connection can be None when a failed connection is being cleaned up
@@ -71,7 +74,7 @@ class ConnectionManager:
             except Exception:
                 pass  # Never crash the CLI due to metrics
 
-        @event.listens_for(Pool, "checkin")
+        @event.listens_for(engine.pool, "checkin")
         def checkin(dbapi_connection, connection_record):
             # dbapi_connection is None when SQLAlchemy cleans up after a failed checkout
             if dbapi_connection is None:
@@ -82,9 +85,11 @@ class ConnectionManager:
             except Exception:
                 pass  # Never crash the CLI due to metrics
 
-        @event.listens_for(Pool, "soft_invalidate")
+        @event.listens_for(engine.pool, "soft_invalidate")
         def soft_invalidate(dbapi_connection, connection_record, exception):
             metrics.increment_counter("db_connection_invalidated_total", tags={"engine": engine_name})
+            
+        engine._metrics_listeners_installed = True
 
     def get_engine(self, database_url: str, engine_name: str = "default") -> Engine:
         """Get or create a database engine with the unified connector system."""
@@ -108,7 +113,7 @@ class ConnectionManager:
                 self._engines[engine_name] = engine
                 
                 # Set up listeners only once per engine
-                self._setup_metrics_listeners(engine_name)
+                self._setup_metrics_listeners(engine, engine_name)
                 
                 db_type = UnifiedDatabaseConnector.detect_database_type(database_url)
                 logger.info(
@@ -123,18 +128,18 @@ class ConnectionManager:
             except ValueError as e:
                 # Fallback to original implementation for unsupported databases
                 logger.warning(f"Using fallback connection method: {e}")
-                engine_args = self._get_engine_args(database_url)
+                database_url, engine_args = self._get_engine_args(database_url)
                 engine = create_engine(database_url, **engine_args)
                 self._engines[engine_name] = engine
-                self._setup_metrics_listeners(engine_name)
+                self._setup_metrics_listeners(engine, engine_name)
                 
                 logger.info("Database engine created (fallback mode)", engine_name=engine_name)
                 return engine
 
-    def _get_engine_args(self, database_url: str) -> Dict[str, Any]:
-        """Get the appropriate arguments for creating a SQLAlchemy engine."""
+    def _get_engine_args(self, database_url: str) -> tuple[str, Dict[str, Any]]:
+        """Get the appropriate database_url and arguments for creating a SQLAlchemy engine."""
         if database_url.startswith("sqlite"):
-            return {
+            return database_url, {
                 "poolclass": StaticPool,
                 "echo": self.config.echo,
                 "connect_args": {"check_same_thread": False},
@@ -145,7 +150,7 @@ class ConnectionManager:
                 database_url += f"?connect_timeout={self.config.connect_timeout}"
             else:
                 database_url += f"&connect_timeout={self.config.connect_timeout}"
-            return {
+            return database_url, {
                 "poolclass": QueuePool,
                 "pool_size": self.config.pool_size,
                 "max_overflow": self.config.max_overflow,

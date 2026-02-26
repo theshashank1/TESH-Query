@@ -41,7 +41,7 @@ def _read_env_file(path: Path) -> Dict[str, str]:
                     continue
                 if "=" in line:
                     key, _, value = line.partition("=")
-                    result[key.strip()] = value.strip()
+                    result[key.strip()] = value.rstrip("\r\n")
     except OSError:
         pass
     return result

@@ -14,7 +14,7 @@ from teshq.utils.config import get_gemini_config as get_gemini_credentials
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
 from teshq.utils.telemetry import track_command, track_error, track_feature
-from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success
+from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success, warning
 from teshq.utils.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
@@ -91,8 +91,8 @@ def save_results(
     excel_path: str = None,
     sqlite_path: str = None,
     sqlite_table: str = "results",
-):
-    """Saves the query results to the specified formats."""
+) -> str:
+    """Saves the query results to the specified formats. Returns normalized excel_path."""
     if csv_path:
         save_to_csv(df, csv_path)
     if excel_path:
@@ -101,6 +101,7 @@ def save_results(
         save_to_excel(df, excel_path)
     if sqlite_path:
         save_to_sqlite(df, sqlite_path, sqlite_table)
+    return excel_path
 
 
 @app.command(
@@ -285,7 +286,8 @@ def process_nl_query(
         session_summary = tracker.get_session_summary()
         
         if session_summary['queries'] > 0:
-            last_query = session_summary['queries_detail'][-1] if 'queries_detail' in session_summary else None
+            queries_detail = session_summary.get('queries_detail')
+            last_query = queries_detail[-1] if queries_detail else None
             if last_query:
                 info(f"🏷️  Token usage: {last_query['tokens']:,} tokens, estimated cost: ${last_query['cost']:.4f}")
                 if logging_active:
@@ -293,9 +295,11 @@ def process_nl_query(
             info(f"📊 Session total: {session_summary['total_tokens']:,} tokens, ${session_summary['total_cost']:.4f} (across {session_summary['queries']} queries)")
 
         # Save results if requested - use the normalized DataFrame
-        if result and (save_csv or save_excel or save_sqlite):
+        if result is not None and (save_csv or save_excel or save_sqlite):
+            if len(result) == 0:
+                warning("⚠️  Query returned 0 rows — saving empty result set.")
             df = result.dataframe
-            save_results(df, save_csv, save_excel, save_sqlite)
+            save_excel = save_results(df, save_csv, save_excel, save_sqlite)
 
             # Track feature usage
             for fmt, path in [("save_csv", save_csv), ("save_excel", save_excel), ("save_sqlite", save_sqlite)]:
