@@ -1,28 +1,29 @@
 import datetime
 import json
-import sys  # Added for writing warnings to stderr
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import requests
 
-# Define the path for the metrics file. Using .jsonl for line-separated JSON objects is efficient for append-only logs.
-METRICS_FILE = Path("usage_metrics.jsonl")
+# Store metrics alongside other teshq runtime data, not in the CWD.
+_TESHQ_DIR = Path.home() / ".teshq"
+METRICS_FILE = _TESHQ_DIR / "metrics" / "usage_metrics.jsonl"
 
-# Fallback dictionary for common models
-# Prices are per 1 Million Tokens (Input Cost, Output Cost)
-# These values can get out of date, but serve as a good fallback.
-_STATIC_MODEL_COSTS = {
-    # Prices per 1 Million Tokens (Input, Output)
+# Fallback pricing for common models (per 1 Million tokens, Input / Output).
+# Keep this in sync with TokenPricingCalculator.PRICING_MAP.
+_STATIC_MODEL_COSTS: Dict[str, Dict[str, tuple]] = {
     "google": {
-        "gemini-1.5-flash": (0.35, 1.05),
-        "gemini-1.5-pro": (3.50, 10.50),
-        "gemini-2.5-flash": (0.30, 2.50),
+        "gemini-2.0-flash-lite": (0.075, 0.30),
+        "gemini-2.0-flash": (0.10, 0.40),
+        "gemini-2.5-pro": (1.25, 10.00),
+        "gemini-1.5-flash": (0.075, 0.30),
+        "gemini-1.5-pro": (1.25, 5.00),
     },
     "openai": {
-        "gpt-4o": (5.00, 15.00),
+        "gpt-4o": (2.50, 10.00),
+        "gpt-4o-mini": (0.15, 0.60),
         "gpt-4-turbo": (10.00, 30.00),
-        "gpt-4": (30.00, 60.00),
         "gpt-3.5-turbo": (0.50, 1.50),
     },
 }
@@ -105,6 +106,7 @@ def track_llm_usage(model: str, input_tokens: int, output_tokens: int, provider:
     }
 
     # Append the metric as a new line to the file, ensuring thread-safe appends
+    METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(METRICS_FILE, "a") as f:
         f.write(json.dumps(metric) + "\n")
 
@@ -132,6 +134,7 @@ def track_feature_usage(feature_name: str, properties: Dict[str, Any] = None):
         "properties": properties,
     }
 
+    METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(METRICS_FILE, "a") as f:
         f.write(json.dumps(metric) + "\n")
 

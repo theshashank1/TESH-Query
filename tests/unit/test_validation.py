@@ -6,9 +6,7 @@ Tests all validation functions to ensure production-ready input handling.
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
-
-from sqlalchemy.exc import SQLAlchemyError
+from unittest.mock import patch
 
 from teshq.utils.validation import (
     CLIValidator,
@@ -124,24 +122,19 @@ class TestConfigValidator:
         assert any("DATABASE_URL" in error for error in errors)
         assert any("GEMINI_API_KEY" in error for error in errors)
 
-    @patch("teshq.utils.validation.create_engine")
-    def test_validate_database_connection_success(self, mock_create_engine):
+    @patch("teshq.utils.validation.UnifiedDatabaseConnector.test_connection")
+    def test_validate_database_connection_success(self, mock_test_connection):
         """Test successful database connection."""
-        # Mock successful connection
-        mock_engine = MagicMock()
-        mock_conn = MagicMock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
-        mock_create_engine.return_value = mock_engine
+        mock_test_connection.return_value = (True, "Connection successful. Database version: 1.0")
 
         is_connected, message = ConfigValidator.validate_database_connection("sqlite:///test.db")
         assert is_connected
         assert "successful" in message
 
-    @patch("teshq.utils.validation.create_engine")
-    def test_validate_database_connection_failure(self, mock_create_engine):
+    @patch("teshq.utils.validation.UnifiedDatabaseConnector.test_connection")
+    def test_validate_database_connection_failure(self, mock_test_connection):
         """Test failed database connection."""
-        # Mock connection failure
-        mock_create_engine.side_effect = SQLAlchemyError("Connection failed")
+        mock_test_connection.return_value = (False, "Connection failed: could not connect")
 
         is_connected, message = ConfigValidator.validate_database_connection("postgresql://invalid")
         assert not is_connected
@@ -222,18 +215,19 @@ class TestProductionReadiness:
 
     def test_validate_production_readiness_valid_config(self):
         """Test production readiness with valid configuration."""
-        config = {
-            "DATABASE_URL": "postgresql://user:pass@production-host:5432/db",
-            "GEMINI_API_KEY": "AIza" + "A" * 35,
-            "OUTPUT_PATH": "/tmp/output",
-            "FILE_STORE_PATH": "/tmp/files",
-        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config = {
+                "DATABASE_URL": "postgresql://user:pass@production-host:5432/db",
+                "GEMINI_API_KEY": "AIza" + "A" * 35,
+                "OUTPUT_PATH": tmp_dir,
+                "FILE_STORE_PATH": tmp_dir,
+            }
 
-        with patch.object(ConfigValidator, "validate_database_connection", return_value=(True, "Success")):
-            with patch.object(ConfigValidator, "validate_config", return_value=[]):
-                is_ready, issues = validate_production_readiness(config)
-                assert is_ready
-                assert len(issues) == 0
+            with patch.object(ConfigValidator, "validate_database_connection", return_value=(True, "Success")):
+                with patch.object(ConfigValidator, "validate_config", return_value=[]):
+                    is_ready, issues = validate_production_readiness(config)
+                    assert is_ready
+                    assert len(issues) == 0
 
     def test_validate_production_readiness_localhost_warning(self):
         """Test production readiness with localhost database (warning)."""

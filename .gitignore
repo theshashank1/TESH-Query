@@ -159,3 +159,18 @@ issues.txt
 /docs/internal/
 
 teshq_storage/
+
+# Root-level scratch/development files (not part of the package)
+test.db
+test.py
+test_api.py
+test_pandas.py
+test-llm-execution.py
+test_output.txt
+validate_production.py
+repository_analysis.md
+PRODUCTION_READINESS_ASSESSMENT.md
+PRODUCTION_READINESS_CHECKLIST.md
+
+# Metrics files (auto-generated at runtime)
+usage_metrics.jsonl
