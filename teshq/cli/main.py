@@ -35,8 +35,11 @@ app = typer.Typer(
         "Quick start:\n\n"
         "  1. teshq config --db          # set up database connection\n\n"
         "  2. teshq config --gemini      # set your Gemini API key\n\n"
-        "  3. teshq introspect           # introspect the database schema\n\n"
-        "  4. teshq query \"show top 10 customers by revenue\"\n"
+        "  3. teshq db introspect        # introspect the database schema\n\n"
+        "  4. teshq query \"show top 10 customers by revenue\"\n\n"
+        "Tips:\n\n"
+        "  • Set NO_COLOR=1 to disable coloured output (CI / piped output).\n\n"
+        "  • Use --log to write detailed logs to ~/.teshq/logs/ for debugging.\n"
     ),
     short_help="Natural-language SQL query tool",
     epilog="Docs & source: https://github.com/theshashank1/TESH-Query",

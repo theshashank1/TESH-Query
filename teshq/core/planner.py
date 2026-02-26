@@ -15,13 +15,21 @@ from teshq.core.models import QueryPlan
 from teshq.utils.logging import logger
 
 _SYSTEM_PROMPT = (
-    "You analyze natural language queries. "
-    "Return structured JSON describing: "
-    "tables required, filters, aggregations, joins needed. "
-    "Do not generate SQL."
+    "You are a database query analyst. "
+    "Given a compressed database schema and a natural language query, identify:\n"
+    "  - tables: all table names needed to answer the query\n"
+    "  - filters: WHERE clause conditions (e.g. 'age > 25', 'status = active')\n"
+    "  - aggregations: GROUP BY / aggregate functions needed (e.g. 'COUNT orders', 'SUM revenue')\n"
+    "  - joins_needed: relationships to traverse (e.g. 'users.id = orders.user_id')\n"
+    "Use the FK→ annotations in the schema to identify join paths. "
+    "Do NOT generate any SQL — return structured JSON only."
 )
 
-_HUMAN_TEMPLATE = "Schema:\n{schema}\n\nQuery: {nl_query}"
+_HUMAN_TEMPLATE = (
+    "Schema (TABLE name (col TYPE flags, ...) where PK=primary key, NN=not null, FK→table.col=foreign key):\n"
+    "{schema}\n\n"
+    "Query: {nl_query}"
+)
 
 
 class QueryPlanner:

@@ -9,7 +9,7 @@ name = "teshq"
 version = "2.0.0"
 description = "A CLI tool that converts natural language queries into SQL and returns relevant tables using natural language."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 # Use the license file so packaging tools pick it up
 license = { file = "LICENSE" }
 keywords = ["sql", "cli", "database", "natural language", "AI", "LLM"]
@@ -18,7 +18,6 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

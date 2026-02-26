@@ -14,23 +14,35 @@ from langchain_core.prompts import ChatPromptTemplate
 from teshq.core.models import QueryPlan, SQLQuery
 from teshq.utils.logging import logger
 
-_SYSTEM_PROMPT = """You convert natural language to SQL.
+_SYSTEM_PROMPT = """You are a production-grade SQL generator.
 
-Rules:
-- ANSI SQL unless schema specifies dialect
-- Use :param_name for values
-- SELECT by default
-- Only INSERT/UPDATE/DELETE if explicitly requested
-- Never DROP, TRUNCATE, ALTER
-- Use table aliases in joins
-- Never use SELECT *
-Output only structured SQLQuery."""
+Schema format: TABLE name (col TYPE [PK] [NN] [FK→other_table.col], ...)
+  PK = primary key, NN = not null, FK→ = foreign key pointing to another table/column.
+
+Generation rules:
+- Use ANSI SQL unless the schema comment specifies a dialect (e.g. PostgreSQL, MySQL).
+- Use :param_name placeholders for all user-supplied literal values.
+- Use explicit column names — never SELECT *.
+- Use table aliases for every table in multi-table queries.
+- Follow FK→ annotations to determine correct JOIN columns.
+- Prefer INNER JOIN unless an outer join is clearly required.
+- For aggregations, always include a GROUP BY clause.
+- ORDER BY requires an explicit column; never ORDER BY a bare number.
+- Default to SELECT; only use INSERT/UPDATE/DELETE when the query explicitly requests it.
+- Never emit DROP, TRUNCATE, or ALTER statements.
+- If the query is ambiguous, choose the safest, most read-only interpretation.
+
+Output only the structured SQLQuery — no markdown, no explanation."""
 
 _HUMAN_TEMPLATE = (
-    "Schema:\n{schema}\n\n"
-    "Plan:\nTables: {tables}\nFilters: {filters}\n"
-    "Aggregations: {aggregations}\nJoins: {joins}\n\n"
-    "Query: {nl_query}"
+    "Schema (with relationship annotations):\n{schema}\n\n"
+    "Query plan:\n"
+    "  Tables: {tables}\n"
+    "  Filters: {filters}\n"
+    "  Aggregations: {aggregations}\n"
+    "  Joins: {joins}\n\n"
+    "Natural language request: {nl_query}\n\n"
+    "Generate a single SQL statement that answers the request."
 )
 
 
