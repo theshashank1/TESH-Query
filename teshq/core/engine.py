@@ -41,6 +41,8 @@ class QueryResult:
     schema_preview: str = ""
     error: Optional[str] = None
     success: bool = True
+    total_tokens: int = 0
+    cost_estimate_usd: float = 0.0
 
 
 class TeshEngine:

@@ -281,7 +281,15 @@ def validate_production_readiness(config: Dict[str, Any]) -> Tuple[bool, List[st
 
     for dir_path in required_dirs:
         path_obj = Path(dir_path)
-        if not path_obj.exists():
+        try:
+            path_exists = path_obj.exists()
+        except PermissionError:
+            issues.append(f"Directory access denied (insufficient permissions): {dir_path}")
+            continue
+        except OSError as e:
+            issues.append(f"Directory is not accessible ({e.strerror}): {dir_path}")
+            continue
+        if not path_exists:
             issues.append(f"Directory does not exist: {dir_path}")
         elif not os.access(path_obj, os.W_OK):
             issues.append(f"Directory is not writable: {dir_path}")

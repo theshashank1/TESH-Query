@@ -100,8 +100,6 @@ def process_nl_query(
     # --schema-preview: print compressed schema and exit (no LLM needed)
     if schema_preview:
         try:
-            from teshq.core.engine import TeshEngine
-
             engine = TeshEngine()
             preview = engine.get_schema_preview(natural_language_request)
             info("📋 Compressed schema sent to LLM:")
