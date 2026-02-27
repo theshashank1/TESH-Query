@@ -7,7 +7,7 @@ anonymous usage tracking.
 
 import typer
 
-from teshq.utils.telemetry import (
+from teshq.telemetry.events import (
     _LOCAL_LOG,
     _OPT_OUT_ENV,
     is_telemetry_enabled,

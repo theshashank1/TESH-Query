@@ -6,14 +6,13 @@ import typer
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.config.paths import get_schema_path
-from teshq.core.llm import SQLQueryGenerator
-from teshq.core.query import execute_sql_query
+from teshq.core.engine import TeshEngine
 from teshq.utils.cli_logging import CLILogger
 from teshq.utils.config import get_database_url as get_db_url
-from teshq.utils.config import get_gemini_config as get_gemini_credentials
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
-from teshq.utils.telemetry import track_command, track_error, track_feature
+from teshq.telemetry.events import track_command, track_error, track_feature
+from teshq.telemetry.logfire_setup import logfire_span
 from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success, warning
 from teshq.utils.validation import CLIValidator, ValidationError
 
@@ -25,65 +24,6 @@ _TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")       # default: compact mini
 _TESHQ_SCHEMA_FULL_PATH = get_schema_path("schema_full.txt")  # optional: full verbose
 _LOCAL_SCHEMA_PATH = Path("db_schema") / "schema.txt"
 _LOCAL_SCHEMA_FULL_PATH = Path("db_schema") / "schema_full.txt"
-
-def get_llm_generator():
-    """
-    Create a SQLQueryGenerator using the provider configured in settings.
-
-    Reads LLM_PROVIDER from ~/.teshq/.teshq.env (or env vars):
-      - "google"  → uses GEMINI_API_KEY + GEMINI_MODEL
-      - "azure"   → uses AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_DEPLOYMENT
-
-    Auto-detects Azure if AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT are set
-    and GEMINI_API_KEY is absent.
-    """
-    from teshq.core.llm_factory import build_llm_from_config
-    return SQLQueryGenerator(llm=build_llm_from_config())
-
-
-def load_db_schema(generator: SQLQueryGenerator, schema_path: Path):
-    """Loads the database schema from the specified path."""
-    info(f"📁 Loading schema from: [bold]{schema_path}[/bold]")
-    try:
-        return generator.load_schema(schema_path)
-    except FileNotFoundError:
-        error(f"❌ Schema file not found at: {schema_path}")
-        raise typer.Exit(code=1)
-    except Exception as e:
-        error(f"❌ Failed to load schema: {e}")
-        raise typer.Exit(code=1)
-
-
-def generate_sql_query(generator: SQLQueryGenerator, nl_query: str, schema: str):
-    """Generates an SQL query from a natural language query."""
-    info(f"🧠 Generating SQL for your query: “[italic]{nl_query}[/italic]”")
-    try:
-        with status("Generating SQL Query", "SQL Query Generated Successfully"):
-            result = generator.generate_sql(nl_query, schema)
-            sql_query = result.get("query")
-            parameters = result.get("parameters")
-
-        if not sql_query:
-            error("SQL generation did not return a valid query.")
-            raise typer.Exit(code=1)
-        return sql_query, parameters
-    except Exception as e:
-        error(f"❌ SQL generation failed: {e}")
-        raise typer.Exit(code=1)
-
-
-def run_sql_query(db_url: str, sql_query: str, parameters: dict) -> QueryResult:
-    """Executes the SQL query against the database and returns a QueryResult object."""
-    db_display = db_url.split("@")[-1] if db_url and "@" in db_url else "default DB"
-    info(f"🗃️  Executing query on database: [bold]{db_display}[/bold]")
-    try:
-        with status("Executing SQL Query", "SQL Query Executed Successfully"):
-            raw_results = execute_sql_query(db_url=db_url, query=sql_query, parameters=parameters)
-            return QueryResult(raw_results, sql_query, parameters)
-    except SQLAlchemyError as e:
-        error(f"❌ SQL execution failed: {e}")
-        raise typer.Exit(code=1)
-
 
 def save_results(
     df: pd.DataFrame,
@@ -214,53 +154,44 @@ def process_nl_query(
                     )
                     raise typer.Exit(1)
 
-        with status("Initializing", "Initialization complete"):
-            generator = get_llm_generator()
-            db_url_val = get_db_url()
+        with logfire_span("teshq.init"):
+            with status("Initializing Engine", "Engine ready"):
+                db_url_val = get_db_url()
+                engine = TeshEngine(db_url=db_url_val)
 
-            if logging_active:
-                cli_logger.log_info("Initialization complete", generator_model=generator.model_name)
-
-        # Pick schema file: full verbose if --full-schema is set and available, else compact minimal
-        if full_schema:
-            full_path = _TESHQ_SCHEMA_FULL_PATH if _TESHQ_SCHEMA_FULL_PATH.exists() else _LOCAL_SCHEMA_FULL_PATH
-            if full_path.exists():
-                schema_file_path = full_path
-                info("📖 Using full schema (schema_full.txt) for highest SQL accuracy.")
-            else:
-                schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
-                info("⚠️  schema_full.txt not found; falling back to compact schema. Run: teshq db introspect --all")
+        if dry_run:
+            info("🧠 Generating SQL in dry-run mode (no execution)...")
         else:
-            schema_file_path = _TESHQ_SCHEMA_PATH if _TESHQ_SCHEMA_PATH.exists() else _LOCAL_SCHEMA_PATH
-        schema = load_db_schema(generator, schema_file_path)
+            db_display = db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database"
+            info(f"🧠 Generating and executing query on [bold]{db_display}[/bold]...")
 
-        sql_query, parameters = generate_sql_query(generator, natural_language_request, schema)
+        with logfire_span("teshq.engine_pipeline"):
+            engine_result = engine.query(natural_language_request, dry_run=dry_run)
+            
+        if not engine_result.success:
+            error(f"❌ Query generation/execution failed: {engine_result.error}")
+            raise typer.Exit(code=1)
+
+        sql_query, parameters = engine_result.sql, engine_result.parameters
+        
         print_sql(sql_query, title="Generated SQL Query")
 
         if parameters:
             info(f"🔧 Query parameters: {parameters}")
 
-        if logging_active:
-            cli_logger.log_info("SQL generated", 
-                              sql_query=sql_query[:200] + "..." if len(sql_query) > 200 else sql_query,
-                              has_parameters=bool(parameters))
-
-        # --dry-run: validate but do not execute
         if dry_run:
-            from teshq.core.sql_validator import validate_sql
-            from teshq.utils.validation import ValidationError as _VE
-
-            try:
-                validate_sql(sql_query)
-                success("✅ SQL is valid. Dry-run complete — query was NOT executed.")
-            except _VE as ve:
-                error(f"❌ Invalid SQL generated.\nReason: {ve}\nSuggestion: Refine your query.")
-                raise typer.Exit(code=1)
-            if explain:
-                info(f"📊 Explain:\n  SQL: {sql_query}\n  Parameters: {parameters}")
+            success("✅ SQL generated. Dry-run complete — query was NOT executed.")
+            if explain and engine_result.plan:
+                info(f"📊 Explain:\n  Tables: {engine_result.plan.tables}\n  Filters: {engine_result.plan.filters}\n  SQL: {sql_query}\n  Parameters: {parameters}")
             raise typer.Exit(code=0)
 
-        result = run_sql_query(db_url_val, sql_query, parameters)
+        # Wrap Engine result in the UI QueryResult formatter
+        result = QueryResult(
+            results=engine_result.rows,
+            query=sql_query,
+            parameters=parameters,
+            natural_language_query=natural_language_request
+        )
 
         success("✅ SQL query executed successfully!")
         print_divider()
@@ -280,19 +211,9 @@ def process_nl_query(
                 execution_time_ms=0  # This would be captured in run_sql_query
             )
 
-        # Show token usage summary for this query
-        from teshq.utils.token_tracking import get_token_tracker
-        tracker = get_token_tracker()
-        session_summary = tracker.get_session_summary()
-        
-        if session_summary['queries'] > 0:
-            queries_detail = session_summary.get('queries_detail')
-            last_query = queries_detail[-1] if queries_detail else None
-            if last_query:
-                info(f"🏷️  Token usage: {last_query['tokens']:,} tokens, estimated cost: ${last_query['cost']:.4f}")
-                if logging_active:
-                    cli_logger.log_token_usage(last_query['tokens'], last_query['cost'], "gemini")
-            info(f"📊 Session total: {session_summary['total_tokens']:,} tokens, ${session_summary['total_cost']:.4f} (across {session_summary['queries']} queries)")
+        # Show token usage summary for this query (from engine result)
+        info(f"🏷️  Token usage: {engine_result.total_tokens:,} tokens, estimated cost: ${engine_result.cost_estimate_usd:.4f}")
+        info(f"⏱️  Latency: {engine_result.plan_latency_ms + engine_result.sql_latency_ms + engine_result.exec_latency_ms}ms (Plan: {engine_result.plan_latency_ms}ms, SQL: {engine_result.sql_latency_ms}ms, Exec: {engine_result.exec_latency_ms}ms)")
 
         # Save results if requested - use the normalized DataFrame
         if result is not None and (save_csv or save_excel or save_sqlite):

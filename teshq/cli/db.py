@@ -4,10 +4,12 @@ import typer
 from dotenv import load_dotenv
 
 from teshq.cli.ui import error, handle_error, print_footer, print_header, status, tip, warning
-from teshq.core.db import connect_database, disconnect_database
 from teshq.core.introspect import introspect_db
+from teshq.telemetry.events import track_command, track_error
+from teshq.telemetry.logfire_setup import logfire_span
 from teshq.utils.cli_logging import CLILogger
 from teshq.utils.config import get_database_url as get_configured_database_url
+from teshq.utils.connection import connection_manager
 
 app = typer.Typer()
 load_dotenv()
@@ -40,11 +42,12 @@ def database(
     conn = None
     if connect:
         try:
-            with status(
-                "Connecting to the database...",
-                success_message="Database connection successful.",
-            ):
-                conn = connect_database(db_url)
+            with logfire_span("teshq.db.connect"):
+                with status(
+                    "Connecting to the database...",
+                    success_message="Database connection successful.",
+                ):
+                    conn = connection_manager.get_engine(db_url)
         except Exception as e:
             handle_error(
                 e,
@@ -59,7 +62,7 @@ def database(
                     "Disconnecting from database...",
                     success_message="Database disconnection successful.",
                 ):
-                    disconnect_database(conn)
+                    conn.dispose()
             except Exception as e:
                 handle_error(e, "Database Disconnection")
 
@@ -113,17 +116,18 @@ def introspect(
         schema_mode = "full" if full_schema else "minimal"
 
         # Introspection logic handles db_url if None
-        with status(
-            "Performing database introspection...",
-            success_message="Introspection complete.",
-        ):
-            # introspect_db will handle finding the db_url if not provided
-            result = introspect_db(
-                db_url=db_url,
-                detect_relationships=detect_relationships,
-                include_indexes=full_schema,  # Only collect indexes when --all is set
-                schema_mode=schema_mode,
-            )
+        with logfire_span("teshq.db.introspect"):
+            with status(
+                "Performing database introspection...",
+                success_message="Introspection complete.",
+            ):
+                # introspect_db will handle finding the db_url if not provided
+                result = introspect_db(
+                    db_url=db_url,
+                    detect_relationships=detect_relationships,
+                    include_indexes=full_schema,  # Only collect indexes when --all is set
+                    schema_mode=schema_mode,
+                )
             
             if logging_active:
                 # Log introspection results

@@ -3,11 +3,10 @@ teshq.telemetry.events — Typed event helpers for Logfire + local JSONL.
 
 Usage::
 
-    from teshq.telemetry.events import track_query, track_command
+    from teshq.telemetry.events import track_query, track_command, track_error
 
 All tracking functions are no-ops if telemetry is opted out.
-
-Legacy API (track_query_event, get_query_metrics) preserved for backward compatibility.
+Logfire spans are used for structured observability when Logfire is configured.
 """
 
 from __future__ import annotations
@@ -16,27 +15,72 @@ import datetime
 import json
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
-# Opt-out check
+# Opt-out check and persistence
 # ---------------------------------------------------------------------------
+
+_OPT_OUT_ENV = "TESHQ_NO_TELEMETRY"
+_OPT_OUT_FILE = Path.home() / ".teshq" / "telemetry_opt_out"
+_LOCAL_LOG = Path.home() / ".teshq" / "telemetry.jsonl"
+_DEVICE_ID_FILE = Path.home() / ".teshq" / ".device_id"
+
+
+def _get_device_id() -> str:
+    """Return a stable, anonymous device ID (created on first use)."""
+    import uuid
+    try:
+        _DEVICE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if _DEVICE_ID_FILE.exists():
+            return _DEVICE_ID_FILE.read_text().strip()
+        device_id = str(uuid.uuid4())
+        _DEVICE_ID_FILE.write_text(device_id)
+        return device_id
+    except OSError:
+        return "anonymous"
+
+
+def is_telemetry_enabled() -> bool:
+    """Return True unless the user has opted out."""
+    import os
+    if os.getenv(_OPT_OUT_ENV, "").lower() in ("1", "true", "yes"):
+        return False
+    if _OPT_OUT_FILE.exists():
+        return False
+    return True
+
+
+def set_telemetry_enabled(enabled: bool) -> None:
+    """Enable or disable telemetry (persisted to disk)."""
+    try:
+        _OPT_OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if enabled:
+            if _OPT_OUT_FILE.exists():
+                _OPT_OUT_FILE.unlink()
+        else:
+            _OPT_OUT_FILE.touch()
+    except OSError:
+        pass
+
 
 def _is_opted_out() -> bool:
     """Return True if the user has disabled telemetry."""
     import os
+    if not is_telemetry_enabled():
+        return True
     if os.getenv("TESHQ_NO_TELEMETRY", "").lower() in ("1", "true", "yes"):
         return True
     try:
         from teshq.config.settings import get_settings
-        return get_settings().no_telemetry
+        return getattr(get_settings(), "no_telemetry", False)
     except Exception:
         return False
 
 
 # ---------------------------------------------------------------------------
-# Logfire (cloud telemetry) — optional
+# Logfire helpers — use logfire_setup's init; never call logfire.configure here
 # ---------------------------------------------------------------------------
 
 def _logfire_info(msg: str, **kwargs: object) -> None:
@@ -51,6 +95,14 @@ def _logfire_error(msg: str, **kwargs: object) -> None:
     try:
         import logfire
         logfire.error(msg, **kwargs)
+    except Exception:
+        pass
+
+
+def _logfire_warn(msg: str, **kwargs: object) -> None:
+    try:
+        import logfire
+        logfire.warn(msg, **kwargs)
     except Exception:
         pass
 
@@ -77,27 +129,73 @@ def _record_local(event_type: str, **data: object) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Public event API (v2)
+# Public event API (v2) — used by CLI commands and TeshEngine
 # ---------------------------------------------------------------------------
 
-def track_command(name: str, success: bool, error_type: Optional[str] = None) -> None:
-    """Track a CLI command invocation."""
+def track_command(
+    name: str,
+    success: bool = True,
+    error_type: Optional[str] = None,
+    **flags: Any,
+) -> None:
+    """
+    Track a CLI command invocation.
+
+    Compatible with both the v2 signature ``track_command(name, success=True)``
+    and the legacy v1 signature ``track_command("query", save_csv=True)``.
+    Extra keyword flags are recorded as safe booleans.
+    """
     if _is_opted_out():
         return
-    _logfire_info("command", name=name, success=success, error_type=error_type)
-    _record_local("command", name=name, success=success, error_type=error_type)
+
+    try:
+        import teshq
+        version = getattr(teshq, "__version__", "unknown")
+    except ImportError:
+        version = "unknown"
+
+    device_id = _get_device_id()
+    safe_flags = {k: bool(v) for k, v in flags.items()}
+
+    _logfire_info(
+        "command_invoked",
+        command=name,
+        device_id=device_id,
+        cli_version=version,
+        success=success,
+        error_type=error_type,
+        **safe_flags,
+    )
+    _record_local(
+        "command_invoked",
+        command=name,
+        device_id=device_id,
+        cli_version=version,
+        success=success,
+        error_type=error_type,
+        **safe_flags,
+    )
 
 
 def track_query(
     model: str,
-    prompt_tokens: int,
-    completion_tokens: int,
-    latency_ms: float,
-    success: bool,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    latency_ms: float = 0.0,
+    success: bool = True,
 ) -> None:
     """Track a query execution — no raw SQL or NL queries are sent."""
     if _is_opted_out():
         return
+    
+    try:
+        from teshq.telemetry.pricing import TokenPricingCalculator
+        # For Logfire/telemetry, we don't always know the provider here, so we guess google if gemini, openai if gpt, etc.
+        provider = "google" if "gemini" in model.lower() else "openai" if "gpt" in model.lower() else "anthropic"
+        cost = TokenPricingCalculator.calculate_cost(provider, model, prompt_tokens, completion_tokens)
+    except Exception:
+        cost = 0.0
+
     total = prompt_tokens + completion_tokens
     _logfire_info(
         "query",
@@ -107,6 +205,7 @@ def track_query(
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,
         success=success,
+        cost_estimate_usd=cost,
     )
     _record_local(
         "query",
@@ -116,6 +215,7 @@ def track_query(
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,
         success=success,
+        cost_estimate_usd=cost,
     )
 
 
@@ -125,6 +225,14 @@ def track_error(command: str, error_type: str) -> None:
         return
     _logfire_error("error", command=command, error_type=error_type)
     _record_local("error", command=command, error_type=error_type)
+
+
+def track_feature(feature: str) -> None:
+    """Track usage of an optional feature (e.g. 'save_csv', 'dry_run')."""
+    if _is_opted_out():
+        return
+    _logfire_info("feature_used", feature=feature)
+    _record_local("feature_used", feature=feature)
 
 
 # ---------------------------------------------------------------------------
@@ -151,17 +259,11 @@ def track_query_event(
     """
     Record a query event to the local metrics file (legacy API).
 
-    Args:
-        plan_ms: Time spent in query planning (ms).
-        sql_ms: Time spent in SQL generation (ms).
-        exec_ms: Time spent executing the SQL (ms).
-        success: Whether the query completed successfully.
-        error_type: Class name of the error if one occurred.
+    Used by TeshEngine to record 2-stage query pipeline timings.
     """
     if _is_opted_out():
         return
 
-    # Never log NL queries, SQL text, DB URLs, or user data
     event = {
         "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "event_type": "query",
@@ -173,12 +275,21 @@ def track_query_event(
     if error_type is not None:
         event["error_type"] = error_type
 
+    # Also send to Logfire
+    _logfire_info(
+        "query_pipeline",
+        plan_ms=plan_ms,
+        sql_ms=sql_ms,
+        exec_ms=exec_ms,
+        success=success,
+        error_type=error_type,
+    )
+
     try:
         _ensure_metrics_dir()
         with open(_METRICS_FILE, "a") as f:
             f.write(json.dumps(event) + "\n")
     except OSError:
-        # Telemetry must never block primary commands
         pass
 
 

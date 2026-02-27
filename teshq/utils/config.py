@@ -41,21 +41,25 @@ CONFIG_KEYS = list(SECRET_KEYS) + list(SETTINGS_KEYS)
 
 def get_config() -> Dict[str, Optional[str]]:
     """Return merged configuration as a plain dict (env vars win)."""
-    s = get_settings(reload=True)
-    return {
-        "DATABASE_URL": s.database_url or None,
-        "GEMINI_API_KEY": s.gemini_api_key or None,
-        "GEMINI_MODEL": s.gemini_model,
-        "OUTPUT_PATH": str(s.output_path),
-        "FILE_STORE_PATH": str(s.file_store_path),
-        "TESHQ_NO_TELEMETRY": str(s.no_telemetry).lower(),
-        # Azure OpenAI
-        "LLM_PROVIDER": s.llm_provider,
-        "AZURE_OPENAI_API_KEY": s.azure_openai_api_key or None,
-        "AZURE_OPENAI_ENDPOINT": s.azure_openai_endpoint or None,
-        "AZURE_OPENAI_DEPLOYMENT": s.azure_openai_deployment or None,
-        "AZURE_OPENAI_API_VERSION": s.azure_openai_api_version or None,
-    }
+    try:
+        s = get_settings(reload=True)
+        return {
+            "DATABASE_URL": s.database_url or None,
+            "GEMINI_API_KEY": s.gemini_api_key or None,
+            "GEMINI_MODEL": s.gemini_model,
+            "OUTPUT_PATH": str(s.output_path),
+            "FILE_STORE_PATH": str(s.file_store_path),
+            "TESHQ_NO_TELEMETRY": str(s.no_telemetry).lower(),
+            # Azure OpenAI
+            "LLM_PROVIDER": s.llm_provider,
+            "AZURE_OPENAI_API_KEY": s.azure_openai_api_key or None,
+            "AZURE_OPENAI_ENDPOINT": s.azure_openai_endpoint or None,
+            "AZURE_OPENAI_DEPLOYMENT": s.azure_openai_deployment or None,
+            "AZURE_OPENAI_API_VERSION": s.azure_openai_api_version or None,
+        }
+    except Exception:
+        # Graceful degradation if config files are completely broken/unreadable
+        return {}
 
 
 def get_config_with_source() -> Tuple[Dict[str, Optional[str]], Dict[str, str]]:

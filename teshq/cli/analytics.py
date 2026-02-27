@@ -1,153 +1,72 @@
 """
 Token analytics CLI commands for TESH-Query.
 
-Provides commands to view token usage, session summaries, and cost estimates.
+Provides commands to view local token usage and summaries recorded in usage_metrics.jsonl.
+For advanced session tracking and flame graphs, use the Logfire dashboard.
 """
 
 import typer
-from typing import Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.tree import Tree
 
-from teshq.utils.cli_logging import CLILogger
-from teshq.utils.token_tracking import get_token_tracker
+from teshq.telemetry.analytics import get_summary, reset_metrics
 from teshq.utils.ui import error, success, info
 
-app = typer.Typer(name="analytics", help="View LLM token usage analytics and costs")
+app = typer.Typer(name="analytics", help="View local LLM token usage analytics and costs")
 console = Console()
 
 
-@app.command("session")
-def show_session_summary(
-    session_id: Optional[str] = typer.Option(None, "--session-id", help="Specific session ID to view"),
-    log: bool = typer.Option(None, "--log", help="Enable logging to file (overrides config default)"),
-):
-    """Show current or specific session token usage summary."""
-    
-    # Initialize CLI logger
-    cli_logger = CLILogger("analytics_session")
-    logging_active = cli_logger.setup_file_logging(log)
-    
+@app.command("show")
+def show_summary():
+    """Show global native usage summary from local metrics."""
     try:
-        if logging_active:
-            cli_logger.log_command_start({"session_id": session_id})
-            
-        tracker = get_token_tracker()
+        summary = get_summary()
         
-        if session_id and session_id != tracker.session_id:
-            if logging_active:
-                cli_logger.log_error(f"Session {session_id} not found in current tracker")
-            error(f"Session {session_id} not found in current tracker")
-            return
-        
-        summary = tracker.get_session_summary()
-        
-        if logging_active:
-            cli_logger.log_info("Session summary retrieved", 
-                              queries=summary['queries'],
-                              total_tokens=summary['total_tokens'],
-                              total_cost=summary['total_cost'])
-        
-        # Create session summary panel
-        session_info = f"""[bold]Session ID:[/bold] {summary['session_id']}
-[bold]User ID:[/bold] {summary['user_id']}
-[bold]Queries:[/bold] {summary['queries']}
+        info_text = f"""[bold]Total Queries:[/bold] {summary['total_queries']:,}
+[bold]Successful Queries:[/bold] {summary['successful_queries']:,}
+[bold]Failed Queries:[/bold] {summary['failed_queries']:,}
 [bold]Total Tokens:[/bold] {summary['total_tokens']:,}
-[bold]Total Cost:[/bold] ${summary['total_cost']:.4f}
-[bold]Duration:[/bold] {summary['duration_minutes']} minutes
-[bold]Avg Tokens/Query:[/bold] {summary.get('average_tokens_per_query', 0):.1f}"""
+[bold]Estimated Cost:[/bold] ${summary['estimated_cost_usd']:.4f}
+[bold]Avg Query Latency:[/bold] {summary['avg_latency_ms']} ms
+[bold]Total Commands Executed:[/bold] {summary['total_commands']:,}"""
 
-        console.print(Panel(session_info, title="[bold cyan]Current Session Summary[/bold cyan]", expand=False))
+        console.print(Panel(info_text, title="[bold green]Local Usage Summary[/bold green]", expand=False))
         
-        # Show query details if available
-        if summary['queries'] > 0 and 'queries_detail' in summary:
-            console.print("\n[bold]Query Details:[/bold]")
-            
-            table = Table(show_header=True, header_style="bold magenta")
-            table.add_column("Query ID", style="dim", width=36)
-            table.add_column("Tokens", justify="right")
-            table.add_column("Cost", justify="right")
-            table.add_column("Query Preview", width=50)
-            table.add_column("Time")
-            
-            for query in summary['queries_detail']:
-                table.add_row(
-                    query['query_id'][:8] + "...",
-                    f"{query['tokens']:,}",
-                    f"${query['cost']:.4f}",
-                    query['query'] or "N/A",
-                    query['timestamp'].split('T')[1][:8] if 'T' in query['timestamp'] else query['timestamp']
-                )
-            
+        if summary['command_breakdown']:
+            console.print("\n[bold]Command Breakdown:[/bold]")
+            table = Table(show_header=True, header_style="bold blue")
+            table.add_column("Command")
+            table.add_column("Count", justify="right")
+            for cmd, count in summary['command_breakdown'].items():
+                table.add_row(cmd, str(count))
             console.print(table)
-        
-        success(f"Session summary displayed for {summary['queries']} queries")
-        
-        if logging_active:
-            cli_logger.log_command_end(True, 0, queries_displayed=summary['queries'])
-        
+            
+        console.print("\n[dim]Note: This shows local data only. For complete cloud observability, view your Logfire dashboard.[/dim]")
+
     except Exception as e:
-        if logging_active:
-            cli_logger.log_command_end(False, 0, error=str(e))
-        error(f"Failed to get session summary: {e}")
-    finally:
-        if logging_active:
-            cli_logger.cleanup()
+        error(f"Failed to load analytics summary: {e}")
 
 
-@app.command("global")
-def show_global_summary(
-    days: int = typer.Option(30, "--days", help="Number of days to include in summary")
-):
-    """Show global token usage summary across all users and sessions."""
+@app.command("reset")
+def reset_local_metrics():
+    """Clear the local usage metrics file."""
     try:
-        tracker = get_token_tracker()
-        summary = tracker.get_global_summary(days=days)
-        
-        if 'error' in summary:
-            error(f"Failed to get global summary: {summary['error']}")
-            return
-        
-        # Create global summary panel
-        global_info = f"""[bold]Period:[/bold] Last {days} days
-[bold]Total API Calls:[/bold] {summary['total_calls']:,}
-[bold]Total Tokens:[/bold] {summary['total_tokens']:,}
-[bold]Average Tokens/Call:[/bold] {summary['average_tokens_per_call']:.1f}
-[bold]Max Tokens (Single Call):[/bold] {summary['max_tokens_single_call']:,}
-[bold]Estimated Total Cost:[/bold] ${summary['estimated_total_cost']:.4f}"""
-
-        console.print(Panel(global_info, title="[bold green]Global Usage Summary[/bold green]", expand=False))
-        
-        # Show cost breakdown estimation
-        if summary['total_tokens'] > 0:
-            console.print("\n[bold]Cost Analysis:[/bold]")
-            
-            cost_table = Table(show_header=True, header_style="bold blue")
-            cost_table.add_column("Metric")
-            cost_table.add_column("Value", justify="right")
-            
-            avg_cost_per_call = summary['estimated_total_cost'] / max(summary['total_calls'], 1)
-            cost_per_1k_tokens = (summary['estimated_total_cost'] / max(summary['total_tokens'], 1)) * 1000
-            
-            cost_table.add_row("Average Cost per Call", f"${avg_cost_per_call:.4f}")
-            cost_table.add_row("Cost per 1K Tokens", f"${cost_per_1k_tokens:.4f}")
-            cost_table.add_row("Daily Average Cost", f"${summary['estimated_total_cost'] / days:.4f}")
-            
-            console.print(cost_table)
-        
-        success(f"Global summary displayed for {days} days")
-        
+        success_reset = reset_metrics()
+        if success_reset:
+            success("Local metrics have been reset.")
+        else:
+            info("Metrics file was already empty or could not be found.")
     except Exception as e:
-        error(f"Failed to get global summary: {e}")
+        error(f"Failed to reset metrics: {e}")
 
 
 @app.command("pricing")
 def show_pricing_info():
     """Show current LLM pricing information for cost estimation."""
     try:
-        from teshq.utils.token_tracking import TokenPricingCalculator
+        from teshq.telemetry.pricing import TokenPricingCalculator
+        from rich.tree import Tree
         
         console.print(Panel("[bold]LLM Pricing Information[/bold]\n[dim]Prices are per 1,000 tokens and may change[/dim]", 
                           title="[bold yellow]Token Pricing[/bold yellow]"))
@@ -180,12 +99,11 @@ def estimate_cost(
 ):
     """Calculate estimated cost for specific token usage."""
     try:
-        from teshq.utils.token_tracking import TokenPricingCalculator
+        from teshq.telemetry.pricing import TokenPricingCalculator
         
         cost = TokenPricingCalculator.calculate_cost(provider, model, prompt_tokens, completion_tokens)
         total_tokens = prompt_tokens + completion_tokens
         
-        # Create cost breakdown
         cost_info = f"""[bold]Provider:[/bold] {provider}
 [bold]Model:[/bold] {model}
 [bold]Prompt Tokens:[/bold] {prompt_tokens:,}
@@ -195,67 +113,13 @@ def estimate_cost(
 
         console.print(Panel(cost_info, title="[bold yellow]Cost Estimate[/bold yellow]", expand=False))
         
-        # Show cost per token
         if total_tokens > 0:
-            cost_per_token = cost / total_tokens
-            console.print(f"\n[dim]Cost per token: ${cost_per_token:.8f}[/dim]")
+            console.print(f"\n[dim]Cost per token: ${cost / total_tokens:.8f}[/dim]")
         
         success(f"Cost estimated: ${cost:.6f}")
         
     except Exception as e:
         error(f"Failed to estimate cost: {e}")
-
-
-@app.command("reset")
-def reset_session():
-    """Start a new token tracking session."""
-    try:
-        tracker = get_token_tracker()
-        old_session = tracker.session_id
-        new_session = tracker.new_session()
-        
-        info(f"Previous session: {old_session[:8]}...")
-        success(f"New session started: {new_session[:8]}...")
-        
-    except Exception as e:
-        error(f"Failed to reset session: {e}")
-
-
-@app.command("export")
-def export_session_data(
-    output_file: str = typer.Option("session_export.json", "--output", "-o", help="Output file path"),
-    format: str = typer.Option("json", "--format", help="Export format (json, csv)")
-):
-    """Export current session data to file."""
-    try:
-        import json
-        import csv
-        from pathlib import Path
-        
-        tracker = get_token_tracker()
-        summary = tracker.get_session_summary()
-        
-        output_path = Path(output_file)
-        
-        if format.lower() == "json":
-            with open(output_path, 'w') as f:
-                json.dump(summary, f, indent=2, default=str)
-            success(f"Session data exported to {output_path}")
-            
-        elif format.lower() == "csv":
-            if 'queries_detail' in summary and summary['queries_detail']:
-                with open(output_path, 'w', newline='') as f:
-                    writer = csv.DictWriter(f, fieldnames=['query_id', 'tokens', 'cost', 'query', 'timestamp'])
-                    writer.writeheader()
-                    writer.writerows(summary['queries_detail'])
-                success(f"Session queries exported to {output_path}")
-            else:
-                error("No query data available to export")
-        else:
-            error(f"Unsupported format: {format}")
-            
-    except Exception as e:
-        error(f"Failed to export session data: {e}")
 
 
 if __name__ == "__main__":

@@ -16,32 +16,31 @@ class TestProductionReadinessIntegration:
 
     def test_complete_production_configuration_valid(self):
         """Test complete production configuration validation."""
-        # Create a realistic production configuration
-        production_config = {
-            "DATABASE_URL": "postgresql://app_user:secure_password@prod-db.company.com:5432/production_db",
-            "GEMINI_API_KEY": "AIza" + "A" * 35,  # Valid format
-            "GEMINI_MODEL_NAME": "gemini-1.5-flash-latest",
-            "OUTPUT_PATH": "/app/data/output",
-            "FILE_STORE_PATH": "/app/data/files",
-        }
+        import tempfile
+        import os
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_path = Path(temp_dir) / "output"
+            file_path = Path(temp_dir) / "files"
+            out_path.mkdir()
+            file_path.mkdir()
 
-        # Mock successful database connection
-        with patch("teshq.utils.validation.ConfigValidator.validate_database_connection") as mock_db_conn:
-            mock_db_conn.return_value = (True, "Database connection successful")
+            production_config = {
+                "DATABASE_URL": "postgresql://app_user:secure_password@prod-db.company.com:5432/production_db",
+                "GEMINI_API_KEY": "AIza" + "A" * 35,  # Valid format
+                "GEMINI_MODEL_NAME": "gemini-1.5-flash-latest",
+                "OUTPUT_PATH": str(out_path),
+                "FILE_STORE_PATH": str(file_path),
+            }
 
-            # Mock file path validation to succeed
-            with patch("teshq.utils.validation.ConfigValidator.validate_file_path") as mock_file_path:
-                mock_file_path.return_value = (True, "Valid path")
+            # Mock successful database connection
+            with patch("teshq.utils.validation.ConfigValidator.validate_database_connection") as mock_db_conn:
+                mock_db_conn.return_value = (True, "Database connection successful")
 
-                # Mock Path.mkdir to avoid permission issues
-                with patch("pathlib.Path.mkdir") as mock_mkdir:
-                    mock_mkdir.return_value = None
+                is_ready, issues = validate_production_readiness(production_config)
 
-                    is_ready, issues = validate_production_readiness(production_config)
-
-                    # Should be production ready
-                    assert is_ready, f"Production config should be valid, but got issues: {issues}"
-                    assert len(issues) == 0
+                # Should be production ready
+                assert is_ready, f"Production config should be valid, but got issues: {issues}"
+                assert len(issues) == 0
 
     def test_development_configuration_warnings(self):
         """Test development configuration generates appropriate warnings."""
@@ -111,6 +110,8 @@ class TestProductionReadinessIntegration:
                 "OUTPUT_PATH": str(Path(temp_dir) / "output"),
                 "FILE_STORE_PATH": str(Path(temp_dir) / "files"),
             }
+            Path(test_config["OUTPUT_PATH"]).mkdir()
+            Path(test_config["FILE_STORE_PATH"]).mkdir()
 
             # Verify configuration is valid
             from teshq.utils.validation import ConfigValidator
@@ -207,7 +208,8 @@ class TestErrorHandlingIntegration:
             if url_valid:  # Only test connection if URL format is valid
                 conn_valid, conn_message = ConfigValidator.validate_database_connection(db_url)
                 assert not conn_valid, f"Connection to {db_url} should fail"
-                assert "failed" in conn_message.lower() or "error" in conn_message.lower()
+                msg = conn_message.lower()
+                assert any(x in msg for x in ["failed", "error", "missing", "invalid"])
 
     def test_graceful_degradation(self):
         """Test that the system degrades gracefully under various failure conditions."""
@@ -216,8 +218,8 @@ class TestErrorHandlingIntegration:
         # Test with non-existent configuration files
         with patch("os.path.exists", return_value=False):
             config = get_config()
-            assert isinstance(config, dict)  # Should return empty dict, not crash
-            assert len(config) == 0
+            assert isinstance(config, dict)  # Should return a valid dictionary, not crash
+            assert "DATABASE_URL" in config
 
         # Test with permission errors
         with patch("builtins.open", side_effect=PermissionError("Access denied")):

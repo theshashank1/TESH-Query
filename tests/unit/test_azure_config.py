@@ -4,11 +4,30 @@ Unit tests for Azure OpenAI configuration in Settings and get_llm_config().
 
 import os
 from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
 from teshq.config.settings import Settings
 
+@pytest.fixture(autouse=True)
+def clear_env_vars(monkeypatch):
+    """Clear all configuration env vars by setting them empty so tests run in a clean vacuum.
+    This supersedes any local .env file loads by pydantic."""
+    for key in [
+        "DATABASE_URL", "GEMINI_API_KEY",
+        "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_DEPLOYMENT"
+    ]:
+        monkeypatch.setenv(key, "")
+    
+    monkeypatch.delenv("AZURE_OPENAI_API_VERSION", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("TESHQ_NO_TELEMETRY", raising=False)
+    
+    # Prevent loading from actual ~/.teshq/.env on dev machine
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
 
 class TestSettingsAzureFields:
     """Verify that Settings correctly loads Azure OpenAI fields."""

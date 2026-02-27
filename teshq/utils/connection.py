@@ -93,8 +93,9 @@ class ConnectionManager:
 
     def get_engine(self, database_url: str, engine_name: str = "default") -> Engine:
         """Get or create a database engine with the unified connector system."""
-        if engine_name in self._engines:
-            return self._engines[engine_name]
+        cache_key = f"{engine_name}:{database_url}"
+        if cache_key in self._engines:
+            return self._engines[cache_key]
 
         with log_operation("create_database_engine", engine_name=engine_name):
             # Use unified connector system for enhanced database support
@@ -110,7 +111,7 @@ class ConnectionManager:
             
             try:
                 engine = UnifiedDatabaseConnector.create_engine(database_url, config_dict)
-                self._engines[engine_name] = engine
+                self._engines[cache_key] = engine
                 
                 # Set up listeners only once per engine
                 self._setup_metrics_listeners(engine, engine_name)
@@ -130,7 +131,7 @@ class ConnectionManager:
                 logger.warning(f"Using fallback connection method: {e}")
                 database_url, engine_args = self._get_engine_args(database_url)
                 engine = create_engine(database_url, **engine_args)
-                self._engines[engine_name] = engine
+                self._engines[cache_key] = engine
                 self._setup_metrics_listeners(engine, engine_name)
                 
                 logger.info("Database engine created (fallback mode)", engine_name=engine_name)
@@ -242,11 +243,17 @@ class ConnectionManager:
 
     def get_connection_info(self, engine_name: str = "default") -> Dict[str, Any]:
         """Get connection pool information for monitoring."""
-        if engine_name not in self._engines:
+        prefix = f"{engine_name}:"
+        found_engine = None
+        for key, engine in self._engines.items():
+            if key.startswith(prefix) or key == engine_name:
+                found_engine = engine
+                break
+
+        if not found_engine:
             return {"status": "not_connected"}
 
-        engine = self._engines[engine_name]
-        pool = engine.pool
+        pool = found_engine.pool
 
         if isinstance(pool, StaticPool):
             return {"status": "connected", "pool_class": "StaticPool"}

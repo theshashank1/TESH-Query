@@ -2,6 +2,7 @@ import typer
 
 from teshq.utils.health import HealthChecker, HealthStatus
 from teshq.utils.logging import configure_global_logger
+from teshq.telemetry.logfire_setup import logfire_span
 from teshq.utils.ui import error, handle_error, print_header, print_table, space, status, success, warning
 
 app = typer.Typer(invoke_without_command=True)
