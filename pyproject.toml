@@ -180,11 +180,8 @@ teshq = "teshq.cli.main:app"
 packages = [
     "teshq",
     "teshq.cli",
-    "teshq.cli.commands",
-    "teshq.cli.ui",
     "teshq.config",
     "teshq.core",
-    "teshq.eda",
     "teshq.telemetry",
     "teshq.subscriptions",
     "teshq.utils",
