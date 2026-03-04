@@ -1,8 +1,8 @@
 """
 Structured logging utilities for TESH-Query
 
-Provides production-grade logging with proper formatting, levels, and integration
-with monitoring systems using logfire.
+Provides production-grade logging with proper formatting, levels,
+and structured file output.
 """
 
 import logging
@@ -14,24 +14,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from rich.console import Console
-
-# Initialize logfire for production monitoring - but only if configured
-try:
-    import logfire
-
-    # Only configure logfire if we have credentials or explicit config
-    if os.getenv("LOGFIRE_TOKEN") or os.getenv("LOGFIRE_PROJECT_NAME"):
-        logfire.configure()
-        LOGFIRE_ENABLED = True
-    else:
-        LOGFIRE_ENABLED = False
-except ImportError:
-    LOGFIRE_ENABLED = False
-    logfire = None
-except Exception:
-    # If logfire configuration fails, continue without it
-    LOGFIRE_ENABLED = False
-    logfire = None
 
 
 class TeshqLogger:
@@ -112,8 +94,6 @@ class TeshqLogger:
     def info(self, message: str, **kwargs):
         """Log info message with structured data."""
         self.logger.info(message, extra=kwargs)
-        if LOGFIRE_ENABLED and logfire:
-            logfire.info(message, **kwargs)
 
     def error(self, message: str, error: Exception = None, **kwargs):
         """Log error message with structured data."""
@@ -121,26 +101,18 @@ class TeshqLogger:
             kwargs["error_type"] = type(error).__name__
             kwargs["error_message"] = str(error)
         self.logger.error(message, extra=kwargs)
-        if LOGFIRE_ENABLED and logfire:
-            logfire.error(message, **kwargs)
 
     def warning(self, message: str, **kwargs):
         """Log warning message with structured data."""
         self.logger.warning(message, extra=kwargs)
-        if LOGFIRE_ENABLED and logfire:
-            logfire.warn(message, **kwargs)
 
     def debug(self, message: str, **kwargs):
         """Log debug message with structured data."""
         self.logger.debug(message, extra=kwargs)
-        if LOGFIRE_ENABLED and logfire:
-            logfire.debug(message, **kwargs)
 
     def success(self, message: str, **kwargs):
         """Log success message with structured data."""
         self.logger.info(f"SUCCESS: {message}", extra=kwargs)
-        if LOGFIRE_ENABLED and logfire:
-            logfire.info(f"SUCCESS: {message}", **kwargs)
 
 
 # Global logger instance - default to file-only logging

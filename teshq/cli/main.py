@@ -5,7 +5,6 @@ import typer
 from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.cli import analytics, config, db, query
-from teshq.telemetry.logfire_setup import init_logfire
 from teshq.utils.logging import configure_global_logger
 
 try:
@@ -63,9 +62,6 @@ def _callback(
 ):
     """TESH-Query CLI — natural language to SQL."""
     configure_global_logger(enable_cli_output=log)
-
-    # Initialize Logfire telemetry (no-op if opted out or no token)
-    init_logfire()
 
     if version:
         try:

@@ -12,7 +12,6 @@ from teshq.utils.config import get_database_url as get_db_url
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
 from teshq.telemetry.events import track_command, track_error, track_feature
-from teshq.telemetry.logfire_setup import logfire_span
 from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success, warning
 from teshq.utils.validation import CLIValidator, ValidationError
 
@@ -152,8 +151,7 @@ def process_nl_query(
                     )
                     raise typer.Exit(1)
 
-        with logfire_span("teshq.init"):
-            with status("Initializing Engine", "Engine ready"):
+        with status("Initializing Engine", "Engine ready"):
                 db_url_val = get_db_url()
                 engine = TeshEngine(db_url=db_url_val)
 
@@ -163,8 +161,7 @@ def process_nl_query(
             db_display = db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database"
             info(f"🧠 Generating and executing query on [bold]{db_display}[/bold]...")
 
-        with logfire_span("teshq.engine_pipeline"):
-            engine_result = engine.query(natural_language_request, dry_run=dry_run)
+        engine_result = engine.query(natural_language_request, dry_run=dry_run)
             
         if not engine_result.success:
             error(f"❌ Query generation/execution failed: {engine_result.error}")
@@ -242,9 +239,13 @@ def process_nl_query(
             duration = time.time() - start_time
             cli_logger.log_command_end(True, duration, row_count=len(result) if result else 0)
 
-    # except ValidationError as e:
-    #     # Validation errors are already handled above
-    #     raise
+    except ValidationError as e:
+        track_error("query", "ValidationError")
+        if logging_active:
+            duration = time.time() - start_time
+            cli_logger.log_command_end(False, duration, error=str(e), error_type="ValidationError")
+        handle_error(e, "Validation error", suggest_action="Check your query text and save paths.")
+        raise typer.Exit(1)
     except SQLAlchemyError as e:
         track_error("query", "SQLAlchemyError")
         if logging_active:

@@ -80,34 +80,6 @@ def _is_opted_out() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Logfire helpers — use logfire_setup's init; never call logfire.configure here
-# ---------------------------------------------------------------------------
-
-def _logfire_info(msg: str, **kwargs: object) -> None:
-    try:
-        import logfire
-        logfire.info(msg, **kwargs)
-    except Exception:
-        pass
-
-
-def _logfire_error(msg: str, **kwargs: object) -> None:
-    try:
-        import logfire
-        logfire.error(msg, **kwargs)
-    except Exception:
-        pass
-
-
-def _logfire_warn(msg: str, **kwargs: object) -> None:
-    try:
-        import logfire
-        logfire.warn(msg, **kwargs)
-    except Exception:
-        pass
-
-
-# ---------------------------------------------------------------------------
 # Local JSONL analytics
 # ---------------------------------------------------------------------------
 
@@ -157,15 +129,6 @@ def track_command(
     device_id = _get_device_id()
     safe_flags = {k: bool(v) for k, v in flags.items()}
 
-    _logfire_info(
-        "command_invoked",
-        command=name,
-        device_id=device_id,
-        cli_version=version,
-        success=success,
-        error_type=error_type,
-        **safe_flags,
-    )
     _record_local(
         "command_invoked",
         command=name,
@@ -197,16 +160,6 @@ def track_query(
         cost = 0.0
 
     total = prompt_tokens + completion_tokens
-    _logfire_info(
-        "query",
-        model=model,
-        tokens=total,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        latency_ms=latency_ms,
-        success=success,
-        cost_estimate_usd=cost,
-    )
     _record_local(
         "query",
         model=model,
@@ -223,16 +176,15 @@ def track_error(command: str, error_type: str) -> None:
     """Track an error — only the exception class name, never the message."""
     if _is_opted_out():
         return
-    _logfire_error("error", command=command, error_type=error_type)
     _record_local("error", command=command, error_type=error_type)
 
 
-def track_feature(feature: str) -> None:
+def track_feature(feature: str, **properties: Any) -> None:
     """Track usage of an optional feature (e.g. 'save_csv', 'dry_run')."""
     if _is_opted_out():
         return
-    _logfire_info("feature_used", feature=feature)
-    _record_local("feature_used", feature=feature)
+    safe_props = {k: v for k, v in properties.items() if isinstance(v, (bool, int, float, str))}
+    _record_local("feature_used", feature=feature, **safe_props)
 
 
 # ---------------------------------------------------------------------------
@@ -275,16 +227,7 @@ def track_query_event(
     if error_type is not None:
         event["error_type"] = error_type
 
-    # Also send to Logfire
-    _logfire_info(
-        "query_pipeline",
-        plan_ms=plan_ms,
-        sql_ms=sql_ms,
-        exec_ms=exec_ms,
-        success=success,
-        error_type=error_type,
-    )
-
+    # Also record to local JSONL
     try:
         _ensure_metrics_dir()
         with open(_METRICS_FILE, "a") as f:

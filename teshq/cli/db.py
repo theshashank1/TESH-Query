@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from teshq.cli.ui import error, handle_error, print_footer, print_header, status, tip, warning
 from teshq.core.introspect import introspect_db
 from teshq.telemetry.events import track_command, track_error
-from teshq.telemetry.logfire_setup import logfire_span
 from teshq.utils.cli_logging import CLILogger
 from teshq.utils.config import get_database_url as get_configured_database_url
 from teshq.utils.connection import connection_manager
@@ -42,8 +41,7 @@ def database(
     conn = None
     if connect:
         try:
-            with logfire_span("teshq.db.connect"):
-                with status(
+            with status(
                     "Connecting to the database...",
                     success_message="Database connection successful.",
                 ):
@@ -116,25 +114,25 @@ def introspect(
         schema_mode = "full" if full_schema else "minimal"
 
         # Introspection logic handles db_url if None
-        with logfire_span("teshq.db.introspect"):
-            with status(
-                "Performing database introspection...",
-                success_message="Introspection complete.",
-            ):
-                # introspect_db will handle finding the db_url if not provided
-                result = introspect_db(
-                    db_url=db_url,
-                    detect_relationships=detect_relationships,
-                    include_indexes=full_schema,  # Only collect indexes when --all is set
-                    schema_mode=schema_mode,
-                )
-            
-            if logging_active:
-                # Log introspection results
-                tables_count = len(result.get("tables", {})) if result else 0
-                cli_logger.log_info("Database introspection completed", 
-                                  tables_count=tables_count,
-                                  detect_relationships=detect_relationships)
+        with status(
+            "Performing database introspection...",
+            success_message="Introspection complete.",
+        ):
+            # introspect_db will handle finding the db_url if not provided
+            result = introspect_db(
+                db_url=db_url,
+                detect_relationships=detect_relationships,
+                include_indexes=full_schema,  # Only collect indexes when --all is set
+                schema_mode=schema_mode,
+            )
+
+        if logging_active:
+            # Log introspection results
+            tables_count = len(result.get("tables", {})) if result else 0
+            cli_logger.log_info("Database introspection completed",
+                                tables_count=tables_count,
+                                detect_relationships=detect_relationships)
+
         
         if full_schema:
             tip("Schema saved: schema.txt (compact, default) + schema_full.txt (full detail with indexes & row counts).")
