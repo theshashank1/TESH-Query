@@ -1,4 +1,6 @@
 import sys
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 from typing import Optional
 
 import typer

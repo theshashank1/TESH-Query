@@ -1,7 +1,12 @@
 import time
+import warnings
 from pathlib import Path
 
 import pandas as pd
+
+# Suppress annoying Pydantic/LangChain warnings that interfere with the rich console UI
+warnings.filterwarnings("ignore", category=UserWarning)
+
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
