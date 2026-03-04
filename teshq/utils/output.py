@@ -112,27 +112,31 @@ class OutputFormatter:
         tablefmt: str = "grid"
     ) -> None:
         """
-        Print results in a formatted table.
+        Print results in a formatted table using Modern UI.
         
         Args:
             results: Query results
             title: Table title
             show_count: Whether to show row count
-            tablefmt: Table format for tabulate
+            tablefmt: Table format (ignored, kept for compatibility)
         """
+        from teshq.utils.ui import warning, print_query_results
+        
         if not results:
             count_msg = " (0 records)" if show_count else ""
-            print(f"\n{title}{count_msg}: No data found.")
+            warning(f"{title}{count_msg}: No data found.")
             return
         
         # Format for display
         display_results = OutputFormatter.format_for_display(results)
         
-        # Print with count if requested
-        count_msg = f" ({len(results)} record{'s' if len(results) != 1 else ''})" if show_count else ""
-        print(f"\n{title}{count_msg}:")
-        print(tabulate(display_results, headers="keys", tablefmt=tablefmt))
-        print()
+        headers = list(display_results[0].keys())
+        rows = [[row[h] for h in headers] for row in display_results]
+        
+        summary = f"{len(results)} record{'s' if len(results) != 1 else ''}" if show_count else ""
+        print_query_results(headers=headers, rows=rows, title=title, summary=summary)
+
+
 
 
 class QueryResult:
@@ -188,28 +192,27 @@ class QueryResult:
         OutputFormatter.print_results_table(self._normalized_results, title, show_count)
     
     def print_query_table(self) -> None:
-        """Print complete query information including SQL and results."""
-        print("\n" + "=" * 80)
+        """Print query results nicely using modern UI."""
+        from teshq.utils.ui import warning, print_query_results, print_header
+        
         if self.natural_language_query:
-            print(f"REQUEST: {self.natural_language_query}")
-            print("=" * 80)
-        
-        print(f"\nQUERY: {self.query}")
-        
-        if self.parameters:
-            print(f"PARAMS: {self.parameters}")
-        
-        print("\nRESULTS:")
-        print("-" * 50)
-        
+            print_header("REQUEST", self.natural_language_query, level=2)
+            
         if not self._normalized_results:
-            print("No data found.")
+            warning("No data found.")
             return
         
         display_results = self.display_results
-        print(f"Found {len(self._normalized_results)} record(s):\n")
-        print(tabulate(display_results, headers="keys", tablefmt="grid"))
-        print()
+        headers = list(display_results[0].keys())
+        rows = [[row[h] for h in headers] for row in display_results]
+        
+        print_query_results(
+            headers=headers, 
+            rows=rows, 
+            title="Results",
+            summary=f"Found {len(self._normalized_results)} record(s)"
+        )
+
     
     def to_dict(self, include_sql: bool = False) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
