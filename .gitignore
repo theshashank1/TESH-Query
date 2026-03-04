@@ -127,8 +127,6 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-tests/
-*.md
 *.sqlite
 
 REORGANIZATION.md
@@ -174,3 +172,7 @@ PRODUCTION_READINESS_CHECKLIST.md
 
 # Metrics files (auto-generated at runtime)
 usage_metrics.jsonl
+
+
+
+CLA.md
