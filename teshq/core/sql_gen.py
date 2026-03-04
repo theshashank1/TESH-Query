@@ -6,6 +6,7 @@ using deterministic LLM settings and structured output mode.
 No regex fallback. No manual JSON parsing.
 """
 
+import json
 import time
 from typing import Any, Optional
 
@@ -54,9 +55,22 @@ class SQLGenerator:
     Accepts any LangChain BaseChatModel (Gemini, Azure OpenAI, etc.).
     """
 
-    def __init__(self, llm: Any):
+    def __init__(self, llm: Any, provider: str = "google"):
         self._llm = llm
-        self._structured_llm = llm.with_structured_output(SQLQuery)
+        self._provider = provider.lower()
+        # Azure OpenAI's strict JSON Schema mode rejects Dict[str, Any].
+        # For Azure we do a plain chat invocation + manual JSON parsing.
+        # For Google Gemini we use with_structured_output (Pydantic schema).
+        if self._provider != "azure":
+            self._structured_llm = llm.with_structured_output(SQLQuery)
+        else:
+            self._structured_llm = None  # unused for Azure
+            # Create a plain LLM instance that does NOT use response_format,
+            # avoiding both the strict schema and json_object restriction.
+            try:
+                self._plain_llm = llm.bind(response_format={"type": "text"})
+            except Exception:
+                self._plain_llm = llm
         self._prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", _SYSTEM_PROMPT),
@@ -64,7 +78,7 @@ class SQLGenerator:
             ]
         )
 
-    def generate(self, nl_query: str, schema: str, plan: QueryPlan) -> SQLQuery:
+    def generate(self, nl_query: str, schema: str, plan: QueryPlan, error_hint: str = None) -> SQLQuery:
         """
         Generate a structured SQLQuery from the plan and compressed schema.
 
@@ -88,7 +102,19 @@ class SQLGenerator:
                 joins="; ".join(plan.joins_needed) if plan.joins_needed else "none",
                 nl_query=nl_query,
             )
-            sql_query: SQLQuery = self._structured_llm.invoke(messages)
+            # If a previous execution error is provided, inject it as a correction hint
+            if error_hint:
+                from langchain_core.messages import HumanMessage
+                messages.append(HumanMessage(
+                    content=f"The previous SQL attempt raised the following error:\n{error_hint}\n\n"
+                            "Please fix the SQL to avoid this error."
+                ))
+
+            if self._provider == "azure":
+                sql_query = self._invoke_azure(messages)
+            else:
+                sql_query = self._structured_llm.invoke(messages)
+
             elapsed_ms = int((time.time() - start) * 1000)
             logger.success(
                 "SQL query generated",
@@ -100,6 +126,37 @@ class SQLGenerator:
             elapsed_ms = int((time.time() - start) * 1000)
             logger.error("SQL generation failed", error=e, sql_latency_ms=elapsed_ms)
             raise
+
+    def _invoke_azure(self, messages) -> SQLQuery:
+        """
+        Invoke the LLM without structured output for Azure OpenAI compatibility.
+
+        Uses a plain text response (no response_format schema) and manually
+        parses the resulting JSON into a SQLQuery model.
+        """
+        from langchain_core.messages import HumanMessage
+
+        json_instruction = HumanMessage(
+            content=(
+                "Output your answer as a JSON object with exactly two keys: "
+                "\"query\" (the SQL string) and \"parameters\" (an object, usually {}).\n"
+                "Example: {\"query\": \"SELECT ...\", \"parameters\": {}}\n"
+                "No markdown, no explanation — raw JSON only."
+            )
+        )
+        response = self._plain_llm.invoke(messages + [json_instruction])
+        raw = response.content.strip()
+
+        # Strip accidental markdown fences
+        if "```" in raw:
+            import re as _re
+            raw = _re.sub(r"```(?:json)?\n?", "", raw).replace("```", "").strip()
+
+        data = json.loads(raw)
+        return SQLQuery(
+            query=data["query"],
+            parameters=data.get("parameters", {}),
+        )
 
 
 def build_sql_generator(
@@ -131,5 +188,4 @@ def build_sql_generator(
         top_k=1,
         **kwargs,
     )
-    return SQLGenerator(llm)
-
+    return SQLGenerator(llm, provider=provider)

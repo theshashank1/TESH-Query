@@ -92,6 +92,11 @@ class TeshEngine:
         self._sql_gen: Optional[SQLGenerator] = None
         self._schema_graph: Optional[SchemaGraph] = None
 
+        # Stored during query() so _execute_with_retry can access them
+        self._last_nl_query: Optional[str] = None
+        self._last_schema_str: Optional[str] = None
+        self._last_plan = None
+
     # ------------------------------------------------------------------
     # Lazy initialisation helpers
     # ------------------------------------------------------------------
@@ -174,18 +179,23 @@ class TeshEngine:
                 relevant_tables = relevant_tables[:3]
                 schema_str = graph.compressed_schema(relevant_tables)
 
-            # Stage 1 — Query Planning
+            # — Stage 1: Query Planning —
             t0 = time.time()
             plan = self._get_planner().plan(nl_query, schema_str)
             plan_ms = int((time.time() - t0) * 1000)
 
-            # Stage 2 — SQL Generation
+            # — Stage 2: SQL Generation —
             t0 = time.time()
             sql_result: SQLQuery = self._get_sql_gen().generate(nl_query, schema_str, plan)
             sql_ms = int((time.time() - t0) * 1000)
 
             sql_text = sql_result.query
             parameters = sql_result.parameters or {}
+
+            # Store context so _execute_with_retry can regenerate if needed
+            self._last_nl_query = nl_query
+            self._last_schema_str = schema_str
+            self._last_plan = plan
 
             # Validate
             validate_sql(sql_text)
@@ -237,18 +247,51 @@ class TeshEngine:
 
     def _execute_with_retry(self, sql: str, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Execute SQL with a single self-healing retry on failure.
+        Execute SQL with one self-healing retry on failure.
 
-        On the first failure, regenerates SQL with the error message injected
-        into the prompt, then retries once. If the retry also fails, raises.
+        On first execution failure:
+          1. Re-invokes Stage 2 (SQLGenerator) with the database error message
+             injected into the prompt as an error_hint.
+          2. Validates and normalises the new SQL.
+          3. Tries execution again. If it still fails, re-raises.
         """
         try:
             return execute_sql_query(db_url=self._db_url, query=sql, parameters=parameters)
         except Exception as first_error:
-            logger.warning("SQL execution failed, attempting self-healing retry", error=first_error)
-            # Self-healing: regenerate with error context
-            # (requires a live plan — skip retry if plan unavailable)
-            raise
+            logger.warning(
+                "SQL execution failed — attempting self-healing retry",
+                error=first_error,
+                sql=sql[:200],
+            )
+
+            # Self-heal only if we have the context needed to regenerate
+            if not (self._last_nl_query and self._last_schema_str and self._last_plan):
+                logger.error("Cannot self-heal: missing query context — re-raising original error")
+                raise
+
+            try:
+                healed_sql_result = self._get_sql_gen().generate(
+                    self._last_nl_query,
+                    self._last_schema_str,
+                    self._last_plan,
+                    error_hint=str(first_error),
+                )
+                healed_sql = healed_sql_result.query
+                healed_params = healed_sql_result.parameters or parameters
+
+                validate_sql(healed_sql)
+                healed_sql = normalize_sql(healed_sql)
+
+                logger.info("Self-healing generated new SQL — retrying execution", sql=healed_sql[:200])
+                return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params)
+
+            except Exception as retry_error:
+                logger.error(
+                    "Self-healing retry also failed",
+                    original_error=str(first_error),
+                    retry_error=str(retry_error),
+                )
+                raise retry_error from first_error
 
     def get_schema_preview(self, nl_query: str, schema_graph: Optional[SchemaGraph] = None) -> str:
         """
