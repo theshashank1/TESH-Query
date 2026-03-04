@@ -4,7 +4,12 @@ TESH-Query: Natural Language to SQL Converter
 A powerful library and CLI tool that converts natural language queries into SQL
 and executes them on your database using AI (Google Gemini).
 
-## Programmatic Usage
+import warnings
+warnings.simplefilter("ignore")
+import os
+os.environ["PYTHONWARNINGS"] = "ignore"
+
+# Programmatic Usage
 
 ```python
 import teshq

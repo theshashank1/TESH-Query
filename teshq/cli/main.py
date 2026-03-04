@@ -1,5 +1,14 @@
 import sys
 import warnings
+
+# Monkey-patch warnings.warn to aggressively suppress LangChain Pydantic warnings
+_original_warn = warnings.warn
+def _custom_warn(message, *args, **kwargs):
+    if "Pydantic V1" in str(message):
+        return
+    _original_warn(message, *args, **kwargs)
+warnings.warn = _custom_warn
+
 warnings.filterwarnings("ignore", category=UserWarning)
 from typing import Optional
 
