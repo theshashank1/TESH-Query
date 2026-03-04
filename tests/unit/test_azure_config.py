@@ -12,8 +12,8 @@ from teshq.config.settings import Settings
 
 @pytest.fixture(autouse=True)
 def clear_env_vars(monkeypatch):
-    """Clear all configuration env vars by setting them empty so tests run in a clean vacuum.
-    This supersedes any local .env file loads by pydantic."""
+    """Clear all configuration env vars so tests run in a clean vacuum.
+    Prevents leakage from actual ~/.teshq/.env and ~/.teshq/config.yaml."""
     for key in [
         "DATABASE_URL", "GEMINI_API_KEY",
         "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT",
@@ -28,6 +28,10 @@ def clear_env_vars(monkeypatch):
     
     # Prevent loading from actual ~/.teshq/.env on dev machine
     monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+    # Prevent the new YAML config source from loading actual config.yaml
+    monkeypatch.setattr("teshq.config.settings.CONFIG_FILE", Path("/nonexistent/config.yaml"))
+
 
 class TestSettingsAzureFields:
     """Verify that Settings correctly loads Azure OpenAI fields."""

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from teshq.config.paths import CONFIG_FILE, SECRETS_FILE, ensure_teshq_dir
 
@@ -37,6 +37,34 @@ SETTINGS_KEYS = {
     "AZURE_OPENAI_DEPLOYMENT",
     "AZURE_OPENAI_API_VERSION",
 }
+
+
+class _YamlConfigSource(PydanticBaseSettingsSource):
+    """
+    Custom Pydantic settings source that reads ~/.teshq/config.yaml.
+
+    All keys are uppercased before being matched against field aliases.
+    This source has the lowest priority — env vars and the .env file always win.
+    """
+
+    def get_field_value(self, field, field_name):
+        # Not used directly — we override __call__ instead
+        return None, field_name, False
+
+    def __call__(self):
+        data = {}
+        if not CONFIG_FILE.exists():
+            return data
+        try:
+            import yaml
+            raw = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8")) or {}
+            # Normalise keys to uppercase so they match field aliases
+            for k, v in raw.items():
+                if v is not None and v != "":
+                    data[k.upper()] = v
+        except Exception:
+            pass
+        return data
 
 
 class Settings(BaseSettings):
@@ -86,6 +114,29 @@ class Settings(BaseSettings):
         populate_by_name=True,
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        **kwargs,
+    ):
+        """
+        Priority (highest to lowest):
+          1. init kwargs (explicit constructor overrides)
+          2. environment variables
+          3. ~/.teshq/.env  (secrets file)
+          4. ~/.teshq/config.yaml  (non-secret settings)
+        """
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            _YamlConfigSource(settings_cls),
+        )
 
     @field_validator("output_path", "file_store_path", mode="before")
     @classmethod
