@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import json
 
-from teshq.utils.config import get_config
+from teshq.config.loader import get_config
 from teshq.utils.logging import logger
 
 

@@ -34,8 +34,8 @@ from typing import Any, Dict, List, Optional, Union
 from .config.paths import SCHEMA_DIR
 from .core.engine import TeshEngine
 from .core.introspect import introspect_db, save_schema_to_files
-from .utils.config import get_config, save_config
-from .utils.connection import connection_manager
+from .config.loader import get_config, save_config
+from .core.connection import connection_manager
 from .utils.health import HealthChecker
 from .utils.output import QueryResult
 from .telemetry.events import track_feature

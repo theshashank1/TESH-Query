@@ -209,7 +209,7 @@ def build_llm_from_config() -> Any:
     -------
     A configured LangChain BaseChatModel instance.
     """
-    from teshq.utils.config import get_llm_config
+    from teshq.config.loader import get_llm_config
 
     cfg = get_llm_config()
     return build_llm(

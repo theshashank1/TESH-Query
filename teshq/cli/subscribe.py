@@ -8,8 +8,8 @@ from typing import Optional
 import typer
 from pydantic import ValidationError
 
-from teshq.utils.config import get_config, save_config
-from teshq.utils.subscription_client import SubscriberClient, SubscriptionRequest, SubscriptionStatus
+from teshq.config.loader import get_config, save_config
+from teshq.subscriptions.client import SubscriberClient, SubscriptionRequest, SubscriptionStatus
 from teshq.utils.ui import confirm, error, handle_error, info, print_header, print_markdown, prompt, space
 from teshq.utils.ui import status as ui_status
 from teshq.utils.ui import success, tip, warning

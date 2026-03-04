@@ -106,7 +106,7 @@ class TestGetLlmConfig:
         import teshq.config.settings as settings_module
         settings_module._settings_cache = None  # force reload
 
-        from teshq.utils.config import get_llm_config
+        from teshq.config.loader import get_llm_config
         cfg = get_llm_config()
         assert cfg["provider"] == "google"
         assert cfg["api_key"] == "AIzaFake"
@@ -122,7 +122,7 @@ class TestGetLlmConfig:
         import teshq.config.settings as settings_module
         settings_module._settings_cache = None
 
-        from teshq.utils.config import get_llm_config
+        from teshq.config.loader import get_llm_config
         cfg = get_llm_config()
         assert cfg["provider"] == "azure"
         assert cfg["api_key"] == "sk-azure"

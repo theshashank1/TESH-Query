@@ -31,10 +31,10 @@ from teshq.core.sql_normalizer import normalize_sql
 from teshq.core.sql_validator import validate_sql
 from teshq.core.token_counter import DEFAULT_TOKEN_THRESHOLD, exceeds_threshold
 from teshq.telemetry.events import track_query_event
-from teshq.utils.config import get_database_url, get_llm_config
+from teshq.config.loader import get_database_url, get_llm_config
 from teshq.utils.logging import logger
-from teshq.utils.retry import RetryConfig, calculate_delay, is_retryable
-from teshq.utils.validation import ValidationError
+from teshq.core.retry import RetryConfig, calculate_delay, is_retryable
+from teshq.core.validation import ValidationError
 
 
 @dataclass

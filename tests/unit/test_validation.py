@@ -8,7 +8,7 @@ import os
 import tempfile
 from unittest.mock import patch
 
-from teshq.utils.validation import (
+from teshq.core.validation import (
     CLIValidator,
     ConfigValidator,
     ValidationError,
@@ -122,7 +122,7 @@ class TestConfigValidator:
         assert any("DATABASE_URL" in error for error in errors)
         assert any("GEMINI_API_KEY" in error for error in errors)
 
-    @patch("teshq.utils.validation.UnifiedDatabaseConnector.test_connection")
+    @patch("teshq.core.validation.UnifiedDatabaseConnector.test_connection")
     def test_validate_database_connection_success(self, mock_test_connection):
         """Test successful database connection."""
         mock_test_connection.return_value = (True, "Connection successful. Database version: 1.0")
@@ -131,7 +131,7 @@ class TestConfigValidator:
         assert is_connected
         assert "successful" in message
 
-    @patch("teshq.utils.validation.UnifiedDatabaseConnector.test_connection")
+    @patch("teshq.core.validation.UnifiedDatabaseConnector.test_connection")
     def test_validate_database_connection_failure(self, mock_test_connection):
         """Test failed database connection."""
         mock_test_connection.return_value = (False, "Connection failed: could not connect")

@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 from teshq.cli.ui import error, handle_error, print_footer, print_header, status, tip, warning
 from teshq.core.introspect import introspect_db
 from teshq.telemetry.events import track_command, track_error
-from teshq.utils.cli_logging import CLILogger
-from teshq.utils.config import get_database_url as get_configured_database_url
-from teshq.utils.connection import connection_manager
+from teshq.cli.logging import CLILogger
+from teshq.config.loader import get_database_url as get_configured_database_url
+from teshq.core.connection import connection_manager
 
 app = typer.Typer()
 load_dotenv()

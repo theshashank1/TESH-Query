@@ -7,7 +7,7 @@ for any query that violates the rules. Never executes invalid SQL.
 
 import re
 
-from teshq.utils.validation import ValidationError
+from teshq.core.validation import ValidationError
 
 
 # Compiled patterns for efficiency

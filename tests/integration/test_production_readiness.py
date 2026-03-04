@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from teshq.utils.validation import validate_environment, validate_production_readiness
+from teshq.core.validation import validate_environment, validate_production_readiness
 
 
 class TestProductionReadinessIntegration:
@@ -33,7 +33,7 @@ class TestProductionReadinessIntegration:
             }
 
             # Mock successful database connection
-            with patch("teshq.utils.validation.ConfigValidator.validate_database_connection") as mock_db_conn:
+            with patch("teshq.core.validation.ConfigValidator.validate_database_connection") as mock_db_conn:
                 mock_db_conn.return_value = (True, "Database connection successful")
 
                 is_ready, issues = validate_production_readiness(production_config)
@@ -53,10 +53,10 @@ class TestProductionReadinessIntegration:
         }
 
         # Mock successful database connection
-        with patch("teshq.utils.validation.ConfigValidator.validate_database_connection") as mock_db_conn:
+        with patch("teshq.core.validation.ConfigValidator.validate_database_connection") as mock_db_conn:
             mock_db_conn.return_value = (True, "Database connection successful")
 
-            with patch("teshq.utils.validation.ConfigValidator.validate_file_path") as mock_file_path:
+            with patch("teshq.core.validation.ConfigValidator.validate_file_path") as mock_file_path:
                 mock_file_path.return_value = (True, "Valid path")
 
                 is_ready, issues = validate_production_readiness(dev_config)
@@ -114,7 +114,7 @@ class TestProductionReadinessIntegration:
             Path(test_config["FILE_STORE_PATH"]).mkdir()
 
             # Verify configuration is valid
-            from teshq.utils.validation import ConfigValidator
+            from teshq.core.validation import ConfigValidator
 
             db_valid, db_msg = ConfigValidator.validate_database_url(test_config["DATABASE_URL"])
             assert db_valid, f"Database URL should be valid: {db_msg}"
@@ -126,7 +126,7 @@ class TestProductionReadinessIntegration:
             assert path_valid, f"Path should be valid: {path_msg}"
 
             # Test production readiness
-            with patch("teshq.utils.validation.ConfigValidator.validate_database_connection") as mock_db:
+            with patch("teshq.core.validation.ConfigValidator.validate_database_connection") as mock_db:
                 mock_db.return_value = (True, "Success")
 
                 is_ready, issues = validate_production_readiness(test_config)
@@ -141,7 +141,7 @@ class TestCLIIntegration:
 
     def test_cli_query_validation_integration(self):
         """Test that CLI query validation works end-to-end."""
-        from teshq.utils.validation import CLIValidator
+        from teshq.core.validation import CLIValidator
 
         # Test various query scenarios
         test_cases = [
@@ -161,7 +161,7 @@ class TestCLIIntegration:
 
     def test_cli_save_path_validation_integration(self):
         """Test that CLI save path validation works end-to-end."""
-        from teshq.utils.validation import CLIValidator
+        from teshq.core.validation import CLIValidator
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test valid save paths
@@ -192,7 +192,7 @@ class TestErrorHandlingIntegration:
 
     def test_configuration_error_scenarios(self):
         """Test various configuration error scenarios."""
-        from teshq.utils.validation import ConfigValidator
+        from teshq.core.validation import ConfigValidator
 
         # Test database connection failures
         connection_test_cases = [
@@ -213,7 +213,7 @@ class TestErrorHandlingIntegration:
 
     def test_graceful_degradation(self):
         """Test that the system degrades gracefully under various failure conditions."""
-        from teshq.utils.config import get_config
+        from teshq.config.loader import get_config
 
         # Test with non-existent configuration files
         with patch("os.path.exists", return_value=False):
@@ -233,7 +233,7 @@ class TestSecurityIntegration:
 
     def test_sql_injection_prevention_comprehensive(self):
         """Comprehensive test of SQL injection prevention."""
-        from teshq.utils.validation import CLIValidator
+        from teshq.core.validation import CLIValidator
 
         # Common SQL injection patterns
         malicious_queries = [
@@ -253,7 +253,7 @@ class TestSecurityIntegration:
 
     def test_api_key_security_validation(self):
         """Test API key validation for security."""
-        from teshq.utils.validation import ConfigValidator
+        from teshq.core.validation import ConfigValidator
 
         # Test various API key scenarios
         api_key_tests = [
@@ -272,7 +272,7 @@ class TestSecurityIntegration:
 
 def test_production_readiness_summary():
     """High-level test that summarizes production readiness status."""
-    from teshq.utils.validation import validate_environment
+    from teshq.core.validation import validate_environment
 
     print("\n" + "=" * 60)
     print("TESH-Query Production Readiness Summary")

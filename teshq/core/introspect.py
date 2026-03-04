@@ -6,7 +6,7 @@ from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 from sqlalchemy.engine import Connection  # Added import for Connection type hint
 
 from teshq.config.paths import SCHEMA_DIR, ensure_teshq_dir
-from teshq.utils.config import get_database_url as get_db_url
+from teshq.config.loader import get_database_url as get_db_url
 
 # from sqlalchemy.engine.reflection import Inspector
 

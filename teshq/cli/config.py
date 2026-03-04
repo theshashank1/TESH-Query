@@ -17,12 +17,12 @@ from urllib.parse import quote_plus
 import typer
 from sqlalchemy.engine.url import make_url
 
-from teshq.utils.config import (  # DEFAULT_FILE_STORE_PATH,; DEFAULT_OUTPUT_PATH,; get_config,
+from teshq.config.loader import (  # DEFAULT_FILE_STORE_PATH,; DEFAULT_OUTPUT_PATH,; get_config,
     DEFAULT_GEMINI_MODEL,
     get_config_with_source,
     save_config,
 )
-from teshq.utils.database_connectors import UnifiedDatabaseConnector
+from teshq.core.connectors import UnifiedDatabaseConnector
 from teshq.utils.ui import print_config  # We'll implement our own fallback if this fails
 from teshq.utils.ui import (  # handle_error,
     clear_screen,
@@ -40,7 +40,7 @@ from teshq.utils.ui import (  # handle_error,
     tip,
     warning,
 )
-from teshq.utils.validation import ConfigValidator, validate_production_readiness
+from teshq.core.validation import ConfigValidator, validate_production_readiness
 
 app = typer.Typer(invoke_without_command=True)
 # Get supported database types from unified connector

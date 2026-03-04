@@ -15,9 +15,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import Pool, QueuePool, StaticPool
 
-from teshq.utils.database_connectors import UnifiedDatabaseConnector
+from teshq.core.connectors import UnifiedDatabaseConnector
 from teshq.utils.logging import log_operation, logger, metrics
-from teshq.utils.retry import retry_database_operation
+from teshq.core.retry import retry_database_operation
 
 
 class ConnectionConfig:

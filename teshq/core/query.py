@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
-from teshq.utils.config import get_database_url as get_db_url
-from teshq.utils.connection import execute_query_with_pooling
+from teshq.config.loader import get_database_url as get_db_url
+from teshq.core.connection import execute_query_with_pooling
 from teshq.utils.logging import logger
 
 

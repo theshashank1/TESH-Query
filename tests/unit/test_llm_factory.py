@@ -201,7 +201,7 @@ class TestBuildLlmFromConfig:
             "azure_deployment": None,
             "azure_api_version": None,
         }
-        with patch("teshq.utils.config.get_llm_config", return_value=google_config):
+        with patch("teshq.config.loader.get_llm_config", return_value=google_config):
             with patch("teshq.core.llm_factory.build_llm", return_value=mock_llm) as mock_build:
                 result = build_llm_from_config()
                 mock_build.assert_called_once_with(
@@ -224,7 +224,7 @@ class TestBuildLlmFromConfig:
             "azure_deployment": "gpt-4o",
             "azure_api_version": "2024-02-01",
         }
-        with patch("teshq.utils.config.get_llm_config", return_value=azure_config):
+        with patch("teshq.config.loader.get_llm_config", return_value=azure_config):
             with patch("teshq.core.llm_factory.build_llm", return_value=mock_llm) as mock_build:
                 result = build_llm_from_config()
                 mock_build.assert_called_once_with(

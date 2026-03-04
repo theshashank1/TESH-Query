@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
-from teshq.utils.database_connectors import UnifiedDatabaseConnector
+from teshq.core.connectors import UnifiedDatabaseConnector
 
 
 class ValidationError(Exception):
