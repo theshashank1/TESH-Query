@@ -29,20 +29,8 @@ from typing import Dict, List, Optional
 from teshq.core.schema_graph import SchemaGraph
 from teshq.utils.logging import logger
 
-# Lightweight stop-words — mirrors teshq.core.schema_pruner._STOP_WORDS
-_STOP_WORDS = frozenset(
-    {
-        "a", "an", "the", "of", "in", "on", "at", "by", "for", "with",
-        "is", "are", "was", "were", "be", "been", "being", "have", "has",
-        "had", "do", "does", "did", "will", "would", "could", "should",
-        "may", "might", "shall", "can", "to", "and", "or", "but", "if",
-        "me", "my", "we", "our", "you", "your", "it", "its", "this",
-        "that", "these", "those", "all", "each", "from", "get", "show",
-        "list", "find", "give", "tell", "what", "how", "many", "much",
-        "per", "top", "most", "least", "total", "count", "sum", "avg",
-        "between", "group", "where", "select", "which",
-    }
-)
+# Re-use stop-words from schema_pruner to keep the two modules in sync
+from teshq.core.schema_pruner import _STOP_WORDS
 
 
 def _tokenize(text: str) -> List[str]:

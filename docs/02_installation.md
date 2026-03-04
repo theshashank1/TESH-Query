@@ -20,7 +20,7 @@ SQLite works out of the box. For other databases install the appropriate extra:
 # PostgreSQL (pure-Python, recommended)
 pip install "teshq[postgres]"
 
-# PostgreSQL (binary wheel — Python ≤ 3.12)
+# PostgreSQL (binary wheel - Python 3.12 and below)
 pip install "teshq[postgres-binary]"
 
 # MySQL

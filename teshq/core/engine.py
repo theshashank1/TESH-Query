@@ -296,7 +296,8 @@ class TeshEngine:
                 break
 
         first_error = last_db_error
-        assert first_error is not None  # guaranteed by the loop
+        if first_error is None:
+            raise RuntimeError("Unexpected state: no error captured after retry loop")
 
         logger.warning(
             "SQL execution failed — attempting self-healing retry",
