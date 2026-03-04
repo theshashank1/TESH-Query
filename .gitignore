@@ -127,8 +127,6 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-tests/
-*.md
 *.sqlite
 
 REORGANIZATION.md

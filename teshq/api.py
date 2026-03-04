@@ -317,6 +317,35 @@ class TeshQuery:
         track_feature("TeshQuery.health_check")
         return HealthChecker().run_all_checks()
 
+    # ------------------------------------------------------------------
+    # Async API
+    # ------------------------------------------------------------------
+
+    async def aquery(
+        self,
+        natural_language_query: str,
+        return_sql: bool = False,
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        """Async counterpart of :meth:`query`.
+
+        Runs the full NL → SQL → execute pipeline without blocking the
+        event loop (delegates to a thread-pool executor internally).
+
+        Args:
+            natural_language_query: Question in plain English.
+            return_sql: If True, include SQL in the returned dict.
+
+        Returns:
+            List of result dicts, or a dict with sql+results when *return_sql* is True.
+        """
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.query(natural_language_query, return_sql=return_sql),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Module-level convenience functions

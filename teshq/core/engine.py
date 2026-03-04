@@ -9,6 +9,17 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from teshq.core.exceptions import (
+    DatabaseConnectionError,
+    ExecutionTimeoutError,
+    LLMRateLimitError,
+    SchemaIntrospectionError,
+    SelfHealingExhaustedError,
+    SQLGenerationError,
+    SQLValidationError,
+    TeshqConfigurationError,
+    classify_llm_error,
+)
 from teshq.core.introspect import introspect_db
 from teshq.core.models import QueryPlan, SQLQuery
 from teshq.core.planner import QueryPlanner, build_planner
@@ -22,6 +33,7 @@ from teshq.core.token_counter import DEFAULT_TOKEN_THRESHOLD, exceeds_threshold
 from teshq.telemetry.events import track_query_event
 from teshq.utils.config import get_database_url, get_llm_config
 from teshq.utils.logging import logger
+from teshq.utils.retry import RetryConfig, calculate_delay, is_retryable
 from teshq.utils.validation import ValidationError
 
 
@@ -247,51 +259,113 @@ class TeshEngine:
 
     def _execute_with_retry(self, sql: str, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Execute SQL with one self-healing retry on failure.
+        Execute SQL with self-healing retry and exponential backoff.
 
         On first execution failure:
-          1. Re-invokes Stage 2 (SQLGenerator) with the database error message
-             injected into the prompt as an error_hint.
-          2. Validates and normalises the new SQL.
-          3. Tries execution again. If it still fails, re-raises.
+          1. For transient DB errors (connection, timeout), retries with
+             exponential backoff up to ``_DB_RETRY_CONFIG.max_attempts``.
+          2. For SQL logic errors, re-invokes Stage 2 (SQLGenerator) with
+             the database error message injected as an ``error_hint``.
+          3. Validates and normalises the healed SQL and tries execution again.
         """
-        try:
-            return execute_sql_query(db_url=self._db_url, query=sql, parameters=parameters)
-        except Exception as first_error:
-            logger.warning(
-                "SQL execution failed — attempting self-healing retry",
-                error=first_error,
-                sql=sql[:200],
-            )
+        # --- Transient DB retry with exponential backoff ---
+        db_retry_cfg = RetryConfig(
+            max_attempts=3,
+            base_delay=0.5,
+            max_delay=8.0,
+            retryable_exceptions=[ConnectionError, TimeoutError, OSError],
+        )
 
-            # Self-heal only if we have the context needed to regenerate
-            if not (self._last_nl_query and self._last_schema_str and self._last_plan):
-                logger.error("Cannot self-heal: missing query context — re-raising original error")
-                raise
-
+        last_db_error: Optional[Exception] = None
+        for attempt in range(1, db_retry_cfg.max_attempts + 1):
             try:
-                healed_sql_result = self._get_sql_gen().generate(
-                    self._last_nl_query,
-                    self._last_schema_str,
-                    self._last_plan,
-                    error_hint=str(first_error),
-                )
-                healed_sql = healed_sql_result.query
-                healed_params = healed_sql_result.parameters or parameters
+                return execute_sql_query(db_url=self._db_url, query=sql, parameters=parameters)
+            except Exception as exc:
+                if is_retryable(exc, db_retry_cfg) and attempt < db_retry_cfg.max_attempts:
+                    delay = calculate_delay(attempt, db_retry_cfg)
+                    logger.warning(
+                        "Transient DB error — retrying with backoff",
+                        error=exc,
+                        attempt=attempt,
+                        delay_s=round(delay, 2),
+                    )
+                    time.sleep(delay)
+                    last_db_error = exc
+                    continue
+                last_db_error = exc
+                break
 
-                validate_sql(healed_sql)
-                healed_sql = normalize_sql(healed_sql)
+        first_error = last_db_error
+        assert first_error is not None  # guaranteed by the loop
 
-                logger.info("Self-healing generated new SQL — retrying execution", sql=healed_sql[:200])
-                return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params)
+        logger.warning(
+            "SQL execution failed — attempting self-healing retry",
+            error=first_error,
+            sql=sql[:200],
+        )
 
-            except Exception as retry_error:
-                logger.error(
-                    "Self-healing retry also failed",
-                    original_error=str(first_error),
-                    retry_error=str(retry_error),
-                )
-                raise retry_error from first_error
+        # Self-heal only if we have the context needed to regenerate
+        if not (self._last_nl_query and self._last_schema_str and self._last_plan):
+            logger.error("Cannot self-heal: missing query context — re-raising original error")
+            raise first_error
+
+        try:
+            healed_sql_result = self._generate_with_rate_limit_backoff(
+                self._last_nl_query,
+                self._last_schema_str,
+                self._last_plan,
+                error_hint=str(first_error),
+            )
+            healed_sql = healed_sql_result.query
+            healed_params = healed_sql_result.parameters or parameters
+
+            validate_sql(healed_sql)
+            healed_sql = normalize_sql(healed_sql)
+
+            logger.info("Self-healing generated new SQL — retrying execution", sql=healed_sql[:200])
+            return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params)
+
+        except Exception as retry_error:
+            logger.error(
+                "Self-healing retry also failed",
+                original_error=str(first_error),
+                retry_error=str(retry_error),
+            )
+            raise SelfHealingExhaustedError(
+                message="Self-healing retry exhausted",
+                detail=str(retry_error),
+            ) from first_error
+
+    # ------------------------------------------------------------------
+    # LLM rate-limit-aware generation
+    # ------------------------------------------------------------------
+
+    def _generate_with_rate_limit_backoff(
+        self,
+        nl_query: str,
+        schema_str: str,
+        plan: QueryPlan,
+        error_hint: Optional[str] = None,
+    ) -> SQLQuery:
+        """Call SQLGenerator.generate with exponential backoff on 429 errors."""
+        max_attempts = 3
+        base_delay = 2.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return self._get_sql_gen().generate(nl_query, schema_str, plan, error_hint=error_hint)
+            except Exception as exc:
+                typed = classify_llm_error(exc)
+                if isinstance(typed, LLMRateLimitError) and attempt < max_attempts:
+                    delay = typed.retry_after or (base_delay * (2 ** (attempt - 1)))
+                    logger.warning(
+                        "LLM rate-limited — backing off",
+                        attempt=attempt,
+                        delay_s=round(delay, 2),
+                    )
+                    time.sleep(delay)
+                    continue
+                raise
 
     def get_schema_preview(self, nl_query: str, schema_graph: Optional[SchemaGraph] = None) -> str:
         """
@@ -301,4 +375,27 @@ class TeshEngine:
         graph = schema_graph or self._get_schema_graph()
         relevant_tables = prune_schema(graph, nl_query)
         return graph.compressed_schema(relevant_tables)
+
+    # ------------------------------------------------------------------
+    # Async API
+    # ------------------------------------------------------------------
+
+    async def aquery(
+        self,
+        nl_query: str,
+        dry_run: bool = False,
+        schema_graph: Optional[SchemaGraph] = None,
+    ) -> QueryResult:
+        """Async counterpart of :meth:`query`.
+
+        Runs the synchronous pipeline in a thread-pool executor to avoid
+        blocking the event loop while remaining compatible with the
+        existing synchronous LLM / DB drivers.
+        """
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, lambda: self.query(nl_query, dry_run=dry_run, schema_graph=schema_graph)
+        )
 
