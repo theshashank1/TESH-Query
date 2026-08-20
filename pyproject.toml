@@ -36,11 +36,11 @@ dependencies = [
     "langchain>=0.3",
     "langchain-core>=0.3",
     "langchain-google-genai>=2.0",
-    "typer[all]>=0.9,<1.0",
+    "typer>=0.9,<1.0",
     "rich>=13.0,<15.0",
     "logfire>=2.0",
     "tabulate>=0.9",
-    "pandas>=2.2,<3.0",
+    "pandas>=2.0",          # Allowing >=2.3 which may have pre-built cp314 wheels
     "pyyaml~=6.0",
     "pydantic~=2.0",
     "pydantic-settings~=2.0",
@@ -174,12 +174,13 @@ Homepage = "https://github.com/theshashank1/TESH-Query"
 Documentation = "https://github.com/theshashank1/TESH-Query#readme"
 
 [project.scripts]
-teshq = "teshq.cli.main:app"
+teshq = "teshq.cli.main:main"
 
 [tool.setuptools]
 packages = [
     "teshq",
     "teshq.cli",
+    "teshq.cli.ui",
     "teshq.config",
     "teshq.core",
     "teshq.telemetry",
@@ -202,6 +203,17 @@ no-build-package = [
     "greenlet",          # SQLAlchemy async dep; pure source build is slow
     "pyodbc",
     "mariadb",
+    "cffi",              # transitive dep; requires MSVC on Windows
+    "grpcio",            # google-genai dep; binary wheels available on PyPI
+    "orjson",            # rust extension; pre-built wheels available on PyPI
+    # pandas intentionally omitted: cp314 wheels not yet published.
+    # Users on Python 3.14 can skip pandas; core logic does not require it.
+]
+
+# Force newer zstandard which has pre-built wheels for Python 3.14 on Windows.
+# langsmith pins to 0.23.0 which has no cp314 wheel and requires MSVC.
+override-dependencies = [
+    "zstandard>=0.25.0",
 ]
 
 # ---------------------------------------------------------------------------

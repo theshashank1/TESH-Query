@@ -17,7 +17,7 @@ Environment variables used (if not supplied explicitly):
   AZURE_OPENAI_API_KEY      → Azure OpenAI API key
   AZURE_OPENAI_ENDPOINT     → Azure OpenAI resource endpoint URL
   AZURE_OPENAI_DEPLOYMENT   → Azure OpenAI deployment/model name
-  AZURE_OPENAI_API_VERSION  → Azure OpenAI API version (default: 2024-02-01)
+  AZURE_OPENAI_API_VERSION  → Azure OpenAI API version (default: 2024-10-21)
   LLM_PROVIDER              → "google" or "azure" (overrides auto-detection)
 """
 
@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 from typing import Any, Optional
 
-_AZURE_DEFAULT_API_VERSION = "2024-02-01"
+_AZURE_DEFAULT_API_VERSION = "2024-10-21"
 
 
 def build_llm(
@@ -138,12 +138,22 @@ def _build_google_llm(
 
     resolved_model = model_name or "gemini-2.0-flash-lite"
 
-    return ChatGoogleGenerativeAI(
-        model=resolved_model,
-        temperature=temperature,
-        top_p=top_p,
-        top_k=top_k,
-    )
+    # langchain-google-genai >=4.0 moved top_k/top_p inside model_kwargs.
+    # Try direct kwargs first (works for older SDK); fall back gracefully.
+    try:
+        return ChatGoogleGenerativeAI(
+            model=resolved_model,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+        )
+    except TypeError:
+        # Newer google-genai SDK: sampling params must go in model_kwargs
+        return ChatGoogleGenerativeAI(
+            model=resolved_model,
+            temperature=temperature,
+            model_kwargs={"top_p": top_p, "topK": top_k},
+        )
 
 
 def _build_azure_llm(
@@ -155,7 +165,7 @@ def _build_azure_llm(
 ) -> Any:
     """Build an AzureChatOpenAI instance."""
     try:
-        from langchain_openai import AzureChatOpenAI
+        from langchain_openai import AzureChatOpenAI, ChatOpenAI
     except ImportError as exc:
         raise ImportError(
             "langchain-openai is required for the Azure OpenAI provider. "
@@ -186,6 +196,26 @@ def _build_azure_llm(
         raise ValueError(
             "Azure OpenAI deployment name is not set. "
             "Set the AZURE_OPENAI_DEPLOYMENT environment variable or pass azure_deployment=."
+        )
+
+    # Detect Azure AI Foundry Serverless endpoints (MaaS) which use the standard OpenAI API format
+    is_serverless = (
+        "services.ai.azure.com" in resolved_endpoint 
+        or "models.ai.azure.com" in resolved_endpoint
+        or resolved_endpoint.endswith("/v1")
+    )
+
+    if is_serverless:
+        # If the user gave the project URL, convert it to the openai/v1 inference URL
+        if "/api/projects/" in resolved_endpoint:
+            base_part = resolved_endpoint.split("/api/projects/")[0]
+            resolved_endpoint = f"{base_part}/openai/v1"
+            
+        return ChatOpenAI(
+            base_url=resolved_endpoint,
+            api_key=resolved_key,
+            model=resolved_deployment,
+            temperature=temperature,
         )
 
     return AzureChatOpenAI(

@@ -10,7 +10,7 @@ pruning when prompts would be excessively large.
 _CHARS_PER_TOKEN = 4
 
 # Default token threshold above which schema should be further pruned
-DEFAULT_TOKEN_THRESHOLD = 2000
+DEFAULT_TOKEN_THRESHOLD = 8000
 
 
 def estimate_tokens(text: str) -> int:

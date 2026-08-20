@@ -25,7 +25,7 @@ from teshq.core.models import QueryPlan, SQLQuery
 from teshq.core.planner import QueryPlanner, build_planner
 from teshq.core.query import execute_sql_query
 from teshq.core.schema_graph import SchemaGraph
-from teshq.core.schema_pruner import prune_schema
+from teshq.core.retriever import SchemaRetriever
 from teshq.core.sql_gen import SQLGenerator, build_sql_generator
 from teshq.core.sql_normalizer import normalize_sql
 from teshq.core.sql_validator import validate_sql
@@ -182,13 +182,17 @@ class TeshEngine:
         try:
             graph = schema_graph or self._get_schema_graph()
 
-            # Prune schema
-            relevant_tables = prune_schema(graph, nl_query)
+            # Retrieve the most relevant tables via TF-IDF cosine similarity.
+            # SchemaRetriever handles synonyms/plurals far better than keyword substring match.
+            retriever = SchemaRetriever(graph)
+            relevant_tables = retriever.retrieve(nl_query, top_k=10)
             schema_str = graph.compressed_schema(relevant_tables)
 
-            # Further prune if over token threshold
-            if exceeds_threshold(schema_str, DEFAULT_TOKEN_THRESHOLD) and len(relevant_tables) > 3:
-                relevant_tables = relevant_tables[:3]
+            # Proportionally reduce if still over token threshold
+            if exceeds_threshold(schema_str, DEFAULT_TOKEN_THRESHOLD) and len(relevant_tables) > 1:
+                # Keep 60% of tables (at least 1) rather than hard-capping at 3
+                keep = max(1, int(len(relevant_tables) * 0.6))
+                relevant_tables = relevant_tables[:keep]
                 schema_str = graph.compressed_schema(relevant_tables)
 
             # — Stage 1: Query Planning —
@@ -203,6 +207,13 @@ class TeshEngine:
 
             sql_text = sql_result.query
             parameters = sql_result.parameters or {}
+
+            # Guard against empty SQL from the LLM (structured output can silently return "")
+            if not sql_text or not sql_text.strip():
+                raise SQLGenerationError(
+                    "SQL generation failed",
+                    detail="The LLM returned an empty query. Try rephrasing your request.",
+                )
 
             # Store context so _execute_with_retry can regenerate if needed
             self._last_nl_query = nl_query
@@ -374,7 +385,8 @@ class TeshEngine:
         Does not call the LLM.
         """
         graph = schema_graph or self._get_schema_graph()
-        relevant_tables = prune_schema(graph, nl_query)
+        retriever = SchemaRetriever(graph)
+        relevant_tables = retriever.retrieve(nl_query, top_k=10)
         return graph.compressed_schema(relevant_tables)
 
     # ------------------------------------------------------------------

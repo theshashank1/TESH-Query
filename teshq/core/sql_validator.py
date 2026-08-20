@@ -3,106 +3,105 @@ SQL Validation Layer for TESH-Query v2.
 
 Enforces safety rules before any SQL is executed. Raises ValidationError
 for any query that violates the rules. Never executes invalid SQL.
+
+Uses sqlparse AST-based parsing for DDL/DML detection to avoid regex
+bypass via clever casing, embedded comments, or whitespace tricks.
+SELECT * and positional-param checks use targeted regex, but only after
+string literals are stripped so false positives (e.g. WHERE url LIKE '%s%')
+are not triggered.
 """
 
 import re
+from typing import List
+
+import sqlparse
+from sqlparse.sql import Statement
 
 from teshq.core.validation import ValidationError
 
 
-# Compiled patterns for efficiency
-_DROP_PATTERN = re.compile(r"\bDROP\b", re.IGNORECASE)
-_TRUNCATE_PATTERN = re.compile(r"\bTRUNCATE\b", re.IGNORECASE)
-_ALTER_PATTERN = re.compile(r"\bALTER\b", re.IGNORECASE)
-_DELETE_PATTERN = re.compile(r"\bDELETE\b", re.IGNORECASE)
-_UPDATE_PATTERN = re.compile(r"\bUPDATE\b", re.IGNORECASE)
-_WHERE_PATTERN = re.compile(r"\bWHERE\b", re.IGNORECASE)
+# Destructive statement types that must never be executed.
+# sqlparse returns these as the stmt.get_type() value.
+_BLOCKED_STATEMENT_TYPES = frozenset(
+    {
+        "DROP",
+        "TRUNCATE",
+        "ALTER",
+        "CREATE",
+    }
+)
+
+# DDL/DML keyword tokens we block via AST token inspection when
+# get_type() returns None or "UNKNOWN" (e.g. multi-keyword statements).
+_BLOCKED_KEYWORDS = frozenset(
+    {
+        "DROP",
+        "TRUNCATE",
+        "ALTER",
+        "CREATE",
+        "REPLACE",
+    }
+)
+
+# Regex for SELECT * check — applied on the full SQL (still safe because
+# we only check for a structural pattern, not user-supplied literals).
 _SELECT_STAR_PATTERN = re.compile(r"\bSELECT\s+\*", re.IGNORECASE)
+
+# Named-param pattern (used to verify correct param style)
 _NAMED_PARAM_PATTERN = re.compile(r":[a-zA-Z_][a-zA-Z0-9_]*")
+
+# Positional-param pattern — applied ONLY on the SQL *after* string literals
+# have been stripped to avoid false positives like WHERE url LIKE '%s%'.
 _POSITIONAL_PARAM_PATTERN = re.compile(r"\?|\$\d+|%s")
-# We still need statement splitting, but comments are stripped carefully
-def _split_statements(sql: str) -> list:
-    """Safely strip comments and split SQL into statements, respecting quotes."""
-    statements = []
-    current_stmt = []
-    
-    in_sq = False  # Single quote
-    in_dq = False  # Double quote
-    in_line_comment = False
-    in_block_comment = False
-    
-    i = 0
-    n = len(sql)
-    
-    while i < n:
-        char = sql[i]
-        
-        # Handle state transitions
-        if in_line_comment:
-            if char == '\n':
-                in_line_comment = False
-                current_stmt.append(' ')
-            i += 1
-            continue
-            
-        if in_block_comment:
-            if char == '*' and i + 1 < n and sql[i+1] == '/':
-                in_block_comment = False
-                current_stmt.append(' ')
-                i += 2
-            else:
-                i += 1
-            continue
-            
-        # String literals
-        if char == "'" and not in_dq:
-            in_sq = not in_sq
-        elif char == '"' and not in_sq:
-            in_dq = not in_dq
-            
-        # Comments (only if outside string literals)
-        if not in_sq and not in_dq:
-            if char == '-' and i + 1 < n and sql[i+1] == '-':
-                in_line_comment = True
-                i += 2
-                continue
-            if char == '/' and i + 1 < n and sql[i+1] == '*':
-                in_block_comment = True
-                i += 2
-                continue
-            
-            # Semicolon delimiter
-            if char == ';':
-                stmt_str = "".join(current_stmt).strip()
-                if stmt_str:
-                    statements.append(stmt_str)
-                current_stmt = []
-                i += 1
-                continue
-                
-        # Normal character appends
-        current_stmt.append(char)
-        i += 1
-        
-    last_stmt = "".join(current_stmt).strip()
-    if last_stmt:
-        statements.append(last_stmt)
-        
-    return statements
+
+# Regex that strips single-quoted string literals (handles '' escaping)
+_STRING_LITERAL_RE = re.compile(r"'(?:''|[^'])*'")
+
+
+def _strip_string_literals(sql: str) -> str:
+    """Remove all single-quoted string literals from *sql*."""
+    return _STRING_LITERAL_RE.sub("''", sql)
+
+
+def _get_first_keyword(stmt: Statement) -> str:
+    """Return the normalized first keyword in a statement."""
+    from sqlparse import tokens as T
+
+    for token in stmt.flatten():
+        if token.ttype in (T.Keyword.DML, T.Keyword.DDL):
+            return token.normalized.upper()
+        # Some multi-word DDL (e.g. CREATE OR REPLACE) starts with Keyword
+        if token.ttype is T.Keyword and token.normalized.upper() in _BLOCKED_KEYWORDS:
+            return token.normalized.upper()
+    return ""
+
+
+def _requires_where(stmt: Statement) -> bool:
+    """Return True if the statement is DELETE or UPDATE."""
+    kw = _get_first_keyword(stmt)
+    return kw in ("DELETE", "UPDATE")
+
+
+def _has_where_clause(stmt: Statement) -> bool:
+    """Return True if the statement contains a WHERE keyword."""
+    from sqlparse import tokens as T
+
+    for token in stmt.flatten():
+        if token.ttype is T.Keyword and token.normalized.upper() == "WHERE":
+            return True
+    return False
 
 
 def validate_sql(sql: str) -> None:
     """
-    Validate SQL against safety rules.
+    Validate SQL against safety rules using sqlparse AST analysis.
 
     Rules enforced:
-    - No DROP statements
-    - No TRUNCATE statements
-    - No ALTER statements
-    - No DELETE without WHERE
-    - No UPDATE without WHERE
+    - No DROP / TRUNCATE / ALTER / CREATE statements
+    - No DELETE without WHERE clause
+    - No UPDATE without WHERE clause
     - No SELECT *
-    - Named params must use :param_name syntax (no positional params)
+    - No positional parameters (?, $1, %s) — must use :param_name syntax
 
     Args:
         sql: The SQL string to validate.
@@ -110,44 +109,49 @@ def validate_sql(sql: str) -> None:
     Raises:
         ValidationError: If any safety rule is violated.
     """
-    if _DROP_PATTERN.search(sql):
-        raise ValidationError(
-            "DROP statements are not allowed.",
-            field="sql",
-        )
+    if not sql or not sql.strip():
+        return  # Empty SQL is handled upstream as a generation failure
 
-    if _TRUNCATE_PATTERN.search(sql):
-        raise ValidationError(
-            "TRUNCATE statements are not allowed.",
-            field="sql",
-        )
+    # Parse all statements (handles multi-statement input)
+    parsed: List[Statement] = sqlparse.parse(sql)
 
-    if _ALTER_PATTERN.search(sql):
-        raise ValidationError(
-            "ALTER statements are not allowed.",
-            field="sql",
-        )
+    for stmt in parsed:
+        stmt_type: str = (stmt.get_type() or "").upper()
 
-    # Per-statement WHERE check to prevent multi-statement bypass
-    for stmt in _split_statements(sql):
-        if _DELETE_PATTERN.search(stmt) and not _WHERE_PATTERN.search(stmt):
+        # 1. Block DDL by statement type
+        if stmt_type in _BLOCKED_STATEMENT_TYPES:
             raise ValidationError(
-                "DELETE without WHERE clause is not allowed.",
-                field="sql",
-            )
-        if _UPDATE_PATTERN.search(stmt) and not _WHERE_PATTERN.search(stmt):
-            raise ValidationError(
-                "UPDATE without WHERE clause is not allowed.",
+                f"{stmt_type} statements are not allowed.",
                 field="sql",
             )
 
+        # 2. Block DDL by first keyword (catches cases where get_type()
+        #    returns None, e.g. "CREATE OR REPLACE PROCEDURE ...")
+        first_kw = _get_first_keyword(stmt)
+        if first_kw in _BLOCKED_KEYWORDS:
+            raise ValidationError(
+                f"{first_kw} statements are not allowed.",
+                field="sql",
+            )
+
+        # 3. DELETE / UPDATE must have WHERE
+        if _requires_where(stmt) and not _has_where_clause(stmt):
+            raise ValidationError(
+                f"{first_kw} without WHERE clause is not allowed.",
+                field="sql",
+            )
+
+    # 4. SELECT * check (regex on full SQL — structural pattern, safe)
     if _SELECT_STAR_PATTERN.search(sql):
         raise ValidationError(
             "SELECT * is not allowed. Specify explicit column names.",
             field="sql",
         )
 
-    if _POSITIONAL_PARAM_PATTERN.search(sql):
+    # 5. Positional parameters — check on SQL with string literals stripped
+    #    to avoid false positives like WHERE url LIKE '%s%'
+    stripped = _strip_string_literals(sql)
+    if _POSITIONAL_PARAM_PATTERN.search(stripped):
         raise ValidationError(
             "Positional parameters (?, $1, %s) are not allowed. Use :param_name syntax.",
             field="sql",

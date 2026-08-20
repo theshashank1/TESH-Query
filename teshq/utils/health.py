@@ -18,6 +18,7 @@ from teshq.config.loader import get_database_url, get_gemini_config
 from teshq.utils.logging import logger
 from teshq.core.retry import retry_api_call
 from teshq.core.validation import ConfigValidator
+import os
 
 _health_checks: Dict[str, Callable[[], Tuple["HealthStatus", str, Dict[str, Any]]]] = {}
 
@@ -135,8 +136,9 @@ class HealthChecker:
 @health_check("configuration")
 def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
     """Validates that all necessary configurations are present and correctly formatted."""
+    from teshq.config.loader import get_llm_config
+
     database_url = get_database_url()
-    gemini_api_key, gemini_model = get_gemini_config()
     issues: List[str] = []
 
     if not database_url:
@@ -146,17 +148,38 @@ def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
         if not is_valid:
             issues.append(f"Database URL: {msg}")
 
-    if not gemini_api_key:
-        issues.append("Gemini API Key is not configured")
+    # Check LLM credentials based on the configured provider
+    llm_cfg = get_llm_config()
+    provider = llm_cfg.get("provider", "google")
+    api_key = llm_cfg.get("api_key")
+    model = llm_cfg.get("model_name") or "(not set)"
+
+    if provider == "azure":
+        azure_key = api_key
+        azure_endpoint = llm_cfg.get("azure_endpoint")
+        azure_deployment = llm_cfg.get("azure_deployment")
+        if not azure_key:
+            issues.append("Azure OpenAI API Key (AZURE_OPENAI_API_KEY) is not configured")
+        if not azure_endpoint:
+            issues.append("Azure OpenAI Endpoint (AZURE_OPENAI_ENDPOINT) is not configured")
+        if not azure_deployment:
+            issues.append("Azure OpenAI Deployment (AZURE_OPENAI_DEPLOYMENT) is not configured")
+        api_key_configured = bool(azure_key and azure_endpoint and azure_deployment)
     else:
-        is_valid, msg = ConfigValidator.validate_gemini_api_key(gemini_api_key)
-        if not is_valid:
-            issues.append(f"Gemini API Key: {msg}")
+        gemini_api_key = api_key
+        if not gemini_api_key:
+            issues.append("Gemini API Key is not configured")
+        else:
+            is_valid, msg = ConfigValidator.validate_gemini_api_key(gemini_api_key)
+            if not is_valid:
+                issues.append(f"Gemini API Key: {msg}")
+        api_key_configured = bool(gemini_api_key)
 
     details = {
+        "provider": provider,
         "database_configured": bool(database_url),
-        "api_key_configured": bool(gemini_api_key),
-        "model": gemini_model,
+        "api_key_configured": api_key_configured,
+        "model": model,
         "issues": issues,
     }
 
@@ -201,22 +224,30 @@ def check_database_connectivity() -> Tuple[HealthStatus, str, Dict[str, Any]]:
 @health_check("api_connectivity")
 @retry_api_call("health_check_api")
 def check_api_connectivity() -> Tuple[HealthStatus, str, Dict[str, Any]]:
-    """Checks Gemini API key validity by attempting to initialize the query generator."""
-    api_key, model = get_gemini_config()
+    """Checks LLM API connectivity by building and pinging the configured provider."""
+    from teshq.config.loader import get_llm_config
+
+    llm_cfg = get_llm_config()
+    provider = llm_cfg.get("provider", "google")
+    api_key = llm_cfg.get("api_key")
+
+    # Guard: no credentials for the active provider
     if not api_key:
-        return HealthStatus.DEGRADED, "API key not configured; LLM features unavailable", {"api_configured": False}
+        return HealthStatus.DEGRADED, f"{provider.capitalize()} API key not configured; LLM features unavailable", {"api_configured": False}
 
     try:
-        from teshq.core.llm import SQLQueryGenerator
+        from teshq.core.llm_factory import build_llm_from_config
+        from langchain_core.messages import HumanMessage
 
-        generator = SQLQueryGenerator(api_key=api_key, model_name=model)
-        _ = generator.llm.client
-        details = {"api_configured": True, "model": model, "initialization_successful": True}
-        return HealthStatus.HEALTHY, "API connectivity is healthy", details
+        llm = build_llm_from_config()
+        llm.invoke([HumanMessage(content="ping")])
+        details = {"api_configured": True, "provider": provider, "initialization_successful": True}
+        return HealthStatus.HEALTHY, f"API connectivity is healthy ({provider})", details
+    except ImportError as e:
+        return HealthStatus.DEGRADED, f"LLM dependency missing: {e}", {"api_configured": True, "provider": provider, "error": str(e)}
     except Exception as e:
-        error_msg = f"API key is configured but initialization failed: {e}"
-        details = {"api_configured": True, "model": model, "error": str(e)}
-        return HealthStatus.DEGRADED, error_msg, details
+        return HealthStatus.DEGRADED, f"API connectivity check failed: {e}", {"api_configured": True, "provider": provider, "error": str(e)}
+
 
 
 if __name__ == "__main__":

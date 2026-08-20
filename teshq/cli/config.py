@@ -158,7 +158,7 @@ def configure_azure_interactive() -> dict:
 
     endpoint = prompt("Azure OpenAI Endpoint (e.g. https://<resource>.openai.azure.com/)")
     deployment = prompt("Azure OpenAI Deployment name (model deployment)")
-    api_version = prompt("Azure OpenAI API Version", default="2024-02-01")
+    api_version = prompt("Azure OpenAI API Version", default="2024-10-21")
 
     return {
         "AZURE_OPENAI_API_KEY": api_key,
@@ -171,6 +171,7 @@ def configure_azure_interactive() -> dict:
 
 @app.callback(invoke_without_command=True)
 def config(
+    ctx: typer.Context,
     # Database options
     db_url: str = typer.Option(None, "--db-url", help="Full database URL (e.g. postgresql://user:pass@host:port/dbname)"),
     db_type_opt: str = typer.Option(
@@ -189,7 +190,7 @@ def config(
     # Azure OpenAI options
     azure_endpoint_opt: str = typer.Option(None, "--azure-endpoint", help="Azure OpenAI endpoint URL"),
     azure_deployment_opt: str = typer.Option(None, "--azure-deployment", help="Azure OpenAI deployment name"),
-    azure_api_version_opt: str = typer.Option(None, "--azure-api-version", help="Azure OpenAI API version (default: 2024-02-01)"),
+    azure_api_version_opt: str = typer.Option(None, "--azure-api-version", help="Azure OpenAI API version (default: 2024-10-21)"),
     llm_provider_opt: str = typer.Option(None, "--llm-provider", help="LLM provider: 'google' (Gemini) or 'azure' (Azure OpenAI)"),
     # Control flags
     save: bool = typer.Option(True, "--save/--no-save", help="Save configuration to ~/.teshq/ (secrets → .teshq.env, settings → config.yaml)"),
@@ -209,6 +210,9 @@ def config(
     and non-secret settings are stored in ~/.teshq/config.yaml,
     ensuring all relevant environment variables and file paths persist for future sessions.
     """
+    if ctx.invoked_subcommand is not None:
+        return
+
     try:
         clear_screen()
         print_header("🔧 TESHQ CONFIGURATION", "Database & LLM Setup")
@@ -308,7 +312,7 @@ def config(
                         "AZURE_OPENAI_API_KEY": azure_api_key,
                         "AZURE_OPENAI_ENDPOINT": azure_endpoint_opt,
                         "AZURE_OPENAI_DEPLOYMENT": azure_deployment_opt,
-                        "AZURE_OPENAI_API_VERSION": azure_api_version_opt or "2024-02-01",
+                        "AZURE_OPENAI_API_VERSION": azure_api_version_opt or "2024-10-21",
                         "LLM_PROVIDER": llm_provider_opt or "azure",
                     }.items() if v is not None
                 }
@@ -344,7 +348,7 @@ def config(
                 # Gemini
                 if force_configure_gemini or gemini_options_provided:
                     config_to_save["GEMINI_API_KEY"] = actual_gemini_api_key_to_save
-                    config_to_save["GEMINI_MODEL_NAME"] = actual_gemini_model_to_save
+                    config_to_save["GEMINI_MODEL"] = actual_gemini_model_to_save
 
                 # Azure OpenAI
                 if azure_config_to_save:

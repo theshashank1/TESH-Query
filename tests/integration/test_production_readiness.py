@@ -257,11 +257,11 @@ class TestSecurityIntegration:
 
         # Test various API key scenarios
         api_key_tests = [
-            ("AIza" + "A" * 35, True),  # Valid format
+            ("AIza" + "A" * 35, True),  # Valid format (39 chars)
             ("invalid_key", False),  # Invalid format
             ("", False),  # Empty
             ("AIza123", False),  # Too short
-            ("AIza" + "A" * 50, False),  # Too long
+            ("AIza" + "A" * 50, True),  # Longer key (>39 chars) allowed per Bug #3 fix
             ("AIzaSpecialChars!@#$%^&*()", False),  # Invalid characters
         ]
 

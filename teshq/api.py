@@ -24,12 +24,25 @@ Example usage:
 
     schema = client.introspect_database()
     result = client.query("show me all users who registered last month")
+
+    # Get results as a pandas DataFrame (recommended for data science)
+    df = client.query_df("top 10 products by revenue")
+    df.to_csv("report.csv", index=False)
+
+    # Access SQL alongside results
+    adv = client.query_advanced("monthly revenue by region")
+    print(adv.query)   # SQL string
+    df = adv.dataframe  # pandas DataFrame
+
     sql_info = client.generate_sql("count all active users")
     print(sql_info['query'])
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .config.paths import SCHEMA_DIR
 from .core.engine import TeshEngine
@@ -98,7 +111,7 @@ class TeshQuery:
         self.azure_api_key = azure_api_key or config.get("AZURE_OPENAI_API_KEY") or None
         self.azure_endpoint = azure_endpoint or config.get("AZURE_OPENAI_ENDPOINT") or None
         self.azure_deployment = azure_deployment or config.get("AZURE_OPENAI_DEPLOYMENT") or None
-        self.azure_api_version = azure_api_version or config.get("AZURE_OPENAI_API_VERSION") or "2024-02-01"
+        self.azure_api_version = azure_api_version or config.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
 
         self.auto_save_config = auto_save_config
 
@@ -256,25 +269,35 @@ class TeshQuery:
     def query(
         self,
         natural_language_query: str,
-        schema: Optional[str] = None,
-        schema_file: Optional[Union[str, Path]] = None,
+        output_format: str = "dataframe",
+        output_path: Optional[str] = None,
         return_sql: bool = False,
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        **kwargs,
+    ) -> Any:
         """
         Full pipeline: generate SQL from natural language then execute it.
 
         Args:
             natural_language_query: Question in plain English.
-            return_sql: If True, return a dict with 'sql', 'parameters', and 'results'.
-                        If False (default), return the results list directly.
+            output_format: "dataframe" (default), "dict", "csv", or "excel".
+            output_path: File path to save if format is "csv" or "excel".
+            return_sql: If True, include SQL in the response.
 
         Returns:
-            List of result dicts, or a dict with sql+results when return_sql=True.
+            - ``pd.DataFrame`` when ``output_format="dataframe"``.
+            - ``List[Dict]`` when ``output_format="dict"``.
+            - CSV string or saved file path when ``output_format="csv"``.
+            - Saved file path when ``output_format="excel"``.
         """
+        # Backwards compatibility
+        if kwargs.get("return_dataframe") is True:
+            output_format = "dataframe"
+
         track_feature(
             "TeshQuery.query",
             query_length_bucket=min(len(natural_language_query) // 50 * 50, 500),
             return_sql=return_sql,
+            output_format=output_format,
         )
 
         engine_result = self.engine.query(natural_language_query, dry_run=False)
@@ -288,9 +311,79 @@ class TeshQuery:
             natural_language_query=natural_language_query,
         )
 
-        if return_sql:
-            return result.to_dict(include_sql=True)
-        return result.results
+        df = result.dataframe
+
+        if output_format == "csv":
+            if output_path:
+                df.to_csv(output_path, index=False)
+                return output_path
+            return df.to_csv(index=False)
+        
+        elif output_format == "excel":
+            if not output_path:
+                raise ValueError("output_path is required when output_format='excel'.")
+            df.to_excel(output_path, index=False)
+            return output_path
+            
+        elif output_format == "dict":
+            if return_sql:
+                return result.to_dict(include_sql=True)
+            return result.results
+            
+        else: # dataframe
+            if return_sql:
+                return {"sql": result.query, "parameters": result.parameters, "dataframe": df}
+            return df
+
+    def query_df(
+        self,
+        natural_language_query: str,
+    ) -> "pd.DataFrame":
+        """
+        Convert a natural language question directly into a pandas DataFrame.
+
+        This is the recommended entry point for data science, Jupyter notebooks,
+        and any Python workflow that needs to work with the results as a DataFrame.
+
+        Example::
+
+            import teshq
+
+            client = teshq.TeshQuery(
+                db_url="sqlite:///fmcg.sqlite",
+                gemini_api_key="...",
+            )
+
+            df = client.query_df("top 10 products by revenue last quarter")
+            print(df.head())
+            df.to_csv("report.csv", index=False)
+
+        Args:
+            natural_language_query: Question in plain English.
+
+        Returns:
+            ``pd.DataFrame`` containing the query results.
+            Returns an empty DataFrame if no rows matched.
+
+        Raises:
+            RuntimeError: If SQL generation or execution fails.
+        """
+        track_feature(
+            "TeshQuery.query_df",
+            query_length_bucket=min(len(natural_language_query) // 50 * 50, 500),
+        )
+
+        engine_result = self.engine.query(natural_language_query, dry_run=False)
+        if not engine_result.success:
+            raise RuntimeError(f"Query failed: {engine_result.error}")
+
+        result = QueryResult(
+            results=engine_result.rows,
+            query=engine_result.sql,
+            parameters=engine_result.parameters,
+            natural_language_query=natural_language_query,
+        )
+        return result.dataframe
 
     def query_advanced(
         self,
@@ -299,7 +392,27 @@ class TeshQuery:
         schema_file: Optional[Union[str, Path]] = None,
     ) -> QueryResult:
         """
-        Full pipeline returning the rich QueryResult object (includes .dataframe, .to_dict(), etc.).
+        Full pipeline returning the rich ``QueryResult`` object.
+
+        ``QueryResult`` exposes:
+
+        - ``.results`` — ``List[Dict[str, Any]]`` of normalized row dicts
+        - ``.dataframe`` — ``pd.DataFrame`` (lazily cached)
+        - ``.query`` — the generated SQL string
+        - ``.parameters`` — bound query parameters
+        - ``.to_dict(include_sql=True)`` — serialization helper
+        - ``.print_table()`` — pretty-print to terminal
+
+        Use this method when you need the SQL alongside the results, or want
+        both the DataFrame and the dict view without running the query twice.
+
+        Example::
+
+            result = client.query_advanced("monthly revenue by region")
+            print("SQL:", result.query)
+            df = result.dataframe          # pandas DataFrame
+            rows = result.results          # list of dicts
+
         """
         engine_result = self.engine.query(natural_language_query, dry_run=False)
         if not engine_result.success:
@@ -311,6 +424,7 @@ class TeshQuery:
             parameters=engine_result.parameters,
             natural_language_query=natural_language_query,
         )
+
 
     def health_check(self) -> Dict[str, Any]:
         """Run system health checks. Returns a health report dict."""
@@ -363,13 +477,15 @@ def introspect(db_url: str, **kwargs) -> Dict[str, Any]:
 def query(
     natural_language_query: str,
     db_url: str,
+    output_format: str = "dataframe",
+    output_path: Optional[str] = None,
     gemini_api_key: Optional[str] = None,
     provider: Optional[str] = None,
     azure_api_key: Optional[str] = None,
     azure_endpoint: Optional[str] = None,
     azure_deployment: Optional[str] = None,
     **kwargs,
-) -> List[Dict[str, Any]]:
+) -> Any:
     """Quick query execution convenience function."""
     track_feature("teshq.api.query", query_length_bucket=min(len(natural_language_query) // 50 * 50, 500))
     client = TeshQuery(
@@ -380,7 +496,7 @@ def query(
         azure_endpoint=azure_endpoint,
         azure_deployment=azure_deployment,
     )
-    return client.query(natural_language_query, **kwargs)
+    return client.query(natural_language_query, output_format=output_format, output_path=output_path, **kwargs)
 
 
 def health_check() -> Dict[str, Any]:

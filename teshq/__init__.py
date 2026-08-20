@@ -1,23 +1,31 @@
 """
-TESH-Query: Natural Language to SQL Converter
+TESH-Query v2.0.0 — Natural Language to SQL Converter
 
-A powerful library and CLI tool that converts natural language queries into SQL
-and executes them on your database using AI (Google Gemini).
+A production-grade library and CLI tool that converts natural language queries
+into SQL and executes them on your database using AI.
 
-import warnings
-warnings.simplefilter("ignore")
-import os
-os.environ["PYTHONWARNINGS"] = "ignore"
+Supported LLM providers:
+  - Google Gemini (default)
+  - Azure OpenAI
 
-# Programmatic Usage
+## Programmatic Usage
 
 ```python
 import teshq
 
-# Initialize the client
+# Google Gemini (default)
+client = teshq.TeshQuery(
+    db_url="sqlite:///my_database.db",
+    gemini_api_key="your-gemini-api-key"
+)
+
+# Azure OpenAI
 client = teshq.TeshQuery(
     db_url="postgresql://user:pass@host:port/dbname",
-    gemini_api_key="your-gemini-api-key"
+    provider="azure",
+    azure_api_key="your-azure-key",
+    azure_endpoint="https://your-resource.openai.azure.com/",
+    azure_deployment="gpt-4o",
 )
 
 # Introspect database schema
@@ -34,16 +42,20 @@ print(sql_info['query'])
 ## CLI Usage
 
 ```bash
-# Configure database and API credentials
+# Configure database and Gemini credentials
 teshq config --db --gemini
 
+# Or configure for Azure OpenAI
+teshq config --db --azure
+
 # Introspect database schema
-teshq introspect
+teshq db introspect
 
 # Execute natural language queries
 teshq query "show me all users who registered last month"
 ```
 
+All configuration, schema cache, logs, and state are stored under ~/.teshq/.
 For more information, visit: https://github.com/theshashank1/TESH-Query
 """
 

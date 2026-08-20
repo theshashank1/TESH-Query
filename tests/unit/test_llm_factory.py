@@ -185,7 +185,7 @@ class TestBuildAzureLlm:
                 temperature=0,
             )
             call_kwargs = mock_cls.call_args[1]
-            assert call_kwargs["api_version"] == "2024-02-01"
+            assert call_kwargs["api_version"] == "2024-10-21"
 
 
 class TestBuildLlmFromConfig:

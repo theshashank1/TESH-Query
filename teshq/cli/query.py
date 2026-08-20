@@ -12,13 +12,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from teshq.config.paths import get_schema_path
 from teshq.core.engine import TeshEngine
-from teshq.utils.cli_logging import CLILogger
-from teshq.utils.config import get_database_url as get_db_url
+from teshq.cli.logging import CLILogger
+from teshq.config.loader import get_database_url as get_db_url
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
 from teshq.telemetry.events import track_command, track_error, track_feature
 from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success, warning
-from teshq.utils.validation import CLIValidator, ValidationError
+from teshq.core.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
 

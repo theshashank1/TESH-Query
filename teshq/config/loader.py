@@ -159,21 +159,27 @@ def get_storage_paths():
     """
     Get storage paths (backward compatibility shim).
 
-    Returns a simple namespace with .schema, .metrics, .query_results paths.
+    Returns a simple namespace with .schema, .metrics, .cache, .memory,
+    .output, .files, and .logs paths — all under ~/.teshq/.
     """
-    s = get_settings()
-    base = s.output_path.parent  # ~/.teshq/
+    from teshq.config.paths import (
+        SCHEMA_DIR, METRICS_DIR, CACHE_DIR, MEMORY_DIR,
+        OUTPUT_DIR, FILES_DIR, LOGS_DIR, ensure_teshq_dir,
+    )
+    ensure_teshq_dir()
 
     class _Paths:
-        schema = base / "schema"
-        metrics = base / "metrics"
-        query_results = s.output_path
+        schema = SCHEMA_DIR
+        metrics = METRICS_DIR
+        cache = CACHE_DIR
+        memory = MEMORY_DIR
+        output = OUTPUT_DIR
+        files = FILES_DIR
+        logs = LOGS_DIR
+        # legacy alias
+        query_results = OUTPUT_DIR
 
-    paths = _Paths()
-    paths.schema.mkdir(parents=True, exist_ok=True)
-    paths.metrics.mkdir(parents=True, exist_ok=True)
-    paths.query_results.mkdir(parents=True, exist_ok=True)
-    return paths
+    return _Paths()
 
 
 def get_paths() -> Tuple[str, str]:

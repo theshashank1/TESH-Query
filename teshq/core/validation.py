@@ -29,7 +29,7 @@ class ConfigValidator:
     # Use unified connector's supported database list
     SUPPORTED_DB_TYPES: set = set(UnifiedDatabaseConnector.get_supported_databases())
     
-    GEMINI_API_KEY_PATTERN = re.compile(r"^AIza[0-9A-Za-z-_]{35}$")
+    GEMINI_API_KEY_PATTERN = re.compile(r"^AIza[0-9A-Za-z\-_]{35,}$")
 
     @staticmethod
     def validate_database_url(db_url: str) -> Tuple[bool, str]:
@@ -141,7 +141,7 @@ class ConfigValidator:
 
     @staticmethod
     def validate_config(config: Dict[str, Any]) -> List[str]:
-        """Validate complete configuration dictionary."""
+        """Validate complete configuration dictionary — provider-aware."""
         errors = []
 
         # Validate database URL
@@ -152,13 +152,37 @@ class ConfigValidator:
         else:
             errors.append("DATABASE_URL: Required configuration missing")
 
-        # Validate Gemini API key
-        if "GEMINI_API_KEY" in config:
-            is_valid, message = ConfigValidator.validate_gemini_api_key(config["GEMINI_API_KEY"])
-            if not is_valid:
-                errors.append(f"GEMINI_API_KEY: {message}")
+        # Determine provider from config
+        provider = (config.get("LLM_PROVIDER") or "google").lower().strip()
+
+        # Auto-detect: if Azure credentials present and Gemini key absent, use Azure
+        has_azure = bool(
+            config.get("AZURE_OPENAI_API_KEY")
+            and config.get("AZURE_OPENAI_ENDPOINT")
+            and config.get("AZURE_OPENAI_DEPLOYMENT")
+        )
+        has_gemini = bool(config.get("GEMINI_API_KEY"))
+
+        if not has_gemini and has_azure:
+            provider = "azure"
+
+        if provider == "azure":
+            # Validate Azure credentials
+            for key, label in [
+                ("AZURE_OPENAI_API_KEY", "Azure OpenAI API Key"),
+                ("AZURE_OPENAI_ENDPOINT", "Azure OpenAI Endpoint"),
+                ("AZURE_OPENAI_DEPLOYMENT", "Azure OpenAI Deployment"),
+            ]:
+                if not config.get(key):
+                    errors.append(f"{key}: {label} is required for Azure provider")
         else:
-            errors.append("GEMINI_API_KEY: Required configuration missing")
+            # Validate Gemini API key
+            if "GEMINI_API_KEY" in config:
+                is_valid, message = ConfigValidator.validate_gemini_api_key(config["GEMINI_API_KEY"])
+                if not is_valid:
+                    errors.append(f"GEMINI_API_KEY: {message}")
+            else:
+                errors.append("GEMINI_API_KEY: Required for Google Gemini provider (or set LLM_PROVIDER=azure)")
 
         # Validate paths
         for path_key in ["OUTPUT_PATH", "FILE_STORE_PATH"]:
@@ -168,6 +192,7 @@ class ConfigValidator:
                     errors.append(f"{path_key}: {message}")
 
         return errors
+
 
 
 class CLIValidator:

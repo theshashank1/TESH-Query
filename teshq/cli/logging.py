@@ -22,7 +22,8 @@ class CLILoggerConfig:
     
     def __init__(self):
         self.enabled_by_default = self._get_default_logging_setting()
-        self.log_directory = Path("logs")
+        from teshq.config.paths import LOGS_DIR
+        self.log_directory = LOGS_DIR
         self.log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         self.max_log_files = 30  # Keep logs for 30 days
         

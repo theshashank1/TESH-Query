@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection  # Added import for Connection type hin
 
 from teshq.config.paths import SCHEMA_DIR, ensure_teshq_dir
 from teshq.config.loader import get_database_url as get_db_url
+from teshq.utils.logging import logger
 
 # from sqlalchemy.engine.reflection import Inspector
 
@@ -90,7 +91,7 @@ def introspect_db(
         try:
             columns = inspector.get_columns(table_name)
         except Exception as e:
-            print(f"Warning: Could not get columns for table {table_name}: {e}")
+            logger.warning(f"Could not get columns for table {table_name}: {e}")
             columns = []
 
         # Get primary keys
@@ -191,7 +192,19 @@ def introspect_db(
     schema_info["data_model_summary"] = generate_data_model_summary(all_tables, schema_info)
 
     ensure_teshq_dir()
+    # Save to the shared schema dir (backward compat default files)
     save_schema_to_files(schema_info, str(SCHEMA_DIR), "schema.json", "schema.txt", mode=schema_mode)
+    # Also save to a per-database sub-directory for multi-DB support
+    if db_url:
+        from teshq.config.paths import get_db_schema_path
+        db_schema_path = get_db_schema_path(db_url)
+        save_schema_to_files(
+            schema_info,
+            str(db_schema_path.parent),
+            "schema.json",
+            "schema.txt",
+            mode=schema_mode,
+        )
 
     return schema_info
 

@@ -27,11 +27,10 @@ class TeshqLogger:
         self._setup_logger()
 
     def _get_default_log_path(self) -> str:
-        """Get the default log file path."""
-        # Create logs directory if it doesn't exist
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
-        return str(log_dir / "teshq.log")
+        """Get the default log file path under ~/.teshq/logs/."""
+        from teshq.config.paths import LOGS_DIR
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        return str(LOGS_DIR / "teshq.log")
 
     def _setup_logger(self):
         """Configure the logger with appropriate handlers and formatters."""
@@ -144,6 +143,10 @@ class MetricsCollector:
 
     def add_point(self, name: str, value: float, tags: Optional[Dict[str, Any]] = None):
         """Record a data point for a metric. ``tags`` are accepted for API compatibility."""
+        self._points[name].append(value)
+
+    def set_gauge(self, name: str, value: float, tags: Optional[Dict[str, Any]] = None):
+        """Set a gauge value. Delegates to add_point for consistent storage."""
         self._points[name].append(value)
 
     def get_summary(self) -> Dict[str, Any]:

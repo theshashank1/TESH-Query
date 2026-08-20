@@ -91,7 +91,7 @@ class TestSettingsAzureFields:
 
     def test_azure_default_api_version(self):
         s = Settings()
-        assert s.azure_openai_api_version == "2024-02-01"
+        assert s.azure_openai_api_version == "2024-10-21"
 
 
 class TestGetLlmConfig:

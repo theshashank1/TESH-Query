@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     # --- Non-secret settings (Azure OpenAI) ---
     azure_openai_endpoint: str = Field(default="", alias="AZURE_OPENAI_ENDPOINT")
     azure_openai_deployment: str = Field(default="", alias="AZURE_OPENAI_DEPLOYMENT")
-    azure_openai_api_version: str = Field(default="2024-02-01", alias="AZURE_OPENAI_API_VERSION")
+    azure_openai_api_version: str = Field(default="2024-10-21", alias="AZURE_OPENAI_API_VERSION")
 
     # --- Storage paths ---
     output_path: Path = Field(

@@ -86,6 +86,7 @@ class SQLGenerator:
             nl_query: User's natural language query.
             schema: Compressed schema string for the relevant tables.
             plan: QueryPlan from Stage 1.
+            error_hint: Optional previous execution error to inject as a correction hint.
 
         Returns:
             A populated SQLQuery instance.
@@ -93,39 +94,60 @@ class SQLGenerator:
         start = time.time()
         logger.info("Starting SQL generation", query_length=len(nl_query))
 
-        try:
-            messages = self._prompt.format_messages(
-                schema=schema,
-                tables=", ".join(plan.tables),
-                filters="; ".join(plan.filters) if plan.filters else "none",
-                aggregations="; ".join(plan.aggregations) if plan.aggregations else "none",
-                joins="; ".join(plan.joins_needed) if plan.joins_needed else "none",
-                nl_query=nl_query,
-            )
-            # If a previous execution error is provided, inject it as a correction hint
-            if error_hint:
-                from langchain_core.messages import HumanMessage
-                messages.append(HumanMessage(
-                    content=f"The previous SQL attempt raised the following error:\n{error_hint}\n\n"
-                            "Please fix the SQL to avoid this error."
-                ))
+        messages = self._prompt.format_messages(
+            schema=schema,
+            tables=", ".join(plan.tables),
+            filters="; ".join(plan.filters) if plan.filters else "none",
+            aggregations="; ".join(plan.aggregations) if plan.aggregations else "none",
+            joins="; ".join(plan.joins_needed) if plan.joins_needed else "none",
+            nl_query=nl_query,
+        )
+        # If a previous execution error is provided, inject it as a correction hint
+        if error_hint:
+            from langchain_core.messages import HumanMessage
+            messages.append(HumanMessage(
+                content=f"The previous SQL attempt raised the following error:\n{error_hint}\n\n"
+                        "Please fix the SQL to avoid this error."
+            ))
 
-            if self._provider == "azure":
-                sql_query = self._invoke_azure(messages)
-            else:
-                sql_query = self._structured_llm.invoke(messages)
+        max_attempts = 3
+        last_exc: Optional[Exception] = None
 
-            elapsed_ms = int((time.time() - start) * 1000)
-            logger.success(
-                "SQL query generated",
-                sql_latency_ms=elapsed_ms,
-                query_length=len(sql_query.query),
-            )
-            return sql_query
-        except Exception as e:
-            elapsed_ms = int((time.time() - start) * 1000)
-            logger.error("SQL generation failed", error=e, sql_latency_ms=elapsed_ms)
-            raise
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if self._provider == "azure":
+                    sql_query = self._invoke_azure(messages)
+                else:
+                    sql_query = self._structured_llm.invoke(messages)
+
+                elapsed_ms = int((time.time() - start) * 1000)
+                logger.success(
+                    "SQL query generated",
+                    sql_latency_ms=elapsed_ms,
+                    query_length=len(sql_query.query),
+                )
+                return sql_query
+
+            except Exception as e:
+                last_exc = e
+                exc_name = type(e).__name__
+                # Retry transient parse/validation failures
+                if any(
+                    n in exc_name
+                    for n in ("OutputParserException", "ValidationError", "JSONDecodeError", "ValueError")
+                ) and attempt < max_attempts:
+                    logger.warning(
+                        f"SQL generation parse error (attempt {attempt}/{max_attempts}) — retrying",
+                        error=e,
+                    )
+                    continue
+                # Non-retryable or exhausted
+                break
+
+        elapsed_ms = int((time.time() - start) * 1000)
+        logger.error("SQL generation failed", error=last_exc, sql_latency_ms=elapsed_ms)
+        raise last_exc  # type: ignore[misc]
+
 
     def _invoke_azure(self, messages) -> SQLQuery:
         """
