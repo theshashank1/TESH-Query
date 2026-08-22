@@ -71,7 +71,7 @@ def health(
             overall_status = HealthStatus.UNHEALTHY
         
         if overall_status == HealthStatus.HEALTHY:
-            success("🎉 All systems are healthy and operational!")
+            success("TESH-Query is healthy and ready for queries")
         elif overall_status == HealthStatus.DEGRADED:
             warning("⚠️  System is operational but has some issues that should be addressed.")
         else:
