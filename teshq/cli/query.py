@@ -140,6 +140,14 @@ def process_nl_query(
             )
             raise typer.Exit(1)
 
+        # Auto-append extensions if missing
+        if save_csv and not save_csv.lower().endswith(".csv"):
+            save_csv += ".csv"
+        if save_excel and not (save_excel.lower().endswith(".xlsx") or save_excel.lower().endswith(".xls")):
+            save_excel += ".xlsx"
+        if save_sqlite and not (save_sqlite.lower().endswith(".db") or save_sqlite.lower().endswith(".sqlite") or save_sqlite.lower().endswith(".sqlite3")):
+            save_sqlite += ".db"
+
         # Validate save paths if provided
         save_options = [(save_csv, "csv"), (save_excel, "excel"), (save_sqlite, "sqlite")]
 
