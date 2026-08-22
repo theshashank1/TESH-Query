@@ -283,25 +283,22 @@ TESH-Query is built using the following technologies:
 
 TESH-Query is under active development with planned future enhancements.
 
-### ✅ Implemented Features (v1.x)
+### ✅ Implemented Features (v2.1)
 
-- Robust CLI with Typer.
-- Secure, interactive configuration.
-- Database connection management (PostgreSQL, MySQL, SQLite).
-- Core NLQ -> SQL -> Table pipeline with Gemini AI.
-- Dynamic database schema introspection.
-- Formatted tabular output.
-- Git-based versioning (`setuptools-scm`).
-- Automated PyPI publishing (GitHub Actions).
-- Pre-commit hooks for code quality.
+- **Comprehensive SDK**: Programmatic API (`TeshQuery`) for application integrations.
+- **Advanced Exporting**: Export to CSV, Excel, and SQLite databases seamlessly.
+- **Azure OpenAI Support**: Full integration with Azure OpenAI serverless endpoints.
+- **Unified UI/UX Experience**: Powered by `Rich` for beautiful data rendering and progress indicators.
+- **Unified Database Connector**: Standardized interface for PostgreSQL, MySQL, SQLite, MSSQL, MariaDB, Oracle.
+- **Telemetry & Cost Analytics**: Built-in CLI token tracking, LLM cost metrics, and structured logging.
+- **Health Checks & Diagnostics**: `teshq health` for instant debugging of DB/API connections.
+- **Automated CI/CD**: End-to-end multi-version testing and PyPI deployment via GitHub Actions.
 
-### 🚧 In Development (v2.x - Near-Term)
+### 🚧 In Development (v2.2 - Near-Term)
 
-- Enhanced Error Handling.
+- Enhanced Error Handling & Auto-Recovery.
 - Query History & Bookmarks.
 - Schema Caching for performance.
-- More Complex Query Handling.
-- Comprehensive Testing Expansion.
 
 ### 🔮 Future Vision (v3.x+ - Long-Term)
 

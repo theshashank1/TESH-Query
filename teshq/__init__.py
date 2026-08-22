@@ -1,5 +1,5 @@
 """
-TESH-Query v2.0.0 — Natural Language to SQL Converter
+TESH-Query v2.1.0 — Natural Language to SQL Converter
 
 A production-grade library and CLI tool that converts natural language queries
 into SQL and executes them on your database using AI.
