@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🤖 TESH-Query
+# TESH-Query
 
-**Transform natural language into SQL queries and get instant results — No SQL knowledge required.**
+**A Python SDK and CLI for deterministic Natural Language to SQL generation.**
 
 [![PyPI version](https://img.shields.io/pypi/v/teshq?color=blue)](https://pypi.org/project/teshq/)
 [![Python Support](https://img.shields.io/pypi/pyversions/teshq)](https://pypi.org/project/teshq/)
@@ -10,39 +10,74 @@
 [![CI/CD](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml/badge.svg)](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-[Documentation](https://www.notion.so/theshashank1/TESH-Query-20172c79e02080a287bcdff73f694a6b?source=copy_link) · [Report Bug](https://github.com/theshashank1/TESH-Query/issues) · [Request Feature](https://github.com/theshashank1/TESH-Query/discussions)
+[Documentation](https://www.notion.so/theshashank1/TESH-Query-20172c79e02080a287bcdff73f694a6b?source=copy_link) · [Issue Tracker](https://github.com/theshashank1/TESH-Query/issues) · [Discussions](https://github.com/theshashank1/TESH-Query/discussions)
 
 </div>
 
 ---
 
-TESH-Query (Text to Executable SQL Handler) is an AI-powered library and CLI tool that bridges the gap between human language and databases. Powered by **Google Gemini** and **Azure OpenAI**, it seamlessly translates plain English into executable SQL, querying your database, and delivering results instantly.
+TESH-Query (Text to Executable SQL Handler) is a production-grade library that bridges natural language and relational databases. By leveraging Google Gemini or Azure OpenAI, it safely translates plain English into executable SQL, querying your database, and delivering results instantly as a Pandas DataFrame or via the CLI.
 
-## ✨ Why TESH-Query?
+## Key Features
 
-- **💬 Natural Language Interface** — Talk to your database. No more crafting complex JOINs or nested subqueries.
-- **🔌 Unified Database Support** — Natively supports PostgreSQL, MySQL, SQLite, MSSQL, MariaDB, and Oracle.
-- **🧠 Intelligent Schema Awareness** — Analyzes your database schema to generate accurate, context-aware SQL.
-- **💾 Export Anywhere** — Save query results directly to `CSV`, `Excel`, or local `SQLite` databases.
-- **🛡️ Secure & Private** — Secrets are managed locally. SQL is safely validated before execution.
-- **📊 Telemetry & Cost Tracking** — Built-in LLM token usage tracking and cost analytics.
-- **🧑‍💻 Python SDK** — Integrate NL2SQL directly into your own Python applications.
+- **Programmatic SDK**: Integrate NL2SQL directly into Python applications via a clean API.
+- **Unified Database Support**: Natively connects to PostgreSQL, MySQL, SQLite, MSSQL, MariaDB, and Oracle.
+- **Intelligent Schema Awareness**: Compresses and analyzes database schemas locally to generate accurate, context-aware SQL.
+- **Secure Execution**: Validates generated SQL ASTs to block destructive commands (`DROP`, `DELETE`, `ALTER`).
+- **Flexible Exporting**: Save query results natively to CSV, Excel, or SQLite.
+- **Observability**: Built-in LLM token usage tracking and cost analytics.
 
 ---
 
-## 🚀 Quick Start
+## Installation
 
-### 1. Installation
-
-TESH-Query requires Python 3.10+. Install it via pip:
+TESH-Query requires Python 3.10 or higher. Install the core package via pip:
 
 ```bash
 pip install teshq
 ```
 
-*Note: For specialized databases like PostgreSQL or MySQL, you can install the required drivers natively via `pip install teshq[all]` or `pip install teshq[postgres]`.*
+*Note: For specialized databases like PostgreSQL or MySQL, install the required drivers natively via `pip install teshq[all]` or `pip install teshq[postgres]`.*
 
-### 2. Configuration
+---
+
+## Programmatic Usage (Python SDK)
+
+TESH-Query provides a robust SDK for developers building AI-driven data applications.
+
+```python
+import teshq
+
+# Initialize the client (Supports Google Gemini or Azure OpenAI)
+client = teshq.TeshQuery(
+    db_url="postgresql://user:pass@localhost:5432/analytics",
+    gemini_api_key="your-api-key"
+)
+
+# 1. Introspect the database schema (caches locally)
+schema = client.introspect_database()
+
+# 2. Execute a natural language query
+results = client.query("Find the average order value by region")
+
+# 3. Access data via Pandas DataFrame
+df = results.dataframe
+print(df.head())
+
+# 4. Access telemetry metadata
+print(f"Tokens consumed: {results.metadata.total_tokens}")
+
+# Export data directly to disk
+results.to_csv("regional_sales.csv")
+```
+
+---
+
+## CLI Usage
+
+TESH-Query includes a comprehensive CLI for data analysts and database administrators.
+
+### Configuration
 
 Set up your database connection and AI provider interactively:
 
@@ -50,126 +85,51 @@ Set up your database connection and AI provider interactively:
 # Setup your database connection
 teshq config --db
 
-# Connect your Google Gemini API key
+# Configure LLM provider
 teshq config --gemini
-# OR use Azure OpenAI
+# Or configure Azure OpenAI
 teshq config --azure
 ```
 
-### 3. Introspect & Query
-
-```bash
-# 1. Analyze your database schema
-teshq introspect
-
-# 2. Ask questions in plain English!
-teshq query "Show me the top 5 customers by total revenue this year"
-```
-
-<br>
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/theshashank1/TESH-Query/main/docs/assets/demo.png" alt="TESH-Query CLI Demo" width="800"/>
-  <p><em>Beautiful, responsive terminal UI powered by Rich.</em></p>
-</div>
-
----
-
-## 💻 Programmatic Usage (Python SDK)
-
-Build powerful AI data applications using the TESH-Query SDK.
-
-```python
-import teshq
-
-# Initialize with Google Gemini
-client = teshq.TeshQuery(
-    db_url="postgresql://user:pass@localhost:5432/analytics",
-    gemini_api_key="your-api-key"
-)
-
-# 1. Introspect the database
-schema = client.introspect_database()
-
-# 2. Ask questions directly
-results = client.query("Find the average order value by region")
-
-# 3. Access pandas DataFrames or raw data
-print(results.dataframe)
-print(f"Tokens used: {results.metadata.total_tokens}")
-
-# Need to export the data?
-results.to_csv("regional_sales.csv")
-```
-
----
-
-## 🛠️ CLI Features & Commands
-
-TESH-Query comes with a rich suite of CLI tools for developers and data analysts.
+### Common Commands
 
 | Command | Description |
 |---------|-------------|
 | `teshq query "<query>"` | Execute a natural language query |
-| `teshq query "<q>" --save-csv <path>` | Export query results directly to CSV |
+| `teshq query "<q>" --save-csv <path>` | Export query results directly to a CSV file |
 | `teshq introspect` | Refresh local database schema intelligence |
 | `teshq config` | View and manage your configuration |
 | `teshq analytics` | View AI token usage, costs, and query metrics |
-| `teshq health` | Run comprehensive system diagnostics |
-| `teshq subscribe` | Subscribe to TESH-Query updates |
+| `teshq health` | Run comprehensive system diagnostics and connectivity checks |
 
-> **Pro Tip**: Use the `--verbose` flag with any command to see detailed logs and generated SQL without executing it.
-
----
-
-## 🏗️ Architecture
-
-TESH-Query is built with performance and security in mind:
-
-1. **Introspection Layer**: Extracts table metadata, foreign keys, and indexes, compressing them into a lightweight schema map.
-2. **AI Planning Layer**: Analyzes your natural language request against the schema map to identify necessary tables and relationships.
-3. **SQL Generation Layer**: Constructs dialect-specific SQL using advanced LLM prompting.
-4. **Validation Layer**: Scans the generated SQL for destructive commands (e.g., `DROP`, `DELETE`, `ALTER`) to prevent accidental data loss.
-5. **Execution & UI**: Safely executes the query and renders the output via `Rich` or returns a `pandas` DataFrame.
+> **Note**: Use the `--verbose` flag with any command to stream internal logs and inspect the generated SQL payload before execution.
 
 ---
 
-## 📈 Roadmap
+## Architecture
 
-### 🚧 In Development (v2.2)
-- Enhanced Error Handling & Auto-Recovery
-- Query History, Caching, & Bookmarking
-- Interactive Query Refinement loop
+TESH-Query is designed for deterministic execution and security:
 
-### 🔮 Future Vision (v3.0+)
-- Advanced Data Visualization (Auto-charting)
-- Custom User-Defined AI Prompts
-- Expandable Plugin Architecture
+1. **Introspection Layer**: Extracts table metadata, foreign keys, and indexes, compressing them into a token-efficient schema map.
+2. **AI Planning Layer**: Analyzes natural language against the schema map to identify required tables and relationships.
+3. **SQL Generation Layer**: Constructs dialect-specific SQL using structured LLM outputs.
+4. **Validation Layer**: Scans the generated SQL for destructive commands to prevent accidental data loss.
+5. **Execution Layer**: Safely routes the query through an optimized SQLAlchemy connection pool and returns a structured payload.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! Whether it's fixing bugs, adding new database dialects, or improving documentation.
+We welcome contributions to TESH-Query, including bug fixes, new database dialects, and documentation improvements.
 
 1. Clone the repository: `git clone https://github.com/theshashank1/TESH-Query.git`
 2. Install development dependencies: `pip install -e ".[dev]"`
-3. Run the tests: `pytest tests/unit/`
-4. Submit a Pull Request!
+3. Run the test suite: `pytest tests/unit/`
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for full contribution guidelines.
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
-
-<div align="center">
-  <br>
-  <b>Made with ❤️ by <a href="https://github.com/theshashank1">Shashank</a></b><br>
-  <i>Passionate about democratizing data access and building intelligent developer tools.</i>
-  <br><br>
-  
-  [![♡ Support Us](https://img.shields.io/badge/♡%20Support%20Us-orange?style=for-the-badge&logo=heart&colour=pink)](https://github.com/sponsors/theshashank1)
-</div>
