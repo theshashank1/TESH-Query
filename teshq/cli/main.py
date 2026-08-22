@@ -112,6 +112,10 @@ if _SUBSCRIBE_AVAILABLE:
 if _TELEMETRY_CMD_AVAILABLE:
     app.add_typer(telemetry_cmd.app, name="telemetry", help="Manage anonymous usage telemetry.")
 
+# Register top-level aliases
+from teshq.cli.db import introspect as introspect_cmd
+app.command(name="introspect", help="Perform database schema introspection (alias for `db introspect`)")(introspect_cmd)
+
 
 def main():
     """Main entry point with consistent error handling."""
