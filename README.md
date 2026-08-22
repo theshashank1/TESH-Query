@@ -1,374 +1,175 @@
+<div align="center">
+
 # 🤖 TESH-Query
 
-[![PyPI version](https://img.shields.io/pypi/v/teshq)](https://pypi.org/project/teshq/)
+**Transform natural language into SQL queries and get instant results — No SQL knowledge required.**
+
+[![PyPI version](https://img.shields.io/pypi/v/teshq?color=blue)](https://pypi.org/project/teshq/)
 [![Python Support](https://img.shields.io/pypi/pyversions/teshq)](https://pypi.org/project/teshq/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/theshashank1/TESH-Query/blob/main/LICENSE)
 [![CI/CD](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml/badge.svg)](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
-[![Sponsor](https://img.shields.io/github/sponsors/theshashank1?)](https://github.com/sponsors/theshashank1)
 
-<!-- Add a compelling header image or logo here for visual impact -->
-<!-- ![TESH-Query](.idx/icon.png) -->
+[Documentation](https://www.notion.so/theshashank1/TESH-Query-20172c79e02080a287bcdff73f694a6b?source=copy_link) · [Report Bug](https://github.com/theshashank1/TESH-Query/issues) · [Request Feature](https://github.com/theshashank1/TESH-Query/discussions)
 
-**Transform natural language into SQL queries and get instant results** — No SQL knowledge required.
-
-TESH-Query (Text to Executable SQL Handler) is an AI-powered CLI tool that bridges the gap between human language and database queries, making data accessible to everyone on your team.
-
-Here is detailed documentation of configuration and usage information, see the [Detailed Documentation](https://www.notion.so/theshashank1/TESH-Query-20172c79e02080a287bcdff73f694a6b?source=copy_link).
+</div>
 
 ---
 
-## ✨ See TESH-Query in Action!
+TESH-Query (Text to Executable SQL Handler) is an AI-powered library and CLI tool that bridges the gap between human language and databases. Powered by **Google Gemini** and **Azure OpenAI**, it seamlessly translates plain English into executable SQL, querying your database, and delivering results instantly.
 
-Experience the power and simplicity of TESH-Query with a quick demonstration. See how easily you can get valuable data insights using just natural language.
+## ✨ Why TESH-Query?
 
-<!-- Add your GIF or asciinema recording here to visually showcase the tool -->
-<!-- ![TESH-Query Demo](link-to-your-demo.gif) -->
-
----
-
-## 🎯 What TESH-Query Does
-
-Forget writing complex SQL queries. With TESH-Query, you simply ask for the data you need in plain English, and the tool handles the rest.
-
-```bash
-# Before: Crafting intricate SQL...
-$ psql my_database -c "SELECT products.name, categories.category_name, orders.order_date FROM products JOIN order_items ON products.id = order_items.product_id JOIN orders ON order_items.order_id = orders.id JOIN categories ON products.category_id = categories.id WHERE categories.category_name = 'electronics' AND orders.order_date >= current_date - interval '1 month' ORDER BY orders.order_date DESC;"
-
-# After: Just ask TESH-Query!
-$ teshq query "Show me all high-value electronics orders from last month"
-
-# Get instant, formatted results directly in your terminal:
-┌────────────┬─────────────────┬───────────┬─────────────┐
-│ Order ID   │ Product Name    │ Price     │ Order Date  │
-├────────────┼─────────────────┼───────────┼─────────────┤
-│ 12847      │ MacBook Pro M3  │ $2,499.00 │ 2025-04-15  │
-│ 12923      │ OLED Monitor    │ $899.99   │ 2025-04-18  │
-└────────────┴─────────────────┴───────────┴─────────────┘
-```
+- **💬 Natural Language Interface** — Talk to your database. No more crafting complex JOINs or nested subqueries.
+- **🔌 Unified Database Support** — Natively supports PostgreSQL, MySQL, SQLite, MSSQL, MariaDB, and Oracle.
+- **🧠 Intelligent Schema Awareness** — Analyzes your database schema to generate accurate, context-aware SQL.
+- **💾 Export Anywhere** — Save query results directly to `CSV`, `Excel`, or local `SQLite` databases.
+- **🛡️ Secure & Private** — Secrets are managed locally. SQL is safely validated before execution.
+- **📊 Telemetry & Cost Tracking** — Built-in LLM token usage tracking and cost analytics.
+- **🧑‍💻 Python SDK** — Integrate NL2SQL directly into your own Python applications.
 
 ---
 
-## 💡 Why Choose TESH-Query?
-
-Accessing data shouldn't be a bottleneck. TESH-Query empowers your team by making database interaction intuitive and fast.
-
-### Key Benefits:
-
-- **🚀 Democratize Data Access** — Enable everyone, regardless of technical background, to retrieve data independently.
-- **⚡ Boost Productivity** — Significantly reduce the time and effort required to get data insights.
-- **🛡️ Reduce Errors** — Minimize human errors associated with manual SQL writing.
-- **🔍 Focus on Analysis** — Spend more time understanding your data and less time wrestling with query syntax.
-
----
-
-## ✨ Key Features
-
-- **💬 Intuitive Natural Language Interface** — Seamlessly interact with your database using everyday language.
-- **🧠 Intelligent SQL Generation** — Leverage the power of Google's Gemini AI (via Langchain) for accurate and context-aware SQL translation.
-- **📊 Direct Data Display** — Get query results presented in clean, readable tables right in your terminal.
-- **🔌 Broad Database Compatibility** — Connects natively with PostgreSQL, MySQL, and SQLite databases.
-- **🛡️ Schema-Aware Queries** — TESH-Query understands your database structure to generate highly relevant queries.
-- **🎨 Modern CLI Experience** — Enjoy a responsive, user-friendly, and visually appealing interface thanks to Typer and Rich.
-- **🔒 Secure Credential Management** — Your sensitive database and API credentials are stored securely.
-- **⚙️ Customizable Configuration** — Easily set up and manage your database connections, AI models, and other settings.
-
----
-
-## ▶️ Getting Started: A Quick Walkthrough
-
-Ready to unlock your data? Follow these simple steps:
+## 🚀 Quick Start
 
 ### 1. Installation
 
-Install TESH-Query easily using pip:
+TESH-Query requires Python 3.10+. Install it via pip:
 
 ```bash
 pip install teshq
 ```
 
-Confirm successful installation:
+*Note: For specialized databases like PostgreSQL or MySQL, you can install the required drivers natively via `pip install teshq[all]` or `pip install teshq[postgres]`.*
+
+### 2. Configuration
+
+Set up your database connection and AI provider interactively:
 
 ```bash
-teshq --version
-```
-
-### 2. Configuration (One-Time Setup)
-
-Run the interactive configuration wizards to set up your database connection and Gemini API key:
-
-```bash
-# Interactive database setup
+# Setup your database connection
 teshq config --db
 
-# You can also pass a full URL directly
-teshq config --db-url postgresql://myuser:********@localhost:5432/mydatabase
-
-# Interactive Gemini API key setup
+# Connect your Google Gemini API key
 teshq config --gemini
+# OR use Azure OpenAI
+teshq config --azure
 ```
 
-Configuration is stored securely in `~/.teshq/`:
-
-| File | Purpose |
-|------|---------|
-| `~/.teshq/.teshq.env` | Secrets: `DATABASE_URL`, `GEMINI_API_KEY` (permissions: 0600) |
-| `~/.teshq/config.yaml` | Non-secret settings: model name, output paths |
-| `~/.teshq/schema/` | Database schema cache (written by `teshq introspect`) |
-
-> **Note**: Secrets are never stored in `config.json` or plain `.env` files in your project directory.
-
-### 3. Database schema Introspection
+### 3. Introspect & Query
 
 ```bash
-# Perform database schema introspection
+# 1. Analyze your database schema
 teshq introspect
+
+# 2. Ask questions in plain English!
+teshq query "Show me the top 5 customers by total revenue this year"
 ```
 
-### 4. Start Querying!
+<br>
 
-Once configured, you can immediately start asking questions in natural language:
-
-```bash
-teshq query "What are the names and email addresses of users who signed up last week?"
-teshq query "Show me the total sales amount for each product category in the last quarter."
-teshq query "Find orders placed by 'customer_email@example.com'."
-```
-
-TESH-Query takes your question, understands your database schema, generates the appropriate SQL, executes it, and displays the results in a formatted table.
-
-> Please be aware that TESH-Query is still under development and may occasionally return incorrect data. Exercise caution and prioritize its use for **data retrieval** rather than **data manipulation**.
+<div align="center">
+  <img src="https://raw.githubusercontent.com/theshashank1/TESH-Query/main/docs/assets/demo.png" alt="TESH-Query CLI Demo" width="800"/>
+  <p><em>Beautiful, responsive terminal UI powered by Rich.</em></p>
+</div>
 
 ---
 
-## 📚 Command Reference
+## 💻 Programmatic Usage (Python SDK)
 
-Here's a quick guide to the main TESH-Query commands:
+Build powerful AI data applications using the TESH-Query SDK.
 
-### General
+```python
+import teshq
 
-```bash
-# Get overall help menu
-teshq --help
+# Initialize with Google Gemini
+client = teshq.TeshQuery(
+    db_url="postgresql://user:pass@localhost:5432/analytics",
+    gemini_api_key="your-api-key"
+)
 
-# Display installed version
-teshq --version
-```
+# 1. Introspect the database
+schema = client.introspect_database()
 
-### Configuration
+# 2. Ask questions directly
+results = client.query("Find the average order value by region")
 
-```bash
-# Display current configuration settings
-teshq config
+# 3. Access pandas DataFrames or raw data
+print(results.dataframe)
+print(f"Tokens used: {results.metadata.total_tokens}")
 
-# Get help specific to configuration commands
-teshq config --help
-
-# Interactively configure database connection
-teshq config --config-db
-
-# Interactively configure Google Gemini API key
-teshq config --config-gemini
-```
-
-### Database
-
-```bash
-# Perform database schema introspection
-teshq introspect
-```
-
-### Querying
-
-```bash
-# Get help specific to query commands
-teshq query --help
-
-# Execute a natural language query against the database
-teshq query "your question here"
-```
-
-### Logging and Debugging
-
-```bash
-# Enable real-time logging output for debugging (logs are always saved to file)
-teshq query "your question here" --log
-teshq config --log
-teshq introspect --log
-
-# All commands support the --log flag for debugging
-# Default behavior: logs saved to logs/teshq.log (file only)
-# With --log flag: logs shown on CLI + saved to file
-```
-
-> **🔍 Logging Behavior**: By default, TESH-Query saves all logs to `logs/teshq.log` for historical record-keeping without cluttering your CLI. Use the `--log` flag with any command to see real-time debug output while still maintaining the log file.
-
----
-
-## 💡 Example Queries
-
-See TESH-Query in action with these practical examples across different use cases:
-
-### Business Intelligence
-
-```bash
-teshq query "What's our monthly revenue trend for the last 6 months?"
-teshq query "Which sales rep has the highest conversion rate?"
-teshq query "Show me customer churn rate by region"
-```
-
-### Operations
-
-```bash
-teshq query "Find orders that haven't shipped in 3+ days"
-teshq query "Which products are running low on inventory?"
-teshq query "Show me all failed payment transactions today"
-```
-
-### Analytics
-
-```bash
-teshq query "Average order value by customer segment"
-teshq query "Most popular products in each category"
-teshq query "Customer lifetime value for premium subscribers"
+# Need to export the data?
+results.to_csv("regional_sales.csv")
 ```
 
 ---
 
-## 🏗️ How It Works: Under the Hood
+## 🛠️ CLI Features & Commands
 
-TESH-Query simplifies data access through a robust process:
+TESH-Query comes with a rich suite of CLI tools for developers and data analysts.
 
-1.  **Natural Language Input**: Your query is received via the CLI.
-2.  **Configuration**: Secure database and AI credentials are loaded.
-3.  **Database Connection**: A connection is made to your database using SQLAlchemy.
-4.  **Schema Introspection**: TESH-Query inspects your database schema to understand tables, columns, and relationships.
-5.  **AI Generation**: Your query and schema context are sent to Google Gemini (via Langchain) to generate optimized SQL.
-6.  **SQL Execution**: The generated SQL is executed against your database.
-7.  **Result Formatting**: Data is formatted into a clear, tabular output for the terminal.
+| Command | Description |
+|---------|-------------|
+| `teshq query "<query>"` | Execute a natural language query |
+| `teshq query "<q>" --save-csv <path>` | Export query results directly to CSV |
+| `teshq introspect` | Refresh local database schema intelligence |
+| `teshq config` | View and manage your configuration |
+| `teshq analytics` | View AI token usage, costs, and query metrics |
+| `teshq health` | Run comprehensive system diagnostics |
+| `teshq subscribe` | Subscribe to TESH-Query updates |
 
-### Architecture Overview:
-
-The project is structured into key modules:
-
-- **`cli/`**: Handles command-line interface logic and user interaction (Typer).
-- **`config/`**: Clean, single-directory configuration system. Manages `~/.teshq/` paths, secrets (`.teshq.env`), and YAML settings.
-- **`core/`**: Contains core business logic, including AI interaction, SQL execution, and schema handling.
-- **`utils/`**: Provides shared utility functions (configuration façade, database helpers, formatting).
-- **`api.py`**: Programmatic SDK (`TeshQuery` class) for integration into applications.
+> **Pro Tip**: Use the `--verbose` flag with any command to see detailed logs and generated SQL without executing it.
 
 ---
 
-## 🔧 Tech Stack
+## 🏗️ Architecture
 
-TESH-Query is built using the following technologies:
+TESH-Query is built with performance and security in mind:
 
-| Component              | Technology                                                                       |
-| ---------------------- | -------------------------------------------------------------------------------- | ------ | --- |
-| **Core Language**      | Python 3.9+                                                                      |
-| **CLI Framework**      | Typer, Rich                                                                      | \      |
-| **Database ORM/Kit**   | SQLAlchemy                                                                       | \      |
-| **Database Drivers**   | psycopg2-binary (PostgreSQL), mysql-connector-python (MySQL), sqlite3 (Built-in) | \      |
-| **AI/LLM Integration** | Langchain, langchain-google-genai (Google Gemini)                                | \      |
-| **Configuration**      | PyYAML, python-dotenv                                                           | \      |
-| **Data Display**       | Tabulate                                                                         | \      |
-| **Build & Packaging**  | Setuptools, setuptools-scm, Build, Twine                                         | \      |
-| **Code Quality**       | Black, isort, Flake8 (enforced via pre-commit)                                   | \      |
-| <!--                   | **Testing Framework**                                                            | Pytest | --> |
+1. **Introspection Layer**: Extracts table metadata, foreign keys, and indexes, compressing them into a lightweight schema map.
+2. **AI Planning Layer**: Analyzes your natural language request against the schema map to identify necessary tables and relationships.
+3. **SQL Generation Layer**: Constructs dialect-specific SQL using advanced LLM prompting.
+4. **Validation Layer**: Scans the generated SQL for destructive commands (e.g., `DROP`, `DELETE`, `ALTER`) to prevent accidental data loss.
+5. **Execution & UI**: Safely executes the query and renders the output via `Rich` or returns a `pandas` DataFrame.
 
 ---
 
-## 📈 Project Status & Roadmap
+## 📈 Roadmap
 
-TESH-Query is under active development with planned future enhancements.
+### 🚧 In Development (v2.2)
+- Enhanced Error Handling & Auto-Recovery
+- Query History, Caching, & Bookmarking
+- Interactive Query Refinement loop
 
-### ✅ Implemented Features (v2.1)
-
-- **Comprehensive SDK**: Programmatic API (`TeshQuery`) for application integrations.
-- **Advanced Exporting**: Export to CSV, Excel, and SQLite databases seamlessly.
-- **Azure OpenAI Support**: Full integration with Azure OpenAI serverless endpoints.
-- **Unified UI/UX Experience**: Powered by `Rich` for beautiful data rendering and progress indicators.
-- **Unified Database Connector**: Standardized interface for PostgreSQL, MySQL, SQLite, MSSQL, MariaDB, Oracle.
-- **Telemetry & Cost Analytics**: Built-in CLI token tracking, LLM cost metrics, and structured logging.
-- **Health Checks & Diagnostics**: `teshq health` for instant debugging of DB/API connections.
-- **Automated CI/CD**: End-to-end multi-version testing and PyPI deployment via GitHub Actions.
-
-### 🚧 In Development (v2.2 - Near-Term)
-
-- Enhanced Error Handling & Auto-Recovery.
-- Query History & Bookmarks.
-- Schema Caching for performance.
-
-### 🔮 Future Vision (v3.x+ - Long-Term)
-
-- Interactive Query Refinement.
-- Support for More Databases.
-- Basic Data Visualization.
-- User-Defined AI Prompts.
-- Plugin Architecture.
+### 🔮 Future Vision (v3.0+)
+- Advanced Data Visualization (Auto-charting)
+- Custom User-Defined AI Prompts
+- Expandable Plugin Architecture
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+We welcome contributions! Whether it's fixing bugs, adding new database dialects, or improving documentation.
 
-Quick start:
+1. Clone the repository: `git clone https://github.com/theshashank1/TESH-Query.git`
+2. Install development dependencies: `pip install -e ".[dev]"`
+3. Run the tests: `pytest tests/unit/`
+4. Submit a Pull Request!
 
-```bash
-git clone https://github.com/YOUR_USERNAME/TESH-Query.git
-cd TESH-Query
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pre-commit install
-pytest tests/unit/
-```
-
----
-
-## 🔧 Troubleshooting & Support
-
-Encountering issues? Here's some help:
-
-### Common Issues
-
-- **Connection Problems**: Use `teshq config --db`. Check credentials, host, port, network.
-  - Or pass a full URL: `teshq config --db-url postgresql://myuser:password@localhost:5432/mydatabase`
-- **Config file location**: All config lives in `~/.teshq/`. Run `teshq config` to view the current state.
-- **AI Generation Issues**: Rephrase query, be specific, simplify requests.
-- **Permission Errors**: Ensure database user has read access.
-
-### Getting Help
-
-- **Documentation**: `teshq --help` and command-specific help.
-- **Bug Reports**: [Open a GitHub Issue](https://github.com/theshashank1/TESH-Query/issues).
-- **Feature Requests**: [Start a GitHub Discussion](https://github.com/theshashank1/TESH-Query/discussions).
-- **Direct Contact**: Reach out to the author ([@theshashank1](https://github.com/theshashank1)).
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. See the [LICENSE](https://github.com/theshashank1/TESH-Query/blob/main/LICENSE) file.
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
----
-
-## 🌟 Show Your Support
-
-[![♡ Support Us](https://img.shields.io/badge/♡%20Support%20Us-orange?style=social&logo=heart&colour=pink)](https://github.com/sponsors/theshashank1)
-
-Like TESH-Query? Please consider:
-
-⭐ **Starring the repo on GitHub**
-🐦 **Sharing on social media**
-🗣️ **Telling your colleagues**
-🤝 **Contributing to the project**
-
-Your support is greatly appreciated!
-
----
-
-**Made with ❤️ by [Shashank](https://github.com/theshashank1)**
-
-_Passionate about democratizing data access and building intelligent developer tools._
+<div align="center">
+  <br>
+  <b>Made with ❤️ by <a href="https://github.com/theshashank1">Shashank</a></b><br>
+  <i>Passionate about democratizing data access and building intelligent developer tools.</i>
+  <br><br>
+  
+  [![♡ Support Us](https://img.shields.io/badge/♡%20Support%20Us-orange?style=for-the-badge&logo=heart&colour=pink)](https://github.com/sponsors/theshashank1)
+</div>
