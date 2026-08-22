@@ -1,4 +1,4 @@
-name: Publish TESH Query to PyPI
+name: PyPI Release
 
 on:
   push:
