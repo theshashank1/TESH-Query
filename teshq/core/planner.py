@@ -66,7 +66,7 @@ class QueryPlanner:
         else:
             self._structured_llm = None
 
-    def plan(self, nl_query: str, schema: str) -> QueryPlan:
+    def plan(self, nl_query: str, schema: str, callbacks: Optional[list] = None) -> QueryPlan:
         """
         Produce a QueryPlan from a natural language query and compressed schema.
 
@@ -83,20 +83,20 @@ class QueryPlanner:
         messages = self._prompt.format_messages(schema=schema, nl_query=nl_query)
 
         if self._provider == "azure":
-            plan = self._invoke_azure(messages, start)
+            plan = self._invoke_azure(messages, start, callbacks)
         else:
-            plan = self._invoke_google(messages, start)
+            plan = self._invoke_google(messages, start, callbacks)
 
         return plan
 
-    def _invoke_google(self, messages: list, start: float) -> QueryPlan:
+    def _invoke_google(self, messages: list, start: float, callbacks: Optional[list] = None) -> QueryPlan:
         """Invoke via structured output (Pydantic schema) for Google Gemini."""
         max_attempts = 3
         last_exc: Optional[Exception] = None
 
         for attempt in range(1, max_attempts + 1):
             try:
-                plan: QueryPlan = self._structured_llm.invoke(messages)
+                plan: QueryPlan = self._structured_llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
                 elapsed_ms = int((time.time() - start) * 1000)
                 logger.success(
                     "Query plan generated",
@@ -124,7 +124,7 @@ class QueryPlanner:
         logger.error("Query planning failed", error=last_exc, plan_latency_ms=elapsed_ms)
         raise last_exc  # type: ignore[misc]
 
-    def _invoke_azure(self, messages: list, start: float) -> QueryPlan:
+    def _invoke_azure(self, messages: list, start: float, callbacks: Optional[list] = None) -> QueryPlan:
         """
         Invoke via plain text for Azure OpenAI.
 
@@ -137,7 +137,7 @@ class QueryPlanner:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                response = self._llm.invoke(messages)
+                response = self._llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
                 content: str = response.content if hasattr(response, "content") else str(response)
 
                 # Strip markdown code fences if present

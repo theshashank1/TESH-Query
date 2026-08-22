@@ -231,9 +231,9 @@ class ConnectionManager:
             )
             
             if success:
-                logger.info("Database connection test successful", engine_name=engine_name, message=message)
+                logger.info("Database connection test successful", engine_name=engine_name, details=message)
             else:
-                logger.error("Database connection test failed", engine_name=engine_name, message=message)
+                logger.error("Database connection test failed", engine_name=engine_name, details=message)
                 
             return success
             

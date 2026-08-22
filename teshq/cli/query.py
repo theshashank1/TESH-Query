@@ -22,12 +22,11 @@ from teshq.core.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
 
-# Schema files: prefer ~/.teshq/schema/, fall back to local db_schema/
-_SCHEMA_DIR = get_schema_path("schema.txt").parent
-_TESHQ_SCHEMA_PATH = get_schema_path("schema.txt")       # default: compact minimal
-_TESHQ_SCHEMA_FULL_PATH = get_schema_path("schema_full.txt")  # optional: full verbose
-_LOCAL_SCHEMA_PATH = Path("db_schema") / "schema.txt"
-_LOCAL_SCHEMA_FULL_PATH = Path("db_schema") / "schema_full.txt"
+# Schema path constants - resolved lazily at runtime by TeshEngine
+# (kept for --schema-preview feature only)
+def _get_schema_path(filename: str):
+    """Lazily resolve schema path to avoid import-time failures."""
+    return get_schema_path(filename)
 
 def save_results(
     df: pd.DataFrame,
@@ -57,6 +56,7 @@ def process_nl_query(
     save_csv: str = typer.Option(None, "--save-csv", metavar="FILE", help="Save results to a CSV file."),
     save_excel: str = typer.Option(None, "--save-excel", metavar="FILE", help="Save results to an Excel (.xlsx) file."),
     save_sqlite: str = typer.Option(None, "--save-sqlite", metavar="FILE", help="Save results to a SQLite database file."),
+    limit: int = typer.Option(None, "--limit", "-n", metavar="N", help="Limit results to N rows (adds LIMIT to SQL)."),
     full_schema: bool = typer.Option(
         False,
         "--full-schema",
@@ -77,7 +77,7 @@ def process_nl_query(
         "--schema-preview",
         help="Print the compressed schema that will be sent to the LLM, then exit.",
     ),
-    log: bool = typer.Option(None, "--log", help="Write detailed logs to file."),
+    verbose: bool = typer.Option(None, "--verbose", help="Write detailed logs to ~/.teshq/logs/."),
 ):
     """
     Convert a natural-language question into SQL and execute it.
@@ -91,7 +91,7 @@ def process_nl_query(
     
     # Initialize CLI logger
     cli_logger = CLILogger("query")
-    logging_active = cli_logger.setup_file_logging(log)
+    logging_active = cli_logger.setup_file_logging(verbose)
 
     # Track command invocation (privacy-safe: no query text)
     track_command(
@@ -125,7 +125,7 @@ def process_nl_query(
                 "save_csv": save_csv,
                 "save_excel": save_excel,
                 "save_sqlite": save_sqlite,
-                "log": log
+                "verbose": verbose
             })
         
         # Validate natural language query
@@ -164,13 +164,9 @@ def process_nl_query(
             info("🧠 Generating SQL in dry-run mode (no execution)...")
         else:
             db_display = db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database"
-            info(f"🧠 Generating and executing query on [bold]{db_display}[/bold]...")
+            info(f"🧠 Generating and executing query on {db_display}...")
 
         engine_result = engine.query(natural_language_request, dry_run=dry_run)
-            
-        if not engine_result.success:
-            error(f"❌ Query generation/execution failed: {engine_result.error}")
-            raise typer.Exit(code=1)
 
         sql_query, parameters = engine_result.sql, engine_result.parameters
         
@@ -202,18 +198,19 @@ def process_nl_query(
         # Use the unified output system for consistent display
         result.print_query_table()
 
-        # Log query execution
+        # Log query execution with real latency
         if logging_active:
             cli_logger.log_query_execution(
                 query=sql_query,
                 parameters=parameters,
                 row_count=len(result),
-                execution_time_ms=0  # This would be captured in run_sql_query
+                execution_time_ms=engine_result.exec_latency_ms
             )
 
         # Show token usage summary for this query (from engine result)
         info(f"🏷️  Token usage: {engine_result.total_tokens:,} tokens, estimated cost: ${engine_result.cost_estimate_usd:.4f}")
-        info(f"⏱️  Latency: {engine_result.plan_latency_ms + engine_result.sql_latency_ms + engine_result.exec_latency_ms}ms (Plan: {engine_result.plan_latency_ms}ms, SQL: {engine_result.sql_latency_ms}ms, Exec: {engine_result.exec_latency_ms}ms)")
+        total_ms = engine_result.plan_latency_ms + engine_result.sql_latency_ms + engine_result.exec_latency_ms
+        info(f"⏱️  Latency: {total_ms}ms (Plan: {engine_result.plan_latency_ms}ms, SQL: {engine_result.sql_latency_ms}ms, Exec: {engine_result.exec_latency_ms}ms)")
 
         # Save results if requested - use the normalized DataFrame
         if result is not None and (save_csv or save_excel or save_sqlite):

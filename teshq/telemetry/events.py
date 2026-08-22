@@ -1,12 +1,12 @@
 """
-teshq.telemetry.events — Typed event helpers for Logfire + local JSONL.
+teshq.telemetry.events — Typed event helpers for local JSONL analytics.
 
 Usage::
 
-    from teshq.telemetry.events import track_query, track_command, track_error
+    from teshq.telemetry.events import track_query_event, track_command, track_error
 
 All tracking functions are no-ops if telemetry is opted out.
-Logfire spans are used for structured observability when Logfire is configured.
+All events are written to a single file: ~/.teshq/metrics/usage_metrics.jsonl
 """
 
 from __future__ import annotations
@@ -19,28 +19,25 @@ from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
-# Opt-out check and persistence
+# Constants
 # ---------------------------------------------------------------------------
 
 _OPT_OUT_ENV = "TESHQ_NO_TELEMETRY"
 _OPT_OUT_FILE = Path.home() / ".teshq" / "telemetry_opt_out"
-_LOCAL_LOG = Path.home() / ".teshq" / "telemetry.jsonl"
-_DEVICE_ID_FILE = Path.home() / ".teshq" / ".device_id"
+# Single canonical metrics file path (for telemetry status display)
+_LOCAL_LOG = Path.home() / ".teshq" / "metrics" / "usage_metrics.jsonl"
 
 
-def _get_device_id() -> str:
-    """Return a stable, anonymous device ID (created on first use)."""
-    import uuid
-    try:
-        _DEVICE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
-        if _DEVICE_ID_FILE.exists():
-            return _DEVICE_ID_FILE.read_text().strip()
-        device_id = str(uuid.uuid4())
-        _DEVICE_ID_FILE.write_text(device_id)
-        return device_id
-    except OSError:
-        return "anonymous"
+def _metrics_file() -> Path:
+    from teshq.config.paths import TESHQ_DIR
+    metrics_dir = TESHQ_DIR / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    return metrics_dir / "usage_metrics.jsonl"
 
+
+# ---------------------------------------------------------------------------
+# Opt-out management
+# ---------------------------------------------------------------------------
 
 def is_telemetry_enabled() -> bool:
     """Return True unless the user has opted out."""
@@ -80,19 +77,16 @@ def _is_opted_out() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Local JSONL analytics
+# Core write helper — single file, single format
 # ---------------------------------------------------------------------------
 
-def _metrics_file() -> Path:
-    from teshq.config.paths import TESHQ_DIR
-    metrics_dir = TESHQ_DIR / "metrics"
-    metrics_dir.mkdir(parents=True, exist_ok=True)
-    return metrics_dir / "usage_metrics.jsonl"
-
-
 def _record_local(event_type: str, **data: object) -> None:
-    """Append one JSONL line to the local metrics file (privacy-safe)."""
-    record = {"ts": time.time(), "event_type": event_type, **data}
+    """Append one JSONL line to the single local metrics file."""
+    record = {
+        "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "event_type": event_type,
+        **data,
+    }
     try:
         with open(_metrics_file(), "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
@@ -101,7 +95,7 @@ def _record_local(event_type: str, **data: object) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Public event API (v2) — used by CLI commands and TeshEngine
+# Public event API
 # ---------------------------------------------------------------------------
 
 def track_command(
@@ -111,10 +105,8 @@ def track_command(
     **flags: Any,
 ) -> None:
     """
-    Track a CLI command invocation.
+    Track a CLI command invocation (privacy-safe: no query text).
 
-    Compatible with both the v2 signature ``track_command(name, success=True)``
-    and the legacy v1 signature ``track_command("query", save_csv=True)``.
     Extra keyword flags are recorded as safe booleans.
     """
     if _is_opted_out():
@@ -126,13 +118,10 @@ def track_command(
     except ImportError:
         version = "unknown"
 
-    device_id = _get_device_id()
     safe_flags = {k: bool(v) for k, v in flags.items()}
-
     _record_local(
         "command_invoked",
         command=name,
-        device_id=device_id,
         cli_version=version,
         success=success,
         error_type=error_type,
@@ -140,36 +129,46 @@ def track_command(
     )
 
 
-def track_query(
-    model: str,
+def track_query_event(
+    plan_ms: int,
+    sql_ms: int,
+    exec_ms: int,
+    success: bool,
+    error_type: Optional[str] = None,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
-    latency_ms: float = 0.0,
-    success: bool = True,
+    model: Optional[str] = None,
+    provider: Optional[str] = None,
 ) -> None:
-    """Track a query execution — no raw SQL or NL queries are sent."""
+    """
+    Record a full query pipeline event to the local metrics file.
+
+    Used by TeshEngine after each query. Records 2-stage timings,
+    token counts, and model information for analytics.
+    """
     if _is_opted_out():
         return
-    
-    try:
-        from teshq.telemetry.pricing import TokenPricingCalculator
-        # For Logfire/telemetry, we don't always know the provider here, so we guess google if gemini, openai if gpt, etc.
-        provider = "google" if "gemini" in model.lower() else "openai" if "gpt" in model.lower() else "anthropic"
-        cost = TokenPricingCalculator.calculate_cost(provider, model, prompt_tokens, completion_tokens)
-    except Exception:
-        cost = 0.0
 
-    total = prompt_tokens + completion_tokens
-    _record_local(
-        "query",
-        model=model,
-        tokens=total,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        latency_ms=latency_ms,
-        success=success,
-        cost_estimate_usd=cost,
-    )
+    total_tokens = prompt_tokens + completion_tokens
+
+    event: dict = {
+        "plan_ms": plan_ms,
+        "sql_ms": sql_ms,
+        "exec_ms": exec_ms,
+        "total_ms": plan_ms + sql_ms + exec_ms,
+        "success": success,
+        "tokens": total_tokens,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+    }
+    if error_type is not None:
+        event["error_type"] = error_type
+    if model:
+        event["model"] = model
+    if provider:
+        event["provider"] = provider
+
+    _record_local("query", **event)
 
 
 def track_error(command: str, error_type: str) -> None:
@@ -188,67 +187,36 @@ def track_feature(feature: str, **properties: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Legacy API — backward compatibility with schema-intelligence-layer branch
+# Legacy compat shims (kept for external callers / tests)
 # ---------------------------------------------------------------------------
 
-# Legacy local metrics path (kept for backward compat)
-_METRICS_DIR = Path.home() / ".teshq" / "metrics"
-_METRICS_FILE = _METRICS_DIR / "usage_metrics.jsonl"
-
-
-def _ensure_metrics_dir() -> None:
-    """Create the metrics directory if it does not exist."""
-    _METRICS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def track_query_event(
-    plan_ms: int,
-    sql_ms: int,
-    exec_ms: int,
-    success: bool,
-    error_type: Optional[str] = None,
+def track_query(
+    model: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    latency_ms: float = 0.0,
+    success: bool = True,
 ) -> None:
-    """
-    Record a query event to the local metrics file (legacy API).
-
-    Used by TeshEngine to record 2-stage query pipeline timings.
-    """
-    if _is_opted_out():
-        return
-
-    event = {
-        "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "event_type": "query",
-        "plan_ms": plan_ms,
-        "sql_ms": sql_ms,
-        "exec_ms": exec_ms,
-        "success": success,
-    }
-    if error_type is not None:
-        event["error_type"] = error_type
-
-    # Also record to local JSONL
-    try:
-        _ensure_metrics_dir()
-        with open(_METRICS_FILE, "a") as f:
-            f.write(json.dumps(event) + "\n")
-    except OSError:
-        pass
+    """Legacy API shim — delegates to track_query_event."""
+    track_query_event(
+        plan_ms=0,
+        sql_ms=int(latency_ms),
+        exec_ms=0,
+        success=success,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        model=model,
+    )
 
 
 def get_query_metrics() -> list:
-    """
-    Read all query events from the local metrics file (legacy API).
-
-    Returns:
-        List of event dicts. Empty list if file does not exist.
-    """
-    if not _METRICS_FILE.exists():
+    """Read all query events from the local metrics file."""
+    path = _metrics_file()
+    if not path.exists():
         return []
-
     events = []
     try:
-        with open(_METRICS_FILE, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -259,5 +227,5 @@ def get_query_metrics() -> list:
                     pass
     except OSError:
         pass
-
     return events
+

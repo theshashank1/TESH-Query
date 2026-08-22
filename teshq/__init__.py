@@ -59,6 +59,13 @@ All configuration, schema cache, logs, and state are stored under ~/.teshq/.
 For more information, visit: https://github.com/theshashank1/TESH-Query
 """
 
+# Suppress LangChain / Pydantic V1 compatibility warnings on Python 3.14+.
+# These are internal LangChain warnings, not actionable by end-users.
+import warnings as _warnings
+_warnings.filterwarnings("ignore", message=r".*Pydantic V1 functionality.*", category=UserWarning)
+_warnings.filterwarnings("ignore", message=r".*pydantic\.v1.*", category=UserWarning)
+del _warnings
+
 # Import main API classes and functions
 from .api import TeshQuery, health_check, introspect, query
 

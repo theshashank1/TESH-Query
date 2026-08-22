@@ -172,14 +172,35 @@ class TeshEngine:
         Returns:
             A QueryResult with all relevant output.
         """
-        plan_ms = sql_ms = exec_ms = 0
-        plan: Optional[QueryPlan] = None
-        rows: List[Dict[str, Any]] = []
-        error: Optional[str] = None
+        plan_ms = 0
+        sql_ms = 0
+        exec_ms = 0
         success = True
+        error_type = None
+        rows: List[Dict[str, Any]] = []
+        sql_text = ""
+        parameters: Dict[str, Any] = {}
+        plan = None
+        error: Optional[str] = None
         schema_str = ""
 
         try:
+            from langchain_core.callbacks.base import BaseCallbackHandler
+            class TokenTracker(BaseCallbackHandler):
+                def __init__(self):
+                    self.prompt_tokens = 0
+                    self.completion_tokens = 0
+                def on_llm_end(self, response, **kwargs):
+                    if not response.generations: return
+                    for gen in response.generations:
+                        for chunk in gen:
+                            usage = getattr(getattr(chunk, "message", None), "usage_metadata", None)
+                            if usage:
+                                self.prompt_tokens += usage.get("input_tokens", 0)
+                                self.completion_tokens += usage.get("output_tokens", 0)
+            
+            tracker = TokenTracker()
+
             graph = schema_graph or self._get_schema_graph()
 
             # Retrieve the most relevant tables via TF-IDF cosine similarity.
@@ -197,12 +218,12 @@ class TeshEngine:
 
             # — Stage 1: Query Planning —
             t0 = time.time()
-            plan = self._get_planner().plan(nl_query, schema_str)
+            plan = self._get_planner().plan(nl_query, schema_str, callbacks=[tracker])
             plan_ms = int((time.time() - t0) * 1000)
 
             # — Stage 2: SQL Generation —
             t0 = time.time()
-            sql_result: SQLQuery = self._get_sql_gen().generate(nl_query, schema_str, plan)
+            sql_result: SQLQuery = self._get_sql_gen().generate(nl_query, schema_str, plan, callbacks=[tracker])
             sql_ms = int((time.time() - t0) * 1000)
 
             sql_text = sql_result.query
@@ -234,12 +255,14 @@ class TeshEngine:
 
         except ValidationError as e:
             error = str(e)
+            error_type = type(e).__name__
             success = False
             logger.error("SQL validation failed", error=e)
             raise
 
         except Exception as e:
             error = str(e)
+            error_type = type(e).__name__
             success = False
             logger.error("TeshEngine query failed", error=e)
             raise
@@ -250,7 +273,11 @@ class TeshEngine:
                 sql_ms=sql_ms,
                 exec_ms=exec_ms,
                 success=success,
-                error_type=type(error).__name__ if error else None,
+                error_type=error_type if not success else None,
+                prompt_tokens=tracker.prompt_tokens,
+                completion_tokens=tracker.completion_tokens,
+                model=self._model_name,
+                provider=self._provider,
             )
 
         return QueryResult(

@@ -78,7 +78,7 @@ class SQLGenerator:
             ]
         )
 
-    def generate(self, nl_query: str, schema: str, plan: QueryPlan, error_hint: str = None) -> SQLQuery:
+    def generate(self, nl_query: str, schema: str, plan: QueryPlan, error_hint: Optional[str] = None, callbacks: Optional[list] = None) -> SQLQuery:
         """
         Generate a structured SQLQuery from the plan and compressed schema.
 
@@ -116,9 +116,9 @@ class SQLGenerator:
         for attempt in range(1, max_attempts + 1):
             try:
                 if self._provider == "azure":
-                    sql_query = self._invoke_azure(messages)
+                    sql_query = self._invoke_azure(messages, callbacks)
                 else:
-                    sql_query = self._structured_llm.invoke(messages)
+                    sql_query = self._structured_llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
 
                 elapsed_ms = int((time.time() - start) * 1000)
                 logger.success(
@@ -149,13 +149,14 @@ class SQLGenerator:
         raise last_exc  # type: ignore[misc]
 
 
-    def _invoke_azure(self, messages) -> SQLQuery:
+    def _invoke_azure(self, messages, callbacks: Optional[list] = None) -> SQLQuery:
         """
         Invoke the LLM without structured output for Azure OpenAI compatibility.
 
         Uses a plain text response (no response_format schema) and manually
         parses the resulting JSON into a SQLQuery model.
         """
+        start = time.time()
         from langchain_core.messages import HumanMessage
 
         json_instruction = HumanMessage(
@@ -166,7 +167,7 @@ class SQLGenerator:
                 "No markdown, no explanation — raw JSON only."
             )
         )
-        response = self._plain_llm.invoke(messages + [json_instruction])
+        response = self._plain_llm.invoke(messages + [json_instruction], config={"callbacks": callbacks} if callbacks else None)
         raw = response.content.strip()
 
         # Strip accidental markdown fences

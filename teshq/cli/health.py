@@ -7,14 +7,14 @@ from teshq.utils.ui import error, handle_error, print_header, print_table, space
 app = typer.Typer(invoke_without_command=True)
 
 
-def format_status(status: HealthStatus) -> str:
+def format_status(check_status: HealthStatus) -> str:
     """Formats the health status with color and icon for table display."""
-    if status == HealthStatus.HEALTHY:
-        return f"[green]✓ {status.value}[/green]"
-    elif status == HealthStatus.DEGRADED:
-        return f"[yellow]⚠ {status.value}[/yellow]"
+    if check_status == HealthStatus.HEALTHY:
+        return f"[green]✓ {check_status.value}[/green]"
+    elif check_status == HealthStatus.DEGRADED:
+        return f"[yellow]⚠ {check_status.value}[/yellow]"
     else:
-        return f"[red]✗ {status.value}[/red]"
+        return f"[red]✗ {check_status.value}[/red]"
 
 
 @app.callback()

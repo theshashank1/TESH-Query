@@ -199,6 +199,9 @@ def _build_azure_llm(
         )
 
     # Detect Azure AI Foundry Serverless endpoints (MaaS) which use the standard OpenAI API format
+    # Normalise trailing slash
+    resolved_endpoint = resolved_endpoint.rstrip("/")
+    
     is_serverless = (
         "services.ai.azure.com" in resolved_endpoint 
         or "models.ai.azure.com" in resolved_endpoint
@@ -210,6 +213,8 @@ def _build_azure_llm(
         if "/api/projects/" in resolved_endpoint:
             base_part = resolved_endpoint.split("/api/projects/")[0]
             resolved_endpoint = f"{base_part}/openai/v1"
+        elif not resolved_endpoint.endswith("/v1"):
+            resolved_endpoint = f"{resolved_endpoint}/v1"
             
         return ChatOpenAI(
             base_url=resolved_endpoint,

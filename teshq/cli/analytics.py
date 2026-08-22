@@ -23,19 +23,42 @@ def show_summary():
     try:
         summary = get_summary()
         
-        info_text = f"""[bold]Total Queries:[/bold] {summary['total_queries']:,}
-[bold]Successful Queries:[/bold] {summary['successful_queries']:,}
-[bold]Failed Queries:[/bold] {summary['failed_queries']:,}
-[bold]Total Tokens:[/bold] {summary['total_tokens']:,}
-[bold]Estimated Cost:[/bold] ${summary['estimated_cost_usd']:.4f}
+        # Determine Date Range
+        if summary.get("first_seen") and summary.get("last_seen"):
+            dates = f"[cyan]{summary['first_seen']}[/cyan] to [cyan]{summary['last_seen']}[/cyan]"
+        else:
+            dates = "[cyan]No data available[/cyan]"
+
+        # Main metrics panel
+        info_text = f"""[bold]Activity Period:[/bold] {dates}
+
+[bold]Total Queries:[/bold] {summary['total_queries']:,}
+[bold]Successful Queries:[/bold] [green]{summary['successful_queries']:,}[/green]
+[bold]Failed Queries:[/bold] [red]{summary['failed_queries']:,}[/red]
+
+[bold]Total Tokens Used:[/bold] [cyan]{summary['total_tokens']:,}[/cyan]
+  ├─ [dim]Prompt:[/dim] {summary['prompt_tokens']:,}
+  └─ [dim]Completion:[/dim] {summary['completion_tokens']:,}
+
+[bold]Estimated Cost:[/bold] [yellow]${summary['estimated_cost_usd']:.4f}[/yellow]
 [bold]Avg Query Latency:[/bold] {summary['avg_latency_ms']} ms
-[bold]Total Commands Executed:[/bold] {summary['total_commands']:,}"""
+[bold]Total CLI Commands:[/bold] {summary['total_commands']:,}"""
 
         console.print(Panel(info_text, title="[bold green]Local Usage Summary[/bold green]", expand=False))
         
-        if summary['command_breakdown']:
-            console.print("\n[bold]Command Breakdown:[/bold]")
-            table = Table(show_header=True, header_style="bold blue")
+        # Provider Breakdown
+        if summary.get('provider_breakdown'):
+            table = Table(show_header=True, header_style="bold magenta", title="Provider Usage")
+            table.add_column("Provider")
+            table.add_column("Queries", justify="right")
+            for prov, count in summary['provider_breakdown'].items():
+                table.add_row(prov.title(), str(count))
+            console.print(table)
+            console.print()
+
+        # Command Breakdown
+        if summary.get('command_breakdown'):
+            table = Table(show_header=True, header_style="bold blue", title="Command Executions")
             table.add_column("Command")
             table.add_column("Count", justify="right")
             for cmd, count in summary['command_breakdown'].items():
@@ -74,7 +97,8 @@ def show_pricing_info():
         pricing = TokenPricingCalculator.PRICING_MAP
         
         for provider, models in pricing.items():
-            tree = Tree(f"[bold cyan]{provider.title()}[/bold cyan]")
+            url = TokenPricingCalculator.get_pricing_url(provider)
+            tree = Tree(f"[bold cyan]{provider.title()}[/bold cyan] [dim]({url})[/dim]")
             
             for model, costs in models.items():
                 model_node = tree.add(f"[green]{model}[/green]")
@@ -88,38 +112,6 @@ def show_pricing_info():
         
     except Exception as e:
         error(f"Failed to show pricing info: {e}")
-
-
-@app.command("cost")
-def estimate_cost(
-    provider: str = typer.Argument(..., help="LLM provider (google, openai, anthropic)"),
-    model: str = typer.Argument(..., help="Model name"),
-    prompt_tokens: int = typer.Argument(..., help="Number of prompt tokens"),
-    completion_tokens: int = typer.Argument(..., help="Number of completion tokens"),
-):
-    """Calculate estimated cost for specific token usage."""
-    try:
-        from teshq.telemetry.pricing import TokenPricingCalculator
-        
-        cost = TokenPricingCalculator.calculate_cost(provider, model, prompt_tokens, completion_tokens)
-        total_tokens = prompt_tokens + completion_tokens
-        
-        cost_info = f"""[bold]Provider:[/bold] {provider}
-[bold]Model:[/bold] {model}
-[bold]Prompt Tokens:[/bold] {prompt_tokens:,}
-[bold]Completion Tokens:[/bold] {completion_tokens:,}
-[bold]Total Tokens:[/bold] {total_tokens:,}
-[bold]Estimated Cost:[/bold] ${cost:.6f}"""
-
-        console.print(Panel(cost_info, title="[bold yellow]Cost Estimate[/bold yellow]", expand=False))
-        
-        if total_tokens > 0:
-            console.print(f"\n[dim]Cost per token: ${cost / total_tokens:.8f}[/dim]")
-        
-        success(f"Cost estimated: ${cost:.6f}")
-        
-    except Exception as e:
-        error(f"Failed to estimate cost: {e}")
 
 
 if __name__ == "__main__":

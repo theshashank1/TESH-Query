@@ -1,15 +1,22 @@
 import sys
 import warnings
 
-# Monkey-patch warnings.warn to aggressively suppress LangChain Pydantic warnings
-_original_warn = warnings.warn
-def _custom_warn(message, *args, **kwargs):
-    if "Pydantic V1" in str(message):
-        return
-    _original_warn(message, *args, **kwargs)
-warnings.warn = _custom_warn
+# ──────────────────────────────────────────────────────────────────────────────
+# Suppress LangChain / Pydantic V1 compatibility warnings on Python 3.14+.
+# These come from langchain_core internals and are not actionable by users.
+# We suppress them at the earliest possible point — before any langchain import.
+# ──────────────────────────────────────────────────────────────────────────────
+warnings.filterwarnings(
+    "ignore",
+    message=r".*Pydantic V1 functionality.*",
+    category=UserWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r".*pydantic.v1.*",
+    category=UserWarning,
+)
 
-warnings.filterwarnings("ignore", category=UserWarning)
 from typing import Optional
 
 import typer
@@ -45,12 +52,12 @@ app = typer.Typer(
         "TESH-Query: convert natural language into SQL and run it against your database.\n\n"
         "Quick start:\n\n"
         "  1. teshq config --db          # set up database connection\n\n"
-        "  2. teshq config --gemini      # set your Gemini API key\n\n"
+        "  2. teshq config --gemini      # Gemini API key  (or --azure for Azure OpenAI)\n\n"
         "  3. teshq db introspect        # introspect the database schema\n\n"
         "  4. teshq query \"show top 10 customers by revenue\"\n\n"
         "Tips:\n\n"
         "  • Set NO_COLOR=1 to disable coloured output (CI / piped output).\n\n"
-        "  • Use --log to write detailed logs to ~/.teshq/logs/ for debugging.\n"
+        "  • Use --verbose to write detailed logs to ~/.teshq/logs/ for debugging.\n"
     ),
     short_help="Natural-language SQL query tool",
     epilog="Docs & source: https://github.com/theshashank1/TESH-Query",
@@ -67,12 +74,12 @@ def _callback(
     developer: Optional[bool] = typer.Option(
         None, "--developer", "-d", is_eager=True, help="Show developer info and exit."
     ),
-    log: bool = typer.Option(
-        False, "--log", help="Print log output to the terminal (always saved to file)."
+    verbose: bool = typer.Option(
+        False, "--verbose", help="Write detailed logs to ~/.teshq/logs/ for debugging."
     ),
 ):
     """TESH-Query CLI — natural language to SQL."""
-    configure_global_logger(enable_cli_output=log)
+    configure_global_logger(enable_cli_output=verbose)
 
     if version:
         try:
