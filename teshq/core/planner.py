@@ -96,7 +96,10 @@ class QueryPlanner:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                plan: QueryPlan = self._structured_llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
+                if callbacks:
+                    plan: QueryPlan = self._structured_llm.invoke(messages, config={"callbacks": callbacks})
+                else:
+                    plan: QueryPlan = self._structured_llm.invoke(messages)
                 elapsed_ms = int((time.time() - start) * 1000)
                 logger.success(
                     "Query plan generated",
@@ -137,7 +140,10 @@ class QueryPlanner:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                response = self._llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
+                if callbacks:
+                    response = self._llm.invoke(messages, config={"callbacks": callbacks})
+                else:
+                    response = self._llm.invoke(messages)
                 content: str = response.content if hasattr(response, "content") else str(response)
 
                 # Strip markdown code fences if present

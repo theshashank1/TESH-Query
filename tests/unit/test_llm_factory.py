@@ -156,7 +156,7 @@ class TestBuildAzureLlm:
                 temperature=0,
             )
             mock_cls.assert_called_once_with(
-                azure_endpoint="https://myresource.openai.azure.com/",
+                azure_endpoint="https://myresource.openai.azure.com",
                 azure_deployment="gpt-4o",
                 api_key="sk-test",
                 api_version="2024-02-01",
