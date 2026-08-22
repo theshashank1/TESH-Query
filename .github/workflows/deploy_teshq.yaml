@@ -3,15 +3,15 @@ name: Publish TESH Query to PyPI
 on:
   push:
     tags:
-      - "v*" # Only runs on version tags like v1.2.3
+      - "v*" # Runs when a version tag like v2.0.0 is pushed
 
-# Limit concurrency to one workflow per ref
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   publish:
+    name: Build & Publish to PyPI
     runs-on: ubuntu-latest
     permissions:
       id-token: write # Required for PyPI trusted publishing
@@ -19,13 +19,13 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/teshq # Will link to the published package
+      url: https://pypi.org/p/teshq
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history needed for setuptools_scm
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,53 +33,44 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install dependencies
+      - name: Install build & test dependencies
         run: |
           python -m pip install --upgrade pip
           pip install build wheel twine setuptools setuptools-scm
           pip install -e ".[dev]"
 
-      - name: Verify version detection
+      - name: Verify Version Tag
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          echo "Release tag: $TAG"
-          python -c "
-          try:
-              from setuptools_scm import get_version
-              v = get_version()
-              print(f'setuptools_scm version: {v}')
-          except Exception as e:
-              print(f'setuptools_scm failed ({e}), using tag directly')
-          "
+          echo "Deploying version tag: $TAG"
 
-      - name: Run tests
+      - name: Run unit tests
         env:
           DATABASE_URL: "sqlite:////tmp/test.db"
         run: pytest tests/unit/ -v --tb=short
 
-      - name: Build package
+      - name: Build release package
         run: python -m build
 
-      - name: Check package
+      - name: Verify package distribution
         run: twine check dist/*
 
-      - name: Test installation
+      - name: Test installation from wheel
         run: |
           python -m venv /tmp/test_env
           /tmp/test_env/bin/pip install dist/*.whl
-          /tmp/test_env/bin/python -c "import teshq; print('Import successful, version:', teshq.__version__)"
+          /tmp/test_env/bin/python -c "import teshq; print('Package installed successfully:', teshq.__version__)"
 
-      - name: Publish to PyPI
+      - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

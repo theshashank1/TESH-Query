@@ -2,17 +2,43 @@ name: CI
 
 on:
   push:
-    branches: ["main", "enhancement", "copilot/**"]
+    branches: ["main", "dev", "enhancement"]
   pull_request:
-    branches: ["main", "enhancement"]
+    branches: ["main", "dev", "enhancement"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint & Style Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Linting Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Run Flake8 Linter
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 teshq/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all errors as warnings
+          flake8 teshq/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
   test:
     name: Test (Python ${{ matrix.python-version }})
+    needs: lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,7 +51,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history needed for setuptools_scm
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -36,18 +62,18 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools setuptools-scm build
+          pip install setuptools setuptools-scm build pytest pytest-cov
 
       - name: Install package (editable) with dev extras
         run: pip install -e ".[dev]"
 
-      - name: Run tests
+      - name: Run unit tests with coverage
         env:
           DATABASE_URL: "sqlite:////tmp/test.db"
-        run: pytest tests/unit/ -v --tb=short
+        run: pytest tests/unit/ -v --tb=short --cov=teshq --cov-report=term-missing
 
   build:
-    name: Build package
+    name: Build & Verify Package
     runs-on: ubuntu-latest
     needs: test
     permissions:
@@ -71,7 +97,7 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - name: Check package
+      - name: Check package metadata
         run: twine check dist/*
 
       - name: Test installation from wheel
