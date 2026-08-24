@@ -1,0 +1,164 @@
+<svg class="rich-terminal" viewBox="0 0 1238 660.0" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Regular"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+        font-style: normal;
+        font-weight: 400;
+    }
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .terminal-3338908009-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .terminal-3338908009-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .terminal-3338908009-r1 { fill: #c5c8c6;font-weight: bold }
+.terminal-3338908009-r2 { fill: #98a84b }
+.terminal-3338908009-r3 { fill: #c5c8c6 }
+.terminal-3338908009-r4 { fill: #68a0b3;font-weight: bold }
+.terminal-3338908009-r5 { fill: #98a84b;font-weight: bold }
+.terminal-3338908009-r6 { fill: #68a0b3 }
+.terminal-3338908009-r7 { fill: #c5c8c6;font-style: italic; }
+.terminal-3338908009-r8 { fill: #98729f;font-weight: bold }
+.terminal-3338908009-r9 { fill: #868887 }
+.terminal-3338908009-r10 { fill: #4e707b;font-weight: bold }
+.terminal-3338908009-r11 { fill: #868887;font-weight: bold }
+    </style>
+
+    <defs>
+    <clipPath id="terminal-3338908009-clip-terminal">
+      <rect x="0" y="0" width="1219.0" height="609.0" />
+    </clipPath>
+    <clipPath id="terminal-3338908009-line-0">
+    <rect x="0" y="1.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-1">
+    <rect x="0" y="25.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-2">
+    <rect x="0" y="50.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-3">
+    <rect x="0" y="74.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-4">
+    <rect x="0" y="99.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-5">
+    <rect x="0" y="123.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-6">
+    <rect x="0" y="147.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-7">
+    <rect x="0" y="172.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-8">
+    <rect x="0" y="196.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-9">
+    <rect x="0" y="221.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-10">
+    <rect x="0" y="245.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-11">
+    <rect x="0" y="269.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-12">
+    <rect x="0" y="294.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-13">
+    <rect x="0" y="318.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-14">
+    <rect x="0" y="343.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-15">
+    <rect x="0" y="367.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-16">
+    <rect x="0" y="391.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-17">
+    <rect x="0" y="416.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-18">
+    <rect x="0" y="440.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-19">
+    <rect x="0" y="465.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-20">
+    <rect x="0" y="489.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-21">
+    <rect x="0" y="513.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-22">
+    <rect x="0" y="538.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3338908009-line-23">
+    <rect x="0" y="562.7" width="1220" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1236" height="658" rx="8"/><text class="terminal-3338908009-title" fill="#c5c8c6" text-anchor="middle" x="618" y="27">TESH-Query&#160;Demo</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#terminal-3338908009-clip-terminal)">
+    
+    <g class="terminal-3338908009-matrix">
+    <text class="terminal-3338908009-r1" x="0" y="20" textLength="170.8" clip-path="url(#terminal-3338908009-line-0)">$&#160;teshq&#160;query&#160;</text><text class="terminal-3338908009-r2" x="170.8" y="20" textLength="451.4" clip-path="url(#terminal-3338908009-line-0)">&quot;Show&#160;the&#160;top&#160;5&#160;customers&#160;by&#160;revenue&quot;</text><text class="terminal-3338908009-r3" x="1220" y="20" textLength="12.2" clip-path="url(#terminal-3338908009-line-0)">
+</text><text class="terminal-3338908009-r3" x="1220" y="44.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-1)">
+</text><text class="terminal-3338908009-r4" x="0" y="68.8" textLength="451.4" clip-path="url(#terminal-3338908009-line-2)">⠋&#160;Analyzing&#160;schema&#160;and&#160;generating&#160;SQL</text><text class="terminal-3338908009-r4" x="451.4" y="68.8" textLength="36.6" clip-path="url(#terminal-3338908009-line-2)">...</text><text class="terminal-3338908009-r3" x="1220" y="68.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-2)">
+</text><text class="terminal-3338908009-r5" x="0" y="93.2" textLength="207.4" clip-path="url(#terminal-3338908009-line-3)">⠙&#160;Executing&#160;query</text><text class="terminal-3338908009-r5" x="207.4" y="93.2" textLength="36.6" clip-path="url(#terminal-3338908009-line-3)">...</text><text class="terminal-3338908009-r3" x="1220" y="93.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-3)">
+</text><text class="terminal-3338908009-r5" x="0" y="117.6" textLength="512.4" clip-path="url(#terminal-3338908009-line-4)">✔&#160;SQL&#160;generated&#160;and&#160;executed&#160;successfully!</text><text class="terminal-3338908009-r3" x="1220" y="117.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-4)">
+</text><text class="terminal-3338908009-r6" x="0" y="142" textLength="24.4" clip-path="url(#terminal-3338908009-line-5)">┌─</text><text class="terminal-3338908009-r6" x="24.4" y="142" textLength="488" clip-path="url(#terminal-3338908009-line-5)">────────────────────────────────────────</text><text class="terminal-3338908009-r6" x="524.6" y="142" textLength="158.6" clip-path="url(#terminal-3338908009-line-5)">Generated&#160;SQL</text><text class="terminal-3338908009-r6" x="695.4" y="142" textLength="500.2" clip-path="url(#terminal-3338908009-line-5)">─────────────────────────────────────────</text><text class="terminal-3338908009-r6" x="1195.6" y="142" textLength="24.4" clip-path="url(#terminal-3338908009-line-5)">─┐</text><text class="terminal-3338908009-r3" x="1220" y="142" textLength="12.2" clip-path="url(#terminal-3338908009-line-5)">
+</text><text class="terminal-3338908009-r6" x="0" y="166.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-6)">│</text><text class="terminal-3338908009-r3" x="24.4" y="166.4" textLength="878.4" clip-path="url(#terminal-3338908009-line-6)">SELECT&#160;customers.id,&#160;customers.name,&#160;SUM(orders.amount)&#160;as&#160;total_revenue</text><text class="terminal-3338908009-r6" x="1207.8" y="166.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-6)">│</text><text class="terminal-3338908009-r3" x="1220" y="166.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-6)">
+</text><text class="terminal-3338908009-r6" x="0" y="190.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-7)">│</text><text class="terminal-3338908009-r3" x="24.4" y="190.8" textLength="170.8" clip-path="url(#terminal-3338908009-line-7)">FROM&#160;customers</text><text class="terminal-3338908009-r6" x="1207.8" y="190.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-7)">│</text><text class="terminal-3338908009-r3" x="1220" y="190.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-7)">
+</text><text class="terminal-3338908009-r6" x="0" y="215.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-8)">│</text><text class="terminal-3338908009-r3" x="24.4" y="215.2" textLength="585.6" clip-path="url(#terminal-3338908009-line-8)">JOIN&#160;orders&#160;ON&#160;customers.id&#160;=&#160;orders.customer_id</text><text class="terminal-3338908009-r6" x="1207.8" y="215.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-8)">│</text><text class="terminal-3338908009-r3" x="1220" y="215.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-8)">
+</text><text class="terminal-3338908009-r6" x="0" y="239.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-9)">│</text><text class="terminal-3338908009-r3" x="24.4" y="239.6" textLength="451.4" clip-path="url(#terminal-3338908009-line-9)">GROUP&#160;BY&#160;customers.id,&#160;customers.name</text><text class="terminal-3338908009-r6" x="1207.8" y="239.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-9)">│</text><text class="terminal-3338908009-r3" x="1220" y="239.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-9)">
+</text><text class="terminal-3338908009-r6" x="0" y="264" textLength="12.2" clip-path="url(#terminal-3338908009-line-10)">│</text><text class="terminal-3338908009-r3" x="24.4" y="264" textLength="329.4" clip-path="url(#terminal-3338908009-line-10)">ORDER&#160;BY&#160;total_revenue&#160;DESC</text><text class="terminal-3338908009-r6" x="1207.8" y="264" textLength="12.2" clip-path="url(#terminal-3338908009-line-10)">│</text><text class="terminal-3338908009-r3" x="1220" y="264" textLength="12.2" clip-path="url(#terminal-3338908009-line-10)">
+</text><text class="terminal-3338908009-r6" x="0" y="288.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-11)">│</text><text class="terminal-3338908009-r3" x="24.4" y="288.4" textLength="97.6" clip-path="url(#terminal-3338908009-line-11)">LIMIT&#160;5;</text><text class="terminal-3338908009-r6" x="1207.8" y="288.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-11)">│</text><text class="terminal-3338908009-r3" x="1220" y="288.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-11)">
+</text><text class="terminal-3338908009-r6" x="0" y="312.8" textLength="1220" clip-path="url(#terminal-3338908009-line-12)">└──────────────────────────────────────────────────────────────────────────────────────────────────┘</text><text class="terminal-3338908009-r3" x="1220" y="312.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-12)">
+</text><text class="terminal-3338908009-r7" x="0" y="337.2" textLength="597.8" clip-path="url(#terminal-3338908009-line-13)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;Top&#160;5&#160;Customers&#160;by&#160;Revenue&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="1220" y="337.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-13)">
+</text><text class="terminal-3338908009-r3" x="0" y="361.6" textLength="597.8" clip-path="url(#terminal-3338908009-line-14)">┌────────┬──────────────────────┬───────────────┐</text><text class="terminal-3338908009-r3" x="1220" y="361.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-14)">
+</text><text class="terminal-3338908009-r3" x="0" y="386" textLength="12.2" clip-path="url(#terminal-3338908009-line-15)">│</text><text class="terminal-3338908009-r8" x="24.4" y="386" textLength="73.2" clip-path="url(#terminal-3338908009-line-15)">id&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="109.8" y="386" textLength="12.2" clip-path="url(#terminal-3338908009-line-15)">│</text><text class="terminal-3338908009-r8" x="134.2" y="386" textLength="244" clip-path="url(#terminal-3338908009-line-15)">name&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="390.4" y="386" textLength="12.2" clip-path="url(#terminal-3338908009-line-15)">│</text><text class="terminal-3338908009-r8" x="414.8" y="386" textLength="158.6" clip-path="url(#terminal-3338908009-line-15)">total_revenue</text><text class="terminal-3338908009-r3" x="585.6" y="386" textLength="12.2" clip-path="url(#terminal-3338908009-line-15)">│</text><text class="terminal-3338908009-r3" x="1220" y="386" textLength="12.2" clip-path="url(#terminal-3338908009-line-15)">
+</text><text class="terminal-3338908009-r3" x="0" y="410.4" textLength="597.8" clip-path="url(#terminal-3338908009-line-16)">├────────┼──────────────────────┼───────────────┤</text><text class="terminal-3338908009-r3" x="1220" y="410.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-16)">
+</text><text class="terminal-3338908009-r3" x="0" y="434.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-17)">│</text><text class="terminal-3338908009-r9" x="24.4" y="434.8" textLength="73.2" clip-path="url(#terminal-3338908009-line-17)">1042&#160;&#160;</text><text class="terminal-3338908009-r3" x="109.8" y="434.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-17)">│</text><text class="terminal-3338908009-r3" x="134.2" y="434.8" textLength="244" clip-path="url(#terminal-3338908009-line-17)">Acme&#160;Corporation&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="390.4" y="434.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-17)">│</text><text class="terminal-3338908009-r2" x="414.8" y="434.8" textLength="158.6" clip-path="url(#terminal-3338908009-line-17)">&#160;&#160;$145,200.00</text><text class="terminal-3338908009-r3" x="585.6" y="434.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-17)">│</text><text class="terminal-3338908009-r3" x="1220" y="434.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-17)">
+</text><text class="terminal-3338908009-r3" x="0" y="459.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-18)">│</text><text class="terminal-3338908009-r9" x="24.4" y="459.2" textLength="73.2" clip-path="url(#terminal-3338908009-line-18)">855&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="109.8" y="459.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-18)">│</text><text class="terminal-3338908009-r3" x="134.2" y="459.2" textLength="244" clip-path="url(#terminal-3338908009-line-18)">Globex&#160;Inc&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="390.4" y="459.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-18)">│</text><text class="terminal-3338908009-r2" x="414.8" y="459.2" textLength="158.6" clip-path="url(#terminal-3338908009-line-18)">&#160;&#160;&#160;$98,450.00</text><text class="terminal-3338908009-r3" x="585.6" y="459.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-18)">│</text><text class="terminal-3338908009-r3" x="1220" y="459.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-18)">
+</text><text class="terminal-3338908009-r3" x="0" y="483.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-19)">│</text><text class="terminal-3338908009-r9" x="24.4" y="483.6" textLength="73.2" clip-path="url(#terminal-3338908009-line-19)">2113&#160;&#160;</text><text class="terminal-3338908009-r3" x="109.8" y="483.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-19)">│</text><text class="terminal-3338908009-r3" x="134.2" y="483.6" textLength="244" clip-path="url(#terminal-3338908009-line-19)">Soylent&#160;Corp&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="390.4" y="483.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-19)">│</text><text class="terminal-3338908009-r2" x="414.8" y="483.6" textLength="158.6" clip-path="url(#terminal-3338908009-line-19)">&#160;&#160;&#160;$85,000.00</text><text class="terminal-3338908009-r3" x="585.6" y="483.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-19)">│</text><text class="terminal-3338908009-r3" x="1220" y="483.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-19)">
+</text><text class="terminal-3338908009-r3" x="0" y="508" textLength="12.2" clip-path="url(#terminal-3338908009-line-20)">│</text><text class="terminal-3338908009-r9" x="24.4" y="508" textLength="73.2" clip-path="url(#terminal-3338908009-line-20)">93&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="109.8" y="508" textLength="12.2" clip-path="url(#terminal-3338908009-line-20)">│</text><text class="terminal-3338908009-r3" x="134.2" y="508" textLength="244" clip-path="url(#terminal-3338908009-line-20)">Initech&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="390.4" y="508" textLength="12.2" clip-path="url(#terminal-3338908009-line-20)">│</text><text class="terminal-3338908009-r2" x="414.8" y="508" textLength="158.6" clip-path="url(#terminal-3338908009-line-20)">&#160;&#160;&#160;$72,100.50</text><text class="terminal-3338908009-r3" x="585.6" y="508" textLength="12.2" clip-path="url(#terminal-3338908009-line-20)">│</text><text class="terminal-3338908009-r3" x="1220" y="508" textLength="12.2" clip-path="url(#terminal-3338908009-line-20)">
+</text><text class="terminal-3338908009-r3" x="0" y="532.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-21)">│</text><text class="terminal-3338908009-r9" x="24.4" y="532.4" textLength="73.2" clip-path="url(#terminal-3338908009-line-21)">402&#160;&#160;&#160;</text><text class="terminal-3338908009-r3" x="109.8" y="532.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-21)">│</text><text class="terminal-3338908009-r3" x="134.2" y="532.4" textLength="244" clip-path="url(#terminal-3338908009-line-21)">Umbrella&#160;Corporation</text><text class="terminal-3338908009-r3" x="390.4" y="532.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-21)">│</text><text class="terminal-3338908009-r2" x="414.8" y="532.4" textLength="158.6" clip-path="url(#terminal-3338908009-line-21)">&#160;&#160;&#160;$65,990.00</text><text class="terminal-3338908009-r3" x="585.6" y="532.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-21)">│</text><text class="terminal-3338908009-r3" x="1220" y="532.4" textLength="12.2" clip-path="url(#terminal-3338908009-line-21)">
+</text><text class="terminal-3338908009-r3" x="0" y="556.8" textLength="597.8" clip-path="url(#terminal-3338908009-line-22)">└────────┴──────────────────────┴───────────────┘</text><text class="terminal-3338908009-r3" x="1220" y="556.8" textLength="12.2" clip-path="url(#terminal-3338908009-line-22)">
+</text><text class="terminal-3338908009-r3" x="1220" y="581.2" textLength="12.2" clip-path="url(#terminal-3338908009-line-23)">
+</text><text class="terminal-3338908009-r9" x="0" y="605.6" textLength="219.6" clip-path="url(#terminal-3338908009-line-24)">Query&#160;executed&#160;in&#160;</text><text class="terminal-3338908009-r10" x="219.6" y="605.6" textLength="24.4" clip-path="url(#terminal-3338908009-line-24)">0.</text><text class="terminal-3338908009-r9" x="244" y="605.6" textLength="48.8" clip-path="url(#terminal-3338908009-line-24)">84s&#160;</text><text class="terminal-3338908009-r11" x="292.8" y="605.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-24)">(</text><text class="terminal-3338908009-r9" x="305" y="605.6" textLength="158.6" clip-path="url(#terminal-3338908009-line-24)">AI&#160;planning:&#160;</text><text class="terminal-3338908009-r10" x="463.6" y="605.6" textLength="24.4" clip-path="url(#terminal-3338908009-line-24)">2.</text><text class="terminal-3338908009-r9" x="488" y="605.6" textLength="24.4" clip-path="url(#terminal-3338908009-line-24)">1s</text><text class="terminal-3338908009-r11" x="512.4" y="605.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-24)">)</text><text class="terminal-3338908009-r3" x="1220" y="605.6" textLength="12.2" clip-path="url(#terminal-3338908009-line-24)">
+</text>
+    </g>
+    </g>
+</svg>
