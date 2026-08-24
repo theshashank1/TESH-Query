@@ -69,6 +69,7 @@ def show_summary():
 
     except Exception as e:
         error(f"Failed to load analytics summary: {e}")
+        raise typer.Exit(1)
 
 
 @app.command("reset")
@@ -82,6 +83,7 @@ def reset_local_metrics():
             info("Metrics file was already empty or could not be found.")
     except Exception as e:
         error(f"Failed to reset metrics: {e}")
+        raise typer.Exit(1)
 
 
 @app.command("pricing")
@@ -112,6 +114,7 @@ def show_pricing_info():
         
     except Exception as e:
         error(f"Failed to show pricing info: {e}")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

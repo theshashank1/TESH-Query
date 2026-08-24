@@ -93,10 +93,10 @@ def handle_subscription_result(result, email: str) -> int:
         success("🎉 Subscription successful! Welcome to TESHQ.")
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
-            config = get_config()
-            config["SUBSCRIBER_EMAIL"] = email
-            config["SUBSCRIBER_ID"] = result.subscriber_id
-            save_config(config)
+            save_config({
+                "SUBSCRIBER_EMAIL": email,
+                "SUBSCRIBER_ID": result.subscriber_id,
+            })
         space()
         tip("Check your email for a confirmation message")
         return 0
@@ -104,10 +104,10 @@ def handle_subscription_result(result, email: str) -> int:
         success("🎉 Welcome back! You have been re-subscribed.")
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
-            config = get_config()
-            config["SUBSCRIBER_EMAIL"] = email
-            config["SUBSCRIBER_ID"] = result.subscriber_id
-            save_config(config)
+            save_config({
+                "SUBSCRIBER_EMAIL": email,
+                "SUBSCRIBER_ID": result.subscriber_id,
+            })
         return 0
     elif result.status == SubscriptionStatus.ALREADY_SUBSCRIBED:
         info("You are already subscribed. Thank you!")

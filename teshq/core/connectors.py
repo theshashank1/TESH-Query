@@ -130,7 +130,7 @@ class MySQLConnector(DatabaseConnector):
         return url
     
     def get_required_packages(self) -> List[str]:
-        return ["PyMySQL", "mysql-connector-python"]
+        return ["PyMySQL"]
 
 
 class SQLiteConnector(DatabaseConnector):
@@ -138,11 +138,13 @@ class SQLiteConnector(DatabaseConnector):
     
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get SQLite-specific engine arguments."""
+        from sqlalchemy.pool import NullPool
+        is_memory = ":memory:" in url
         return {
-            "poolclass": StaticPool,
+            "poolclass": StaticPool if is_memory else NullPool,
             "echo": config.get("echo", False),
             "connect_args": {
-                "check_same_thread": False,
+                "check_same_thread": False if is_memory else True,
                 "timeout": config.get("connect_timeout", 20),
             }
         }

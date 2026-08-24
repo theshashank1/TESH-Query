@@ -81,12 +81,12 @@ If the execution fails with a **transient** error (connection reset, timeout, OS
 
 ### 3. Self-Healing Regeneration
 
-If the error is **not transient** (e.g., invalid column name, syntax error), the engine re-invokes the SQL Generator (Stage 2) with the original query plan plus an `error_hint` containing the database error message:
+If the error is **not transient** (e.g., invalid column name, syntax error), the engine re-invokes the SQL Generator (Stage 2) with the original query plan plus an `error_hint` containing a safe, allowlisted error category (e.g., "missing column" or "type mismatch"):
 
 ```
-The previous SQL attempt raised the following error:
-  (sqlite3.OperationalError) no such column: foo
-Please fix the SQL to avoid this error.
+The previous SQL attempt raised the following error category:
+  Missing Column Error
+Please fix the SQL to avoid this error, relying on the provided schema.
 ```
 
 The LLM sees the error and generates corrected SQL, which is then validated, normalised, and executed.

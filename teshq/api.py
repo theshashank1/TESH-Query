@@ -99,8 +99,9 @@ class TeshQuery:
         # Resolve provider
         self._provider = (
             provider
+            or ("azure" if azure_api_key else None)
             or config.get("LLM_PROVIDER")
-            or ("azure" if azure_api_key else "google")
+            or "google"
         )
 
         # Resolve Google credentials
@@ -238,8 +239,6 @@ class TeshQuery:
     def generate_sql(
         self,
         natural_language_query: str,
-        schema: Optional[str] = None,
-        schema_file: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Any]:
         """
         Generate SQL from natural language without executing it (dry-run).
@@ -438,8 +437,10 @@ class TeshQuery:
     async def aquery(
         self,
         natural_language_query: str,
+        output_format: str = "dataframe",
         return_sql: bool = False,
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        **kwargs,
+    ) -> Any:
         """Async counterpart of :meth:`query`.
 
         Runs the full NL → SQL → execute pipeline without blocking the
@@ -447,17 +448,26 @@ class TeshQuery:
 
         Args:
             natural_language_query: Question in plain English.
-            return_sql: If True, include SQL in the returned dict.
+            output_format: "dataframe" (default), "dict", "csv", or "excel".
+            return_sql: If True, include SQL in the response.
 
         Returns:
-            List of result dicts, or a dict with sql+results when *return_sql* is True.
+            - ``pd.DataFrame`` when ``output_format="dataframe"``.
+            - ``List[Dict]`` when ``output_format="dict"``.
+            - CSV string or saved file path when ``output_format="csv"``.
+            - Saved file path when ``output_format="excel"``.
         """
         import asyncio
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None,
-            lambda: self.query(natural_language_query, return_sql=return_sql),
+            lambda: self.query(
+                natural_language_query,
+                output_format=output_format,
+                return_sql=return_sql,
+                **kwargs,
+            ),
         )
 
 

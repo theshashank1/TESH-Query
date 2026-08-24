@@ -81,21 +81,23 @@ class CLILogger:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.log_file_path = self.config.log_directory / f"{self.command_name}_{timestamp}.log"
             
-            # Set up file handler
-            self.file_handler = logging.FileHandler(self.log_file_path)
+            # Set up file handler with explicit UTF-8 encoding for emoji/box chars
+            self.file_handler = logging.FileHandler(self.log_file_path, encoding="utf-8")
             self.file_handler.setLevel(logging.DEBUG)
             
             # Set up formatter
             formatter = logging.Formatter(self.config.log_format)
             self.file_handler.setFormatter(formatter)
             
-            # Add handler to command logger
-            self.command_logger.addHandler(self.file_handler)
-            self.command_logger.setLevel(logging.DEBUG)
-            
-            # Also add to main logger to capture all logs
+            # Attach handler only to the root teshq logger so all child loggers
+            # (including command_logger) capture via propagation — prevents duplicate writes.
             main_logger = logging.getLogger("teshq")
             main_logger.addHandler(self.file_handler)
+            main_logger.setLevel(logging.DEBUG)
+            
+            # Disable propagation on command logger to avoid double-writing
+            self.command_logger.propagate = False
+            self.command_logger.setLevel(logging.DEBUG)
             
             # Log startup message
             self.log_info(f"CLI logging started for command: {self.command_name}")
@@ -110,31 +112,36 @@ class CLILogger:
     def log_info(self, message: str, **kwargs):
         """Log info message to file."""
         if self.file_handler:
-            extra_info = f" | {json.dumps(kwargs)}" if kwargs else ""
+            extra_info = f" | {json.dumps(kwargs, default=str)}" if kwargs else ""
             self.command_logger.info(f"{message}{extra_info}")
     
     def log_error(self, message: str, error: Optional[Exception] = None, **kwargs):
         """Log error message to file."""
         if self.file_handler:
             error_info = f" | Error: {error}" if error else ""
-            extra_info = f" | {json.dumps(kwargs)}" if kwargs else ""
+            extra_info = f" | {json.dumps(kwargs, default=str)}" if kwargs else ""
             self.command_logger.error(f"{message}{error_info}{extra_info}")
     
     def log_warning(self, message: str, **kwargs):
         """Log warning message to file."""
         if self.file_handler:
-            extra_info = f" | {json.dumps(kwargs)}" if kwargs else ""
+            extra_info = f" | {json.dumps(kwargs, default=str)}" if kwargs else ""
             self.command_logger.warning(f"{message}{extra_info}")
     
     def log_debug(self, message: str, **kwargs):
         """Log debug message to file."""
         if self.file_handler:
-            extra_info = f" | {json.dumps(kwargs)}" if kwargs else ""
+            extra_info = f" | {json.dumps(kwargs, default=str)}" if kwargs else ""
             self.command_logger.debug(f"{message}{extra_info}")
     
     def log_command_start(self, args: Dict[str, Any]):
         """Log command start with arguments."""
-        self.log_info("Command started", args=args)
+        import re
+        safe_args = args.copy()
+        for key, value in safe_args.items():
+            if isinstance(value, str) and any(kw in key.lower() for kw in ("url", "uri", "connection", "db")):
+                safe_args[key] = re.sub(r':([^:@/]+)@', ':***@', value)
+        self.log_info("Command started", args=safe_args)
     
     def log_command_end(self, success: bool, duration_seconds: float, **kwargs):
         """Log command completion."""

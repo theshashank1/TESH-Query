@@ -45,8 +45,10 @@ class SchemaGraph(BaseModel):
             fk_cols: Dict[str, str] = {}
             for fk in table_data.get("foreign_keys", []):
                 referred = fk["referred_table"]
-                for constrained_col in fk["constrained_columns"]:
-                    fk_cols[constrained_col] = referred
+                for i, constrained_col in enumerate(fk["constrained_columns"]):
+                    referred_cols = fk.get("referred_columns", [])
+                    referred_col = referred_cols[i] if i < len(referred_cols) else "id"
+                    fk_cols[constrained_col] = f"{referred}.{referred_col}"
 
             col_descriptors: List[str] = []
             for col in table_data.get("columns", []):
@@ -55,7 +57,7 @@ class SchemaGraph(BaseModel):
                 if name in pk_cols:
                     col_descriptors.append(f"{name} PK")
                 elif name in fk_cols:
-                    col_descriptors.append(f"{name} FK→{fk_cols[name]}.id")
+                    col_descriptors.append(f"{name} FK→{fk_cols[name]}")
                 else:
                     col_descriptors.append(f"{name} {col_type}")
 

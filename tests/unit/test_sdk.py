@@ -78,7 +78,7 @@ class TestTeshQueryAsync:
         with patch.object(client, "query", return_value=mock_result) as mock_query:
             result = await client.aquery("show all users")
 
-        mock_query.assert_called_once_with("show all users", return_sql=False)
+        mock_query.assert_called_once_with("show all users", output_format="dataframe", return_sql=False)
         assert result == mock_result
 
     @pytest.mark.asyncio

@@ -143,6 +143,7 @@ def _build_google_llm(
     try:
         return ChatGoogleGenerativeAI(
             model=resolved_model,
+            google_api_key=resolved_key,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -151,6 +152,7 @@ def _build_google_llm(
         # Newer google-genai SDK: sampling params must go in model_kwargs
         return ChatGoogleGenerativeAI(
             model=resolved_model,
+            google_api_key=resolved_key,
             temperature=temperature,
             model_kwargs={"top_p": top_p, "topK": top_k},
         )

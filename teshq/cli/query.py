@@ -277,6 +277,8 @@ def process_nl_query(
             ),
         )
         raise typer.Exit(1)
+    except typer.Exit:
+        raise
     except Exception as e:
         track_error("query", type(e).__name__)
         if logging_active:

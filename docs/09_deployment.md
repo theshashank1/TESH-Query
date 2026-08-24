@@ -97,7 +97,7 @@ FILE_STORE_PATH=/app/data/files
 ### Docker Deployment
 
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 COPY requirements.txt .
@@ -106,10 +106,8 @@ RUN pip install -r requirements.txt
 COPY . .
 RUN pip install -e .
 
-# Validate configuration on startup
-RUN teshq config validate
-
-CMD ["teshq", "query", "--help"]
+# Validate configuration at runtime when secrets are available
+CMD ["sh", "-c", "teshq config validate && teshq query --help"]
 ```
 
 ### Kubernetes Deployment

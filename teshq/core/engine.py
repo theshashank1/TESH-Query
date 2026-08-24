@@ -184,23 +184,23 @@ class TeshEngine:
         error: Optional[str] = None
         schema_str = ""
 
-        try:
-            from langchain_core.callbacks.base import BaseCallbackHandler
-            class TokenTracker(BaseCallbackHandler):
-                def __init__(self):
-                    self.prompt_tokens = 0
-                    self.completion_tokens = 0
-                def on_llm_end(self, response, **kwargs):
-                    if not response.generations: return
-                    for gen in response.generations:
-                        for chunk in gen:
-                            usage = getattr(getattr(chunk, "message", None), "usage_metadata", None)
-                            if usage:
-                                self.prompt_tokens += usage.get("input_tokens", 0)
-                                self.completion_tokens += usage.get("output_tokens", 0)
-            
-            tracker = TokenTracker()
+        from langchain_core.callbacks.base import BaseCallbackHandler
+        class TokenTracker(BaseCallbackHandler):
+            def __init__(self):
+                self.prompt_tokens = 0
+                self.completion_tokens = 0
+            def on_llm_end(self, response, **kwargs):
+                if not response.generations: return
+                for gen in response.generations:
+                    for chunk in gen:
+                        usage = getattr(getattr(chunk, "message", None), "usage_metadata", None)
+                        if usage:
+                            self.prompt_tokens += usage.get("input_tokens", 0)
+                            self.completion_tokens += usage.get("output_tokens", 0)
+        
+        tracker = TokenTracker()
 
+        try:
             graph = schema_graph or self._get_schema_graph()
 
             # Retrieve the most relevant tables via TF-IDF cosine similarity.

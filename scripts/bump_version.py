@@ -44,7 +44,10 @@ def bump(current: str, part: str) -> str:
     parts = current.split(".")
     if len(parts) != 3:
         sys.exit(f"ERROR: Expected semver (X.Y.Z), got: {current}")
-    major, minor, patch = (int(p) for p in parts)
+    try:
+        major, minor, patch = (int(p) for p in parts)
+    except ValueError:
+        sys.exit(f"ERROR: Expected semver (X.Y.Z), got: {current}")
     if part == "major":
         return f"{major + 1}.0.0"
     elif part == "minor":

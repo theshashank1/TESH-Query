@@ -318,8 +318,16 @@ def config(
                 }
                 action_taken = True
         elif llm_provider_opt:
+            valid_provider = llm_provider_opt.lower()
+            if valid_provider not in ("google", "azure"):
+                handle_error(
+                    ValueError(f"Invalid LLM provider: {llm_provider_opt}"),
+                    "Configuration",
+                    suggest_action="Use 'google' or 'azure'"
+                )
+                raise typer.Exit(1)
             # Just set the provider without full Azure config
-            azure_config_to_save = {"LLM_PROVIDER": llm_provider_opt}
+            azure_config_to_save = {"LLM_PROVIDER": valid_provider}
             action_taken = True
 
         # File Path Configuration
@@ -347,7 +355,8 @@ def config(
 
                 # Gemini
                 if force_configure_gemini or gemini_options_provided:
-                    config_to_save["GEMINI_API_KEY"] = actual_gemini_api_key_to_save
+                    if actual_gemini_api_key_to_save is not None:
+                        config_to_save["GEMINI_API_KEY"] = actual_gemini_api_key_to_save
                     config_to_save["GEMINI_MODEL"] = actual_gemini_model_to_save
 
                 # Azure OpenAI

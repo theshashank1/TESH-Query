@@ -174,7 +174,10 @@ class ConnectionManager:
                     try:
                         connection.execute(text(f"SET statement_timeout = {self.config.query_timeout * 1000}"))
                     except SQLAlchemyError:
-                        pass  # Some dialects might not support this
+                        try:
+                            connection.rollback()
+                        except Exception:
+                            pass
                 yield connection
         except Exception as e:
             logger.error("Database connection error", error=e, engine_name=engine_name)
@@ -184,39 +187,63 @@ class ConnectionManager:
                 connection.close()
                 logger.debug("Database connection closed", engine_name=engine_name)
 
-    @retry_database_operation("execute_query")
+    def _is_read_only(self, query: str) -> bool:
+        if not query or not query.strip():
+            return True
+            
+        import re
+        # Strip string literals to avoid false positives (e.g., SELECT 'update')
+        stripped_query = re.sub(r"'(?:''|[^'])*'", "''", query).upper()
+        
+        mutating_keywords = {
+            "INSERT", "UPDATE", "DELETE", "DROP", 
+            "ALTER", "CREATE", "TRUNCATE", "REPLACE", "MERGE"
+        }
+        
+        for kw in mutating_keywords:
+            if re.search(rf"\b{kw}\b", stripped_query):
+                return False
+                
+        return True
+
     def execute_query_with_timeout(
         self, database_url: str, query: str, parameters: Optional[Dict[str, Any]] = None, engine_name: str = "default"
     ):
         """Execute a query with timeout and retry logic."""
-        start_time = time.time()
-        with self.get_connection(database_url, engine_name) as conn:
-            try:
-                result = conn.execute(text(query), parameters or {})
-                rows = result.fetchall()
-                columns = result.keys() if hasattr(result, "keys") else []
-                execution_time = time.time() - start_time
+        def _execute():
+            start_time = time.time()
+            with self.get_connection(database_url, engine_name) as conn:
+                try:
+                    result = conn.execute(text(query), parameters or {})
+                    rows = result.fetchall() if result.returns_rows else []
+                    columns = result.keys() if hasattr(result, "keys") else []
+                    execution_time = time.time() - start_time
 
-                tags = {"engine": engine_name, "status": "success"}
-                metrics.add_point("db_query_execution_time", execution_time, tags)
-                metrics.add_point("db_query_row_count", len(rows), tags)
-                metrics.increment_counter("db_queries_total", tags=tags)
+                    tags = {"engine": engine_name, "status": "success"}
+                    metrics.add_point("db_query_execution_time", execution_time, tags)
+                    metrics.add_point("db_query_row_count", len(rows), tags)
+                    metrics.increment_counter("db_queries_total", tags=tags)
 
-                logger.info(
-                    "Query executed successfully",
-                    execution_time_seconds=execution_time,
-                    row_count=len(rows),
-                    engine_name=engine_name,
-                )
-                return [dict(zip(columns, row)) for row in rows]
-            except Exception as e:
-                execution_time = time.time() - start_time
-                tags = {"engine": engine_name, "status": "error"}
-                metrics.increment_counter("db_queries_total", tags=tags)
-                logger.error(
-                    "Query execution failed", error=e, execution_time_seconds=execution_time, engine_name=engine_name
-                )
-                raise
+                    logger.info(
+                        "Query executed successfully",
+                        execution_time_seconds=execution_time,
+                        row_count=len(rows),
+                        engine_name=engine_name,
+                    )
+                    return [dict(zip(columns, row)) for row in rows]
+                except Exception as e:
+                    execution_time = time.time() - start_time
+                    tags = {"engine": engine_name, "status": "error"}
+                    metrics.increment_counter("db_queries_total", tags=tags)
+                    logger.error(
+                        "Query execution failed", error=e, execution_time_seconds=execution_time, engine_name=engine_name
+                    )
+                    raise
+
+        if self._is_read_only(query):
+            decorated = retry_database_operation("execute_query")(_execute)
+            return decorated()
+        return _execute()
 
     def test_connection(self, database_url: str, engine_name: str = "default") -> bool:
         """Test database connectivity using the unified connector system."""
@@ -270,12 +297,13 @@ class ConnectionManager:
 
     def close_all_connections(self):
         """Close all database connections and engines."""
-        for engine_name, engine in self._engines.items():
+        for cache_key, engine in self._engines.items():
+            safe_name = cache_key.split(":")[0] if ":" in cache_key else cache_key
             try:
                 engine.dispose()
-                logger.info("Database engine disposed", engine_name=engine_name)
+                logger.info("Database engine disposed", engine_name=safe_name)
             except Exception as e:
-                logger.error("Error disposing database engine", error=e, engine_name=engine_name)
+                logger.error("Error disposing database engine", error=e, engine_name=safe_name)
         self._engines.clear()
 
 
