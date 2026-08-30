@@ -11,7 +11,7 @@ from teshq.core.models import QueryResult
 
 # Mock the LLM factory builds to avoid actual API calls during CI/CD
 class MockPlanner:
-    def plan(self, nl_query, schema_str):
+    def plan(self, nl_query, schema_str, callbacks=None, **kwargs):
         from teshq.core.models import QueryPlan
         return QueryPlan(
             tables=["users"],
@@ -21,7 +21,7 @@ class MockPlanner:
         )
 
 class MockSQLGen:
-    def generate(self, nl_query, schema_str, plan):
+    def generate(self, nl_query, schema_str, plan, error_hint=None, callbacks=None, **kwargs):
         from teshq.core.models import SQLQuery
         return SQLQuery(
             query="SELECT COUNT(*) as count FROM users",

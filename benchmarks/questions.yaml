@@ -1,0 +1,34 @@
+- id: 1
+  question: "Show all regions."
+  reference_sql: "SELECT region_id, region_name FROM regions;"
+  order_matters: false
+
+- id: 2
+  question: "Show the top 5 products by price (mrp)."
+  reference_sql: "SELECT product_name, mrp FROM products ORDER BY mrp DESC LIMIT 5;"
+  order_matters: true
+
+- id: 3
+  question: "How many total customers do we have?"
+  reference_sql: "SELECT COUNT(*) FROM customers;"
+  order_matters: false
+
+- id: 4
+  question: "List the customer names in region 1."
+  reference_sql: "SELECT customer_name FROM customers WHERE region_id = 1;"
+  order_matters: false
+
+- id: 5
+  question: "Show the number of products in each brand. List brand and count."
+  reference_sql: "SELECT brand, COUNT(product_id) FROM products GROUP BY brand;"
+  order_matters: false
+
+- id: 6
+  question: "List the category names and their corresponding product names."
+  reference_sql: "SELECT c.category_name, p.product_name FROM categories c JOIN products p ON c.category_id = p.category_id;"
+  order_matters: false
+
+- id: 7
+  question: "Find the total quantity sold for each product. Show product name and total quantity."
+  reference_sql: "SELECT p.product_name, SUM(o.quantity) FROM products p JOIN order_items o ON p.product_id = o.product_id GROUP BY p.product_name;"
+  order_matters: false
