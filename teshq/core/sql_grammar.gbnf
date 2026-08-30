@@ -1,0 +1,75 @@
+# Multi-Dialect GBNF SQL Grammar for constrained local text-to-SQL generation.
+# Supports ANSI SQL, PostgreSQL, MySQL/MariaDB, SQL Server (T-SQL), SQLite, and Oracle.
+
+root ::= select-stmt
+
+select-stmt ::= select-clause (ws from-clause)? (ws where-clause)? (ws group-clause)? (ws having-clause)? (ws order-clause)? (ws limit-clause)? (ws offset-clause)? (ws fetch-clause)? ws-opt ";"? ws-opt
+
+# SELECT Clause (with DISTINCT and T-SQL TOP n support)
+select-clause ::= "SELECT" ws-req ( "DISTINCT" ws-req )? ( top-clause )? select-list
+top-clause    ::= "TOP" ws-req ( integer | "(" ws-opt integer ws-opt ")" ) ws-req ( "PERCENT" ws-req )? ( "WITH" ws-req "TIES" ws-req )?
+select-list   ::= select-item (ws-opt "," ws-opt select-item)*
+select-item   ::= (expression (ws-req alias)? | "*" | identifier ".*")
+
+# FROM & JOIN Clauses
+from-clause   ::= "FROM" ws-req table-ref (ws-opt "," ws-opt table-ref | ws-req join-clause)*
+table-ref     ::= (identifier | paren-select) (ws-req alias)?
+paren-select  ::= "(" ws-opt select-stmt ws-opt ")"
+
+join-clause   ::= ( ("INNER" | "LEFT" ( ws-req "OUTER" )? | "RIGHT" ( ws-req "OUTER" )? | "FULL" ( ws-req "OUTER" )? | "CROSS") ws-req )? "JOIN" ws-req table-ref (ws-req "ON" ws-req expression)?
+
+where-clause  ::= "WHERE" ws-req expression
+group-clause  ::= "GROUP BY" ws-req expression-list
+having-clause ::= "HAVING" ws-req expression
+order-clause  ::= "ORDER BY" ws-req order-item (ws-opt "," ws-opt order-item)*
+order-item    ::= expression (ws-req ( "ASC" | "DESC" ))? (ws-req "NULLS" ws-req ( "FIRST" | "LAST" ))?
+
+# Pagination: Standard LIMIT, T-SQL / ANSI OFFSET, and Oracle/ANSI FETCH FIRST/NEXT
+limit-clause  ::= "LIMIT" ws-req integer (ws-req "OFFSET" ws-req integer)?
+offset-clause ::= "OFFSET" ws-req integer (ws-req ( "ROW" | "ROWS" ))?
+fetch-clause  ::= "FETCH" ws-req ( "FIRST" | "NEXT" ) ws-req integer ws-req ( "ROW" | "ROWS" ) ( ws-req "ONLY" )?
+
+expression-list ::= expression (ws-opt "," ws-opt expression)*
+expression      ::= or-expression
+or-expression   ::= and-expression (ws-req "OR" ws-req and-expression)*
+and-expression  ::= not-expression (ws-req "AND" ws-req not-expression)*
+not-expression  ::= ("NOT" ws-req)? comparison
+
+comparison      ::= add-sub-expr (ws-opt comparison-op ws-opt (add-sub-expr | in-list) | ws-req between-clause | ws-req is-null-clause)?
+between-clause  ::= ("BETWEEN" | "NOT" ws-req "BETWEEN") ws-req add-sub-expr ws-req "AND" ws-req add-sub-expr
+is-null-clause  ::= "IS" (ws-req "NOT")? ws-req ("NULL" | "null")
+in-list         ::= "(" ws-opt (expression-list | select-stmt) ws-opt ")"
+
+comparison-op   ::= "=" | "!=" | "<>" | ">=" | "<=" | ">" | "<" | "LIKE" | "NOT LIKE" | "ILIKE" | "NOT ILIKE" | "IN" | "NOT IN"
+
+add-sub-expr    ::= mul-div-expr (ws-opt ("+" | "-" | "||") ws-opt mul-div-expr)*
+mul-div-expr    ::= unary-expr (ws-opt ("*" | "/" | "%") ws-opt unary-expr)*
+unary-expr      ::= (("+" | "-") ws-opt)? term
+
+term            ::= (cast-expression | function-call | case-expression | paren-expression | parameter | number | string-literal | boolean-literal | null-literal | identifier)
+
+cast-expression ::= "CAST" ws-opt "(" ws-opt expression ws-req "AS" ws-req identifier ( "(" ws-opt integer (ws-opt "," ws-opt integer)? ws-opt ")" )? ws-opt ")"
+case-expression ::= "CASE" (ws-req expression)? (ws-req "WHEN" ws-req expression ws-req "THEN" ws-req expression)+ (ws-req "ELSE" ws-req expression)? ws-req "END"
+
+paren-expression ::= "(" ws-opt (expression-list | select-stmt) ws-opt ")"
+parameter        ::= ( ":" | "@" ) identifier
+boolean-literal  ::= "TRUE" | "FALSE" | "true" | "false"
+null-literal     ::= "NULL" | "null"
+
+function-call    ::= identifier "(" ws-opt (expression-list | "*" | ( "DISTINCT" ws-req )? identifier)? ws-opt ")"
+alias            ::= ( "AS" ws-req )? ( identifier | string-literal )
+
+# Multi-dialect Identifiers:
+# - Standard: column_name
+# - PostgreSQL / Oracle / SQLite: "column_name"
+# - MySQL / MariaDB: `column_name`
+# - SQL Server (T-SQL): [column_name]
+raw-identifier ::= [a-zA-Z_][a-zA-Z0-9_]* | "\"" [a-zA-Z0-9_ -]+ "\"" | "`" [a-zA-Z0-9_ -]+ "`" | "[" [a-zA-Z0-9_ -]+ "]"
+identifier     ::= raw-identifier ( "." raw-identifier )*
+
+ws             ::= [ \t\n\r]+
+ws-opt         ::= [ \t\n\r]*
+ws-req         ::= [ \t\n\r]+
+integer        ::= [0-9]+
+number         ::= [0-9]+ ("." [0-9]+)?
+string-literal ::= "'" [^'\r\n]* "'"

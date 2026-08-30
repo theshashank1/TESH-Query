@@ -122,6 +122,40 @@ class SchemaGraph(BaseModel):
 
         return "\n".join(lines)
 
+    def compressed_schema_within_budget(self, table_names: List[str], max_tokens: int) -> str:
+        """
+        Generate compressed schema, dropping less critical columns if it exceeds token budget.
+        """
+        schema_str = self.compressed_schema(table_names)
+        if len(schema_str) // 4 <= max_tokens:
+            return schema_str
+            
+        # Over budget! Try a more aggressive compression: only keep PK and FK columns plus essential fields
+        lines: List[str] = []
+        for table_name in table_names:
+            if table_name in self.tables:
+                filtered_cols = []
+                for col_desc in self.tables[table_name]:
+                    # Keep PK, FK, or essential columns
+                    if "PK" in col_desc or "FK→" in col_desc or any(x in col_desc.lower() for x in ["name", "status", "date", "created", "type", "amount", "total"]):
+                        filtered_cols.append(col_desc)
+                if not filtered_cols:
+                    # Fallback to keep at least first column
+                    filtered_cols = [self.tables[table_name][0]]
+                cols_str = ", ".join(filtered_cols)
+                lines.append(f"TABLE {table_name}({cols_str})")
+                
+        relevant_joins = [
+            j for j in self.joins if j.left_table in table_names and j.right_table in table_names
+        ]
+        if relevant_joins:
+            lines.append("")
+            lines.append("JOINS:")
+            for edge in relevant_joins:
+                lines.append(f"{edge.left_table}.{edge.left_column} → {edge.right_table}.{edge.right_column}")
+                
+        return "\n".join(lines)
+
     def neighbors(self, table_name: str) -> List[str]:
         """Return all tables directly FK-connected to the given table."""
         result: List[str] = []

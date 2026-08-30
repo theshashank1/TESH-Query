@@ -78,11 +78,20 @@ class SchemaRetriever:
     # Retrieval
     # ------------------------------------------------------------------
 
+    def _estimate_table_tokens(self, table_name: str) -> int:
+        """Estimate the token count for a table in the compressed representation."""
+        if table_name not in self._graph.tables:
+            return 0
+        cols_str = ", ".join(self._graph.tables[table_name])
+        repr_str = f"TABLE {table_name}({cols_str})\n"
+        return max(1, len(repr_str) // 4)
+
     def retrieve(
         self,
         nl_query: str,
         top_k: int = 10,
         expand_neighbors: bool = True,
+        budget_tokens: Optional[int] = None,
     ) -> List[str]:
         """Return the *top_k* most relevant table names for *nl_query*.
 
@@ -92,6 +101,7 @@ class SchemaRetriever:
             expand_neighbors: If ``True``, also include FK-connected
                 neighbours of matched tables (does not count towards
                 *top_k* cap).
+            budget_tokens: Optional maximum estimated token count for the retrieved schema.
 
         Returns:
             Ordered list of table names (most relevant first).
@@ -99,29 +109,50 @@ class SchemaRetriever:
         query_tokens = _tokenize(nl_query)
         if not query_tokens:
             logger.debug("No meaningful tokens in query — falling back to most connected tables")
-            return self._graph.most_connected_tables(limit=top_k)
+            candidates = self._graph.most_connected_tables(limit=top_k)
+        else:
+            scores: Dict[str, float] = {}
+            for table_name, tf in self._tf.items():
+                score = self._cosine_score(query_tokens, tf)
+                if score > 0:
+                    scores[table_name] = score
 
-        scores: Dict[str, float] = {}
-        for table_name, tf in self._tf.items():
-            score = self._cosine_score(query_tokens, tf)
-            if score > 0:
-                scores[table_name] = score
-
-        if not scores:
-            logger.debug("No tables matched query — falling back to most connected tables")
-            return self._graph.most_connected_tables(limit=top_k)
-
-        ranked = sorted(scores, key=lambda t: scores[t], reverse=True)[:top_k]
+            if not scores:
+                logger.debug("No tables matched query — falling back to most connected tables")
+                candidates = self._graph.most_connected_tables(limit=top_k)
+            else:
+                candidates = sorted(scores, key=lambda t: scores[t], reverse=True)[:top_k]
 
         if expand_neighbors:
-            expanded: List[str] = list(ranked)
-            for table in ranked:
+            expanded: List[str] = list(candidates)
+            for table in candidates:
                 for neighbor in self._graph.neighbors(table):
                     if neighbor not in expanded:
                         expanded.append(neighbor)
-            return expanded
+            candidates = expanded
 
-        return ranked
+        if budget_tokens is None:
+            return candidates
+
+        # Prune candidates to fit within budget_tokens
+        selected_tables: List[str] = []
+        current_tokens = 0
+        for table in candidates:
+            table_tokens = self._estimate_table_tokens(table)
+            # Add some overhead for joins (e.g. 5 tokens per table)
+            table_tokens += 5
+            
+            if current_tokens + table_tokens <= budget_tokens:
+                selected_tables.append(table)
+                current_tokens += table_tokens
+            elif not selected_tables:
+                # Force-include at least the first (most relevant) table
+                selected_tables.append(table)
+                current_tokens += table_tokens
+                logger.warning(f"Forcing first table {table} despite exceeding token budget ({current_tokens} > {budget_tokens})")
+        
+        logger.info(f"Retrieved {len(selected_tables)}/{len(candidates)} tables within budget of {budget_tokens} tokens (est: {current_tokens})")
+        return selected_tables
 
     # ------------------------------------------------------------------
     # Scoring helpers

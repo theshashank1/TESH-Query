@@ -6,6 +6,7 @@ validation, normalization, execution, and telemetry.
 """
 
 import time
+import atexit
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -35,6 +36,8 @@ from teshq.config.loader import get_database_url, get_llm_config
 from teshq.utils.logging import logger
 from teshq.core.retry import RetryConfig, calculate_delay, is_retryable
 from teshq.core.validation import ValidationError
+from teshq.core.inference import InferenceRuntime, InferenceConfig
+from teshq.core.llm_client import LLMClient
 
 
 @dataclass
@@ -61,15 +64,15 @@ class TeshEngine:
     """
     Deterministic AI SQL Compiler.
 
-    Supports Google Gemini and Azure OpenAI via the LLM factory.
+    Supports Google Gemini, Azure OpenAI, and local in-process GGUF models.
     Provider is determined by the current application configuration
     (``LLM_PROVIDER`` env var or ``~/.teshq/config.yaml``).
 
     Flow:
       query()
         → load SchemaGraph (introspect or cached)
-        → prune schema
-        → generate QueryPlan (stage 1)
+        → prune schema (budget-aware for local mode)
+        → generate QueryPlan (stage 1 - bypassed for local mode)
         → generate SQLQuery (stage 2)
         → validate SQL
         → normalize SQL
@@ -94,20 +97,36 @@ class TeshEngine:
 
         self._db_url = db_url or get_database_url()
         self._provider = provider or cfg["provider"]
-        self._api_key = api_key or cfg["api_key"]
-        self._model_name = model_name or cfg["model_name"]
+        self._api_key = api_key or cfg.get("api_key")
+        self._model_name = model_name or cfg.get("model_name")
         self._azure_endpoint = azure_endpoint or cfg.get("azure_endpoint")
         self._azure_deployment = azure_deployment or cfg.get("azure_deployment")
         self._azure_api_version = azure_api_version or cfg.get("azure_api_version")
 
+        # Local backend parameters
+        self._local_model_path = cfg.get("model_path")
+        self._local_n_gpu_layers = cfg.get("n_gpu_layers", -1)
+        self._local_n_ctx = cfg.get("n_ctx", 4096)
+        self._local_n_threads = cfg.get("n_threads", 0)
+
         self._planner: Optional[QueryPlanner] = None
         self._sql_gen: Optional[SQLGenerator] = None
+        self._local_runtime: Optional[InferenceRuntime] = None
+        self._llm_client: Optional[LLMClient] = None
         self._schema_graph: Optional[SchemaGraph] = None
 
         # Stored during query() so _execute_with_retry can access them
         self._last_nl_query: Optional[str] = None
         self._last_schema_str: Optional[str] = None
         self._last_plan = None
+
+        # Clean up local runtime on exit
+        atexit.register(self._cleanup_local_runtime)
+
+    def _cleanup_local_runtime(self) -> None:
+        """Unload local runtime on process shutdown."""
+        if self._local_runtime:
+            self._local_runtime.unload()
 
     # ------------------------------------------------------------------
     # Lazy initialisation helpers
@@ -142,6 +161,24 @@ class TeshEngine:
                 **self._llm_kwargs(),
             )
         return self._sql_gen
+
+    def _get_llm_client(self) -> LLMClient:
+        """Return the unified LLM client interface."""
+        if self._llm_client is None:
+            from teshq.core.llm_client import CloudLLMClient, LocalLLMClient
+            if self._provider == "local":
+                if self._local_runtime is None:
+                    self._local_runtime = InferenceRuntime()
+                config = InferenceConfig(
+                    model_path=self._local_model_path,
+                    n_ctx=self._local_n_ctx,
+                    n_gpu_layers=self._local_n_gpu_layers,
+                    n_threads=self._local_n_threads,
+                )
+                self._llm_client = LocalLLMClient(self._local_runtime, config, db_url=self._db_url)
+            else:
+                self._llm_client = CloudLLMClient(self._get_planner(), self._get_sql_gen())
+        return self._llm_client
 
     def _get_schema_graph(self) -> SchemaGraph:
         """Load and cache the SchemaGraph from the live database."""
@@ -206,24 +243,34 @@ class TeshEngine:
             # Retrieve the most relevant tables via TF-IDF cosine similarity.
             # SchemaRetriever handles synonyms/plurals far better than keyword substring match.
             retriever = SchemaRetriever(graph)
-            relevant_tables = retriever.retrieve(nl_query, top_k=10)
-            schema_str = graph.compressed_schema(relevant_tables)
-
-            # Proportionally reduce if still over token threshold
-            if exceeds_threshold(schema_str, DEFAULT_TOKEN_THRESHOLD) and len(relevant_tables) > 1:
-                # Keep 60% of tables (at least 1) rather than hard-capping at 3
-                keep = max(1, int(len(relevant_tables) * 0.6))
-                relevant_tables = relevant_tables[:keep]
+            
+            # Prune tables and format schema string based on active provider
+            if self._provider == "local":
+                # Strict budget for local mode (1500 tokens max) to fit smaller context windows
+                budget_tokens = 1500
+                relevant_tables = retriever.retrieve(nl_query, top_k=10, budget_tokens=budget_tokens)
+                schema_str = graph.compressed_schema_within_budget(relevant_tables, budget_tokens)
+            else:
+                relevant_tables = retriever.retrieve(nl_query, top_k=10)
                 schema_str = graph.compressed_schema(relevant_tables)
+
+                # Proportionally reduce if still over token threshold (cloud only)
+                if exceeds_threshold(schema_str, DEFAULT_TOKEN_THRESHOLD) and len(relevant_tables) > 1:
+                    # Keep 60% of tables (at least 1) rather than hard-capping at 3
+                    keep = max(1, int(len(relevant_tables) * 0.6))
+                    relevant_tables = relevant_tables[:keep]
+                    schema_str = graph.compressed_schema(relevant_tables)
+
+            client = self._get_llm_client()
 
             # — Stage 1: Query Planning —
             t0 = time.time()
-            plan = self._get_planner().plan(nl_query, schema_str, callbacks=[tracker])
+            plan = client.generate_plan(nl_query, schema_str, callbacks=[tracker])
             plan_ms = int((time.time() - t0) * 1000)
 
             # — Stage 2: SQL Generation —
             t0 = time.time()
-            sql_result: SQLQuery = self._get_sql_gen().generate(nl_query, schema_str, plan, callbacks=[tracker])
+            sql_result: SQLQuery = client.generate_sql(nl_query, schema_str, plan, callbacks=[tracker])
             sql_ms = int((time.time() - t0) * 1000)
 
             sql_text = sql_result.query
@@ -268,15 +315,23 @@ class TeshEngine:
             raise
 
         finally:
+            prompt_tokens = tracker.prompt_tokens
+            completion_tokens = tracker.completion_tokens
+            if self._provider == "local" and self._llm_client:
+                local_tokens = self._llm_client.get_token_tracker()
+                if not prompt_tokens and local_tokens.get("prompt_tokens"):
+                    prompt_tokens = local_tokens["prompt_tokens"]
+                    completion_tokens = local_tokens["completion_tokens"]
+
             track_query_event(
                 plan_ms=plan_ms,
                 sql_ms=sql_ms,
                 exec_ms=exec_ms,
                 success=success,
                 error_type=error_type if not success else None,
-                prompt_tokens=tracker.prompt_tokens,
-                completion_tokens=tracker.completion_tokens,
-                model=self._model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                model=self._model_name or "local-gguf",
                 provider=self._provider,
             )
 
@@ -293,6 +348,8 @@ class TeshEngine:
             schema_preview=schema_str,
             success=success,
             error=error,
+            total_tokens=prompt_tokens + completion_tokens,
+            cost_estimate_usd=(prompt_tokens / 1000 * 0.000075) + (completion_tokens / 1000 * 0.0003) if self._provider == "google" else 0.0,
         )
 
     def _execute_with_retry(self, sql: str, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -348,32 +405,65 @@ class TeshEngine:
             logger.error("Cannot self-heal: missing query context — re-raising original error")
             raise first_error
 
-        try:
-            healed_sql_result = self._generate_with_rate_limit_backoff(
-                self._last_nl_query,
-                self._last_schema_str,
-                self._last_plan,
-                error_hint=str(first_error),
-            )
-            healed_sql = healed_sql_result.query
-            healed_params = healed_sql_result.parameters or parameters
+        # Iterative self-healing: allow multiple rounds so the model can converge.
+        # Small local models may fix one mistake but introduce another, needing 2-3 rounds.
+        # We accumulate ALL previous errors so the model can see the pattern
+        # (e.g., "line_total is on order_items, order_date is on orders → need 3-table join").
+        max_heal_rounds = 3
+        error_history: List[str] = [str(first_error)]
 
-            validate_sql(healed_sql)
-            healed_sql = normalize_sql(healed_sql)
+        for heal_round in range(1, max_heal_rounds + 1):
+            try:
+                logger.warning(
+                    f"Self-healing round {heal_round}/{max_heal_rounds}",
+                    error=error_history[-1],
+                )
 
-            logger.info("Self-healing generated new SQL — retrying execution", sql=healed_sql[:200])
-            return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params)
+                # Build cumulative error hint so the model sees ALL past mistakes
+                if len(error_history) == 1:
+                    combined_hint = error_history[0]
+                else:
+                    parts = []
+                    for i, err in enumerate(error_history, 1):
+                        parts.append(f"Attempt {i} error: {err}")
+                    combined_hint = (
+                        "\n".join(parts)
+                        + "\nYou keep making different errors. Study the schema carefully — "
+                        "you may need to JOIN multiple tables to access all required columns."
+                    )
 
-        except Exception as retry_error:
-            logger.error(
-                "Self-healing retry also failed",
-                original_error=str(first_error),
-                retry_error=str(retry_error),
-            )
-            raise SelfHealingExhaustedError(
-                message="Self-healing retry exhausted",
-                detail=str(retry_error),
-            ) from first_error
+                client = self._get_llm_client()
+                healed_sql_result = self._generate_with_rate_limit_backoff(
+                    client,
+                    self._last_nl_query,
+                    self._last_schema_str,
+                    self._last_plan,
+                    error_hint=combined_hint,
+                )
+                healed_sql = healed_sql_result.query
+                healed_params = healed_sql_result.parameters or parameters
+
+                validate_sql(healed_sql)
+                healed_sql = normalize_sql(healed_sql)
+
+                logger.info(
+                    f"Self-healing round {heal_round} generated new SQL — retrying execution",
+                    sql=healed_sql[:200],
+                )
+                return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params)
+
+            except Exception as retry_error:
+                logger.error(
+                    f"Self-healing round {heal_round} failed",
+                    original_error=str(first_error),
+                    retry_error=str(retry_error),
+                )
+                error_history.append(str(retry_error))
+
+        raise SelfHealingExhaustedError(
+            message="Self-healing retry exhausted",
+            detail=str(error_history[-1]),
+        ) from first_error
 
     # ------------------------------------------------------------------
     # LLM rate-limit-aware generation
@@ -381,18 +471,19 @@ class TeshEngine:
 
     def _generate_with_rate_limit_backoff(
         self,
+        client: LLMClient,
         nl_query: str,
         schema_str: str,
         plan: QueryPlan,
         error_hint: Optional[str] = None,
     ) -> SQLQuery:
-        """Call SQLGenerator.generate with exponential backoff on 429 errors."""
+        """Call client.generate_sql with exponential backoff on 429 errors."""
         max_attempts = 3
         base_delay = 2.0
 
         for attempt in range(1, max_attempts + 1):
             try:
-                return self._get_sql_gen().generate(nl_query, schema_str, plan, error_hint=error_hint)
+                return client.generate_sql(nl_query, schema_str, plan, error_hint=error_hint)
             except Exception as exc:
                 typed = classify_llm_error(exc)
                 if isinstance(typed, LLMRateLimitError) and attempt < max_attempts:
@@ -413,8 +504,12 @@ class TeshEngine:
         """
         graph = schema_graph or self._get_schema_graph()
         retriever = SchemaRetriever(graph)
-        relevant_tables = retriever.retrieve(nl_query, top_k=10)
-        return graph.compressed_schema(relevant_tables)
+        if self._provider == "local":
+            relevant_tables = retriever.retrieve(nl_query, top_k=10, budget_tokens=1500)
+            return graph.compressed_schema_within_budget(relevant_tables, 1500)
+        else:
+            relevant_tables = retriever.retrieve(nl_query, top_k=10)
+            return graph.compressed_schema(relevant_tables)
 
     # ------------------------------------------------------------------
     # Async API
@@ -438,4 +533,3 @@ class TeshEngine:
         return await loop.run_in_executor(
             None, lambda: self.query(nl_query, dry_run=dry_run, schema_graph=schema_graph)
         )
-
