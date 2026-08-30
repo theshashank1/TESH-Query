@@ -110,6 +110,11 @@ def tip(message: str) -> None:
     console.print(f"[dim cyan]ℹ {message}[/dim cyan]")
 
 
+def success(message: str) -> None:
+    """Print a success message to stdout in green."""
+    console.print(f"[bold green]✓[/bold green] {message}")
+
+
 # ---------------------------------------------------------------------------
 # Structured exception display
 # ---------------------------------------------------------------------------

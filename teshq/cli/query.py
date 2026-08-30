@@ -77,6 +77,16 @@ def process_nl_query(
         "--schema-preview",
         help="Print the compressed schema that will be sent to the LLM, then exit.",
     ),
+    local: bool = typer.Option(
+        False,
+        "--local",
+        help="Force local GGUF model inference.",
+    ),
+    cloud: bool = typer.Option(
+        False,
+        "--cloud",
+        help="Force cloud model inference.",
+    ),
     verbose: bool = typer.Option(None, "--verbose", help="Write detailed logs to ~/.teshq/logs/."),
 ):
     """
@@ -93,18 +103,34 @@ def process_nl_query(
     cli_logger = CLILogger("query")
     logging_active = cli_logger.setup_file_logging(verbose)
 
+    # Validate mutually exclusive options
+    if local and cloud:
+        error("Cannot use both --local and --cloud simultaneously.")
+        raise typer.Exit(1)
+
     # Track command invocation (privacy-safe: no query text)
     track_command(
         "query",
         save_csv=bool(save_csv),
         save_excel=bool(save_excel),
         save_sqlite=bool(save_sqlite),
+        local=local,
+        cloud=cloud,
     )
+
+    # Resolve provider override
+    provider_override = None
+    if local:
+        provider_override = "local"
+    elif cloud:
+        from teshq.config.loader import get_settings
+        s = get_settings()
+        provider_override = "azure" if s.azure_openai_api_key and s.llm_provider.lower() == "azure" else "google"
 
     # --schema-preview: print compressed schema and exit (no LLM needed)
     if schema_preview:
         try:
-            engine = TeshEngine()
+            engine = TeshEngine(provider=provider_override)
             preview = engine.get_schema_preview(natural_language_request)
             info("📋 Compressed schema sent to LLM:")
             from rich.console import Console
@@ -125,6 +151,8 @@ def process_nl_query(
                 "save_csv": save_csv,
                 "save_excel": save_excel,
                 "save_sqlite": save_sqlite,
+                "local": local,
+                "cloud": cloud,
                 "verbose": verbose
             })
         
@@ -166,7 +194,7 @@ def process_nl_query(
 
         with status("Initializing Engine", "Engine ready"):
                 db_url_val = get_db_url()
-                engine = TeshEngine(db_url=db_url_val)
+                engine = TeshEngine(db_url=db_url_val, provider=provider_override)
 
         if dry_run:
             info("🧠 Generating SQL in dry-run mode (no execution)...")

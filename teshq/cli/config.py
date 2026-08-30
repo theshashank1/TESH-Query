@@ -169,6 +169,54 @@ def configure_azure_interactive() -> dict:
     }
 
 
+def configure_local_interactive() -> dict:
+    """
+    Interactively configure local GGUF LLM settings.
+    """
+    info("Setting up local GGUF LLM configuration...")
+    space()
+
+    from teshq.core.hardware import detect_hardware
+    hw = detect_hardware()
+
+    tip(f"Recommended model size: Sub-4B parameters. Suggested quant: {hw.recommended_quant}.")
+
+    default_model_dir = os.path.expanduser("~/.teshq/models")
+    default_model_path = ""
+    if os.path.exists(default_model_dir):
+        files = [f for f in os.listdir(default_model_dir) if f.endswith(".gguf")]
+        if files:
+            default_model_path = os.path.join(default_model_dir, files[0])
+
+    model_path = prompt("Local GGUF model path", default=default_model_path)
+    
+    gpu_layers = prompt(
+        "Number of layers to offload to GPU (-1 for auto, 0 for CPU-only)",
+        default=str(hw.recommended_n_gpu_layers),
+        validate=lambda x: x.replace("-", "").isdigit()
+    )
+    
+    ctx_size = prompt(
+        "Local model context size",
+        default=str(hw.recommended_n_ctx),
+        expected_type=int
+    )
+    
+    threads = prompt(
+        "Number of CPU threads (0 for auto)",
+        default=str(max(1, hw.cpu_cores - 1)),
+        expected_type=int
+    )
+
+    return {
+        "LOCAL_MODEL_PATH": model_path,
+        "LOCAL_N_GPU_LAYERS": int(gpu_layers),
+        "LOCAL_N_CTX": int(ctx_size),
+        "LOCAL_N_THREADS": int(threads),
+        "LLM_PROVIDER": "local",
+    }
+
+
 @app.callback(invoke_without_command=True)
 def config(
     ctx: typer.Context,
@@ -191,20 +239,27 @@ def config(
     azure_endpoint_opt: str = typer.Option(None, "--azure-endpoint", help="Azure OpenAI endpoint URL"),
     azure_deployment_opt: str = typer.Option(None, "--azure-deployment", help="Azure OpenAI deployment name"),
     azure_api_version_opt: str = typer.Option(None, "--azure-api-version", help="Azure OpenAI API version (default: 2024-10-21)"),
-    llm_provider_opt: str = typer.Option(None, "--llm-provider", help="LLM provider: 'google' (Gemini) or 'azure' (Azure OpenAI)"),
+    # Local LLM options
+    local_model_path_opt: str = typer.Option(None, "--local-model-path", help="Path to local GGUF model file"),
+    local_gpu_layers_opt: int = typer.Option(None, "--local-gpu-layers", help="Number of layers to offload to GPU (-1 for auto, 0 for CPU-only)"),
+    local_ctx_opt: int = typer.Option(None, "--local-ctx", help="Context size for local LLM"),
+    local_threads_opt: int = typer.Option(None, "--local-threads", help="Number of CPU threads for local inference"),
+    # Provider overrides
+    llm_provider_opt: str = typer.Option(None, "--llm-provider", help="LLM provider: 'google' (Gemini), 'azure' (Azure OpenAI), or 'local' (local GGUF)"),
     # Control flags
     save: bool = typer.Option(True, "--save/--no-save", help="Save configuration to ~/.teshq/ (secrets → .teshq.env, settings → config.yaml)"),
     force_configure_db: bool = typer.Option(False, "--db", "-db", help="Interactive database configuration"),
     force_configure_gemini: bool = typer.Option(False, "--gemini", "-gemini", help="Interactive Gemini API configuration"),
     force_configure_azure: bool = typer.Option(False, "--azure", "-azure", help="Interactive Azure OpenAI configuration"),
+    force_configure_local: bool = typer.Option(False, "--local", "-local", help="Interactive local LLM configuration"),
     output_file_path: str = typer.Option(None, "--output-file-path", help="Output file path"),
     file_store_path: str = typer.Option(None, "--file-store-path", help="File store path"),
 ):
     """
-    Configure TeshQ's database and LLM (Gemini or Azure OpenAI) settings.
+    Configure TeshQ's database and LLM (Gemini, Azure OpenAI, or Local GGUF) settings.
 
     You can use command-line options for automated (non-interactive) setup or use interactive
-    configuration with flags like --db, --gemini, or --azure.
+    configuration with flags like --db, --gemini, --azure, or --local.
 
     When saving, secrets (DATABASE_URL, GEMINI_API_KEY, AZURE_OPENAI_API_KEY) are written to ~/.teshq/.teshq.env
     and non-secret settings are stored in ~/.teshq/config.yaml,
@@ -221,11 +276,13 @@ def config(
         actual_gemini_api_key_to_save = gemini_api_key_opt
         actual_gemini_model_to_save = gemini_model_name_opt
         azure_config_to_save: dict = {}
+        local_config_to_save: dict = {}
 
         db_options_provided = any([db_url, db_type_opt, db_user_opt, db_password_opt, db_host_opt, db_port_opt, db_name_opt])
         file_path_options_provided = any([output_file_path, file_store_path])
         gemini_options_provided = gemini_api_key_opt is not None or gemini_model_name_opt != DEFAULT_GEMINI_MODEL
         azure_options_provided = any([azure_endpoint_opt, azure_deployment_opt, azure_api_version_opt])
+        local_options_provided = any([local_model_path_opt, local_gpu_layers_opt is not None, local_ctx_opt, local_threads_opt])
 
         action_taken = False
 
@@ -317,17 +374,41 @@ def config(
                     }.items() if v is not None
                 }
                 action_taken = True
+
+        # Local LLM configuration logic
+        if force_configure_local:
+            with section("Local LLM Configuration"):
+                try:
+                    local_config_to_save = configure_local_interactive()
+                    action_taken = True
+                except KeyboardInterrupt:
+                    warning("Local LLM configuration cancelled.")
+        elif local_options_provided:
+            with section("Local LLM Configuration"):
+                info("Using provided local GGUF LLM configuration.")
+                local_config_to_save = {
+                    k: v for k, v in {
+                        "LOCAL_MODEL_PATH": local_model_path_opt,
+                        "LOCAL_N_GPU_LAYERS": local_gpu_layers_opt,
+                        "LOCAL_N_CTX": local_ctx_opt,
+                        "LOCAL_N_THREADS": local_threads_opt,
+                        "LLM_PROVIDER": llm_provider_opt or "local",
+                    }.items() if v is not None
+                }
+                action_taken = True
+
+        # LLM Provider selection only
         elif llm_provider_opt:
             valid_provider = llm_provider_opt.lower()
-            if valid_provider not in ("google", "azure"):
+            if valid_provider not in ("google", "azure", "local"):
                 handle_error(
                     ValueError(f"Invalid LLM provider: {llm_provider_opt}"),
                     "Configuration",
-                    suggest_action="Use 'google' or 'azure'"
+                    suggest_action="Use 'google', 'azure', or 'local'"
                 )
                 raise typer.Exit(1)
-            # Just set the provider without full Azure config
-            azure_config_to_save = {"LLM_PROVIDER": valid_provider}
+            # Save provider type to YAML settings
+            local_config_to_save = {"LLM_PROVIDER": valid_provider}
             action_taken = True
 
         # File Path Configuration
@@ -341,7 +422,7 @@ def config(
             with section("Current Configuration"):
                 display_current_config()
                 space()
-                tip("Use --db, --gemini, or --azure for interactive configuration, or provide options directly.")
+                tip("Use --db, --gemini, --azure, or --local for interactive configuration, or provide options directly.")
                 raise typer.Exit()
 
         # Save configuration if required
@@ -362,6 +443,10 @@ def config(
                 # Azure OpenAI
                 if azure_config_to_save:
                     config_to_save.update(azure_config_to_save)
+
+                # Local LLM
+                if local_config_to_save:
+                    config_to_save.update(local_config_to_save)
 
                 # Resolve and validate output file path
                 if output_file_path:
@@ -397,6 +482,8 @@ def config(
                     info("Gemini API configuration would be saved.")
                 if file_path_options_provided:
                     info("File paths would be saved.")
+                if local_config_to_save:
+                    info("Local GGUF LLM configuration would be saved.")
 
     except Exception as e:
         handle_error(

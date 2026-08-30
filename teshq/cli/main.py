@@ -22,7 +22,7 @@ from typing import Optional
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.cli import analytics, config, db, query
+from teshq.cli import analytics, config, db, query, local, bench, model, chat
 from teshq.utils.logging import configure_global_logger
 
 try:
@@ -104,6 +104,10 @@ def _callback(
 app.add_typer(db.app, name="db", help="Manage database connections and schema introspection.")
 app.add_typer(config.app, name="config", help="Configure database and API credentials.")
 app.add_typer(query.app)  # already named "query" internally
+app.add_typer(local.app, name="local")
+app.add_typer(bench.app, name="bench", help="Run text-to-SQL benchmarks against backends.")
+app.add_typer(model.app, name="model", help="Manage local GGUF models and downloads.")
+app.add_typer(chat.app, name="chat", help="Start an interactive SQL and database chat session.")
 app.add_typer(analytics.app, name="analytics", help="View token usage and cost analytics.")
 if _HEALTH_AVAILABLE:
     app.add_typer(health.app, name="health", help="Check system health and connectivity.")
