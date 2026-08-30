@@ -11,7 +11,7 @@ description = "A CLI tool that converts natural language queries into SQL and re
 readme = "README.md"
 requires-python = ">=3.10"
 # Use the license file so packaging tools pick it up
-license = { file = "LICENSE" }
+license = { file = "LICENSE" } 
 keywords = ["sql", "cli", "database", "natural language", "AI", "LLM"]
 authors = [
   { name = "Shashank", email = "shashankgundas1@gmail.com" },
@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU AFFERO GENERAL PUBLIC LICENSE",
     "Operating System :: OS Independent",
 ]
 
@@ -127,6 +127,11 @@ export = [
 # Analytics and monitoring (optional)
 langsmith = [
     "langsmith>=0.1",
+]
+
+# Local GGUF LLM support via llama-cpp-python
+local = [
+    "llama-cpp-python>=0.3.0",
 ]
 
 # Convenience "all" extra - installs drivers that DON'T require system dependencies

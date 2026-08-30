@@ -31,6 +31,10 @@ SETTINGS_KEYS = {
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_DEPLOYMENT",
     "AZURE_OPENAI_API_VERSION",
+    "LOCAL_MODEL_PATH",
+    "LOCAL_N_GPU_LAYERS",
+    "LOCAL_N_CTX",
+    "LOCAL_N_THREADS",
 }
 CONFIG_KEYS = list(SECRET_KEYS) + list(SETTINGS_KEYS)
 
@@ -56,6 +60,11 @@ def get_config() -> Dict[str, Optional[str]]:
             "AZURE_OPENAI_ENDPOINT": s.azure_openai_endpoint or None,
             "AZURE_OPENAI_DEPLOYMENT": s.azure_openai_deployment or None,
             "AZURE_OPENAI_API_VERSION": s.azure_openai_api_version or None,
+            # Local GGUF LLM
+            "LOCAL_MODEL_PATH": s.local_model_path or None,
+            "LOCAL_N_GPU_LAYERS": str(s.local_n_gpu_layers),
+            "LOCAL_N_CTX": str(s.local_n_ctx),
+            "LOCAL_N_THREADS": str(s.local_n_threads),
         }
     except Exception:
         # Graceful degradation if config files are completely broken/unreadable
@@ -127,15 +136,27 @@ def get_llm_config() -> Dict[str, Any]:
     Return a provider-agnostic LLM configuration dict.
 
     Keys returned:
-      - provider      → "google" | "azure"
+      - provider      → "google" | "azure" | "local"
       - api_key       → key for the chosen provider (may be None if not set)
       - model_name    → Gemini model name (Google) or deployment name (Azure)
       - azure_endpoint     → Azure OpenAI endpoint URL (Azure only)
       - azure_deployment   → Azure deployment name (Azure only)
       - azure_api_version  → Azure API version string (Azure only)
+      - model_path    → Local model path (Local only)
+      - n_gpu_layers  → GPU offload layers (Local only)
+      - n_ctx         → Context window size (Local only)
+      - n_threads     → Thread count (Local only)
     """
     s = get_settings()
     provider = s.effective_provider
+    if provider == "local":
+        return {
+            "provider": "local",
+            "model_path": s.local_model_path,
+            "n_gpu_layers": s.local_n_gpu_layers,
+            "n_ctx": s.local_n_ctx,
+            "n_threads": s.local_n_threads,
+        }
     if provider == "azure":
         return {
             "provider": "azure",

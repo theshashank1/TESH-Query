@@ -36,6 +36,10 @@ SETTINGS_KEYS = {
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_DEPLOYMENT",
     "AZURE_OPENAI_API_VERSION",
+    "LOCAL_MODEL_PATH",
+    "LOCAL_N_GPU_LAYERS",
+    "LOCAL_N_CTX",
+    "LOCAL_N_THREADS",
 }
 
 
@@ -76,7 +80,7 @@ class Settings(BaseSettings):
         from teshq.config.settings import get_settings
         s = get_settings()
         print(s.gemini_model)
-        print(s.llm_provider)  # "google" or "azure"
+        print(s.llm_provider)  # "google", "azure" or "local"
     """
 
     # --- Secrets (loaded from env or ~/.teshq/.env) ---
@@ -96,6 +100,12 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = Field(default="", alias="AZURE_OPENAI_ENDPOINT")
     azure_openai_deployment: str = Field(default="", alias="AZURE_OPENAI_DEPLOYMENT")
     azure_openai_api_version: str = Field(default="2024-10-21", alias="AZURE_OPENAI_API_VERSION")
+
+    # --- Non-secret settings (Local LLM via llama-cpp-python) ---
+    local_model_path: str = Field(default="", alias="LOCAL_MODEL_PATH")
+    local_n_gpu_layers: int = Field(default=-1, alias="LOCAL_N_GPU_LAYERS")
+    local_n_ctx: int = Field(default=4096, alias="LOCAL_N_CTX")
+    local_n_threads: int = Field(default=0, alias="LOCAL_N_THREADS")
 
     # --- Storage paths ---
     output_path: Path = Field(
@@ -149,7 +159,8 @@ class Settings(BaseSettings):
         db_ok = bool(self.database_url)
         google_ok = bool(self.gemini_api_key)
         azure_ok = bool(self.azure_openai_api_key) and bool(self.azure_openai_endpoint) and bool(self.azure_openai_deployment)
-        return db_ok and (google_ok or azure_ok)
+        local_ok = bool(self.local_model_path)
+        return db_ok and (google_ok or azure_ok or local_ok)
 
     @property
     def effective_provider(self) -> str:
@@ -160,12 +171,18 @@ class Settings(BaseSettings):
         present and no Gemini key is set), return ``"azure"``; otherwise
         ``"google"``.
         """
-        if self.llm_provider.lower() == "azure":
+        provider = self.llm_provider.lower().strip()
+        if provider == "local":
+            return "local"
+        if provider == "azure":
             return "azure"
         # Auto-detect: if Azure is fully configured but Gemini key is absent
         azure_ready = bool(self.azure_openai_api_key) and bool(self.azure_openai_endpoint)
         if azure_ready and not self.gemini_api_key:
             return "azure"
+        # Auto-detect local: if a model path is set but no cloud API keys are set
+        if self.local_model_path and not self.gemini_api_key and not self.azure_openai_api_key:
+            return "local"
         return "google"
 
     def masked_database_url(self) -> str:
