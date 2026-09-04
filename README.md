@@ -82,11 +82,15 @@ Ready to unlock your data? Follow these simple steps:
 
 ### 1. Installation
 
-Install TESH-Query easily using pip:
+For a local checkout, create and use a virtual environment so the system Python and its old `pip3` are not used:
 
 ```bash
-pip install teshq
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install .
 ```
+
+To install the published package instead, run `python3 -m pip install teshq`.
 
 Confirm successful installation:
 
