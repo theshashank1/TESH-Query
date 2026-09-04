@@ -258,6 +258,12 @@ class SubscriberClient:
 
         # Add admin key if available (for /v1/subscribers endpoint)
         if self.admin_api_key:
+            # Reject non-HTTPS URLs when using admin credentials for security
+            if not self.api_base_url.startswith("https://"):
+                raise ValueError(
+                    "Admin API key cannot be used with non-HTTPS URLs. "
+                    f"Current URL: {self.api_base_url}"
+                )
             session.headers.update({
                 "Authorization": f"Bearer {self.admin_api_key}"
             })
@@ -476,7 +482,7 @@ class SubscriberClient:
 
             if response.status_code == 200:
                 data = response.json() if response.content else {}
-                if data.get("status") == "ok" or response.status_code == 200:
+                if data.get("status") == "ok":
                     return SubscriptionResult(
                         status=SubscriptionStatus.SUCCESS,
                         message="Subscription API is healthy",
@@ -639,7 +645,7 @@ def subscribe_user(name: str, email: str, cli_version: str = "1.0.0") -> Subscri
     return client.subscribe(name=name, email=email)
 
 
-def diagnose_connection(api_base_url: str = "https://api.teshq.io") -> dict:
+def diagnose_connection(api_base_url: str = SubscriberClient.DEFAULT_API_BASE_URL) -> dict:
     """
     Diagnose connection issues to the subscription API.
     Run this to troubleshoot "Check your internet connection" errors.

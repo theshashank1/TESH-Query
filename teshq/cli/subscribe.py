@@ -92,10 +92,11 @@ def handle_subscription_result(result, email: str) -> int:
         success("🎉 Subscription successful! Welcome to TESHQ.")
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
-            config = get_config()
-            config["SUBSCRIBER_EMAIL"] = email
-            config["SUBSCRIBER_ID"] = result.subscriber_id
-            save_config(config)
+            # Save only subscriber-specific fields, not full config with secrets
+            save_config({
+                "SUBSCRIBER_EMAIL": email,
+                "SUBSCRIBER_ID": result.subscriber_id,
+            })
         space()
         tip("Check your email for a confirmation message")
         return 0
@@ -103,10 +104,11 @@ def handle_subscription_result(result, email: str) -> int:
         success("🎉 Welcome back! You have been re-subscribed.")
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
-            config = get_config()
-            config["SUBSCRIBER_EMAIL"] = email
-            config["SUBSCRIBER_ID"] = result.subscriber_id
-            save_config(config)
+            # Save only subscriber-specific fields, not full config with secrets
+            save_config({
+                "SUBSCRIBER_EMAIL": email,
+                "SUBSCRIBER_ID": result.subscriber_id,
+            })
         return 0
     elif result.status == SubscriptionStatus.ALREADY_SUBSCRIBED:
         info("You are already subscribed. Thank you!")
@@ -242,16 +244,15 @@ def check_api_health():
             success("✅ Subscription API is healthy and operational")
             if result.details:
                 info(f"Status: {result.details.get('health_status', 'ok')}")
+            space()
+            raise typer.Exit(code=0)
         else:
             error(f"❌ API health check failed: {result.message}")
-            return 1
-
-        space()
-        return 0
+            raise typer.Exit(code=1)
 
     except Exception as e:
         handle_error(e, "Health check", suggest_action="Check your internet connection")
-        return 1
+        raise typer.Exit(code=1)
 
 
 @app.command("list")
@@ -298,7 +299,7 @@ def list_subscribers(
 
                 for sub in data:
                     table.add_row(
-                        sub.get("id", "N/A")[:12] + "...",
+                        str(sub.get("id") or "N/A")[:12] + "...",
                         sub.get("name", "N/A"),
                         sub.get("email", "N/A"),
                         sub.get("createdAt", "N/A")
@@ -324,14 +325,14 @@ def list_subscribers(
                 info('  {"TESHQ_ADMIN_API_KEY": "your_admin_key"}', indent=1)
             else:
                 error(f"❌ Failed to retrieve subscribers: {result.message}")
-            return 1
+            raise typer.Exit(code=1)
 
         space()
-        return 0
+        raise typer.Exit(code=0)
 
     except Exception as e:
         handle_error(e, "List subscribers", suggest_action="Check your admin credentials")
-        return 1
+        raise typer.Exit(code=1)
 
 
 @app.command("diagnose")
@@ -354,7 +355,7 @@ def diagnose(
         space()
 
         # Determine API URL to test
-        from teshq.utils.config import get_config
+        from teshq.config.loader import get_config
         config = get_config()
         env_url = config.get("TESHQ_API_BASE_URL")
 
@@ -393,14 +394,14 @@ def diagnose(
             space()
             info("4. Check DNS resolution:")
             info(f"   nslookup {test_url.replace('https://', '').replace('http://', '').split('/')[0]}", indent=1)
-            return 1
+            raise typer.Exit(code=1)
         else:
             success("✅ All diagnostics passed! The API should be working.")
-            return 0
+            raise typer.Exit(code=0)
 
     except Exception as e:
         handle_error(e, "Diagnosis", suggest_action="Check your Python installation")
-        return 1
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
