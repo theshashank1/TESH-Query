@@ -26,6 +26,7 @@ SECRET_KEYS = {
     "DATABASE_URL",
     "GEMINI_API_KEY",
     "AZURE_OPENAI_API_KEY",
+    "TESHQ_ADMIN_API_KEY",
 }
 SETTINGS_KEYS = {
     "GEMINI_MODEL",
@@ -36,6 +37,8 @@ SETTINGS_KEYS = {
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_DEPLOYMENT",
     "AZURE_OPENAI_API_VERSION",
+    "TESHQ_API_BASE_URL",
+    "TESHQ_API_TIMEOUT",
 }
 
 
@@ -107,6 +110,11 @@ class Settings(BaseSettings):
         alias="FILE_STORE_PATH",
     )
     no_telemetry: bool = Field(default=False, alias="TESHQ_NO_TELEMETRY")
+
+    # --- Subscription settings ---
+    teshq_api_base_url: str = Field(default="", alias="TESHQ_API_BASE_URL")
+    teshq_api_timeout: int = Field(default=10, alias="TESHQ_API_TIMEOUT")
+    teshq_admin_api_key: str = Field(default="", alias="TESHQ_ADMIN_API_KEY")
 
     model_config = SettingsConfigDict(
         env_file=str(SECRETS_FILE),
