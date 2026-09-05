@@ -250,6 +250,8 @@ def check_api_health():
             error(f"❌ API health check failed: {result.message}")
             raise typer.Exit(code=1)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         handle_error(e, "Health check", suggest_action="Check your internet connection")
         raise typer.Exit(code=1)
@@ -318,11 +320,11 @@ def list_subscribers(
             if "Admin API key required" in result.message:
                 error("❌ Admin authentication required")
                 space()
-                info("Configure the admin API key using:", dim=True)
-                info("  teshq config --admin-api-key", indent=1)
+                info("Set the TESHQ_ADMIN_API_KEY environment variable:", dim=True)
+                info("  export TESHQ_ADMIN_API_KEY=your_admin_key", indent=1)
                 space()
-                info("Or edit config.json and add:", dim=True)
-                info('  {"TESHQ_ADMIN_API_KEY": "your_admin_key"}', indent=1)
+                info("Or add to ~/.teshq/.teshq.env:", dim=True)
+                info("  TESHQ_ADMIN_API_KEY=your_admin_key", indent=1)
             else:
                 error(f"❌ Failed to retrieve subscribers: {result.message}")
             raise typer.Exit(code=1)
@@ -330,6 +332,8 @@ def list_subscribers(
         space()
         raise typer.Exit(code=0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         handle_error(e, "List subscribers", suggest_action="Check your admin credentials")
         raise typer.Exit(code=1)
@@ -399,6 +403,8 @@ def diagnose(
             success("✅ All diagnostics passed! The API should be working.")
             raise typer.Exit(code=0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         handle_error(e, "Diagnosis", suggest_action="Check your Python installation")
         raise typer.Exit(code=1)

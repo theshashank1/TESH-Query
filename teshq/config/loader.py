@@ -56,6 +56,10 @@ def get_config() -> Dict[str, Optional[str]]:
             "AZURE_OPENAI_ENDPOINT": s.azure_openai_endpoint or None,
             "AZURE_OPENAI_DEPLOYMENT": s.azure_openai_deployment or None,
             "AZURE_OPENAI_API_VERSION": s.azure_openai_api_version or None,
+            # Subscription settings
+            "TESHQ_API_BASE_URL": s.teshq_api_base_url or None,
+            "TESHQ_API_TIMEOUT": str(s.teshq_api_timeout) if s.teshq_api_timeout else None,
+            "TESHQ_ADMIN_API_KEY": s.teshq_admin_api_key or None,
         }
     except Exception:
         # Graceful degradation if config files are completely broken/unreadable
