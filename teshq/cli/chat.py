@@ -24,23 +24,14 @@ def chat_repl(
     """
     print_header("TESHQ CHAT ASSISTANT", level=1)
     
-    # 1. Verify model is configured and exists
+    # 1. Get model config
     s = get_settings()
-    if not s.local_model_path:
-        error("LOCAL_MODEL_PATH is not configured in settings.")
-        tip("Run: teshq config --local")
-        raise typer.Exit(1)
-        
-    import os
-    if not os.path.exists(s.local_model_path):
-        error(f"GGUF model file not found at: '{s.local_model_path}'")
-        tip("Run: teshq model pull")
-        raise typer.Exit(1)
+    model_path = s.local_model_path if s.local_model_path else ""
 
     # 2. Load the model
     runtime = InferenceRuntime()
     config = InferenceConfig(
-        model_path=s.local_model_path,
+        model_path=model_path,
         n_ctx=s.local_n_ctx,
         n_gpu_layers=s.local_n_gpu_layers,
         n_threads=s.local_n_threads,

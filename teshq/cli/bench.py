@@ -131,12 +131,13 @@ def compare_benchmarks(
         
     # Check if local is set up
     local_ready = False
-    if s.local_model_path and os.path.exists(s.local_model_path):
-        try:
-            import llama_cpp
-            local_ready = True
-        except ImportError:
-            pass
+    local_skip_reason = ""
+    try:
+        import llama_cpp
+        # Let InferenceRuntime perform auto-troubleshoot if model_path is empty/missing
+        local_ready = True
+    except ImportError:
+        local_skip_reason = "llama-cpp-python is not installed. Run: pip install teshq[local]"
             
     # Check if cloud (google/azure) is set up
     cloud_provider = "google"
@@ -149,10 +150,14 @@ def compare_benchmarks(
     local_results = []
     if local_ready:
         with status("Running local benchmarks...", success_message="Local benchmarks complete."):
-            runner = BenchmarkRunner(abs_questions_path, db_url=db_url, provider="local")
-            local_results = runner.run()
+            try:
+                runner = BenchmarkRunner(abs_questions_path, db_url=db_url, provider="local")
+                local_results = runner.run()
+            except Exception as e:
+                error(f"Local benchmark failed: {e}")
     else:
-        warning("Local GGUF backend is not fully configured or installed. Skipping local run.")
+        warning(f"Local backend skipped: {local_skip_reason}")
+        tip("Configure local models with: teshq config --local")
         
     # 2. Run cloud
     cloud_results = []
@@ -171,24 +176,26 @@ def compare_benchmarks(
     typer.echo("| Metric | Local Backend | Cloud Backend |")
     typer.echo("| :--- | :---: | :---: |")
     
+    cloud_exec = sum(1 for r in cloud_results if r.execution_match)
+    cloud_exact = sum(1 for r in cloud_results if r.exact_match)
+    cloud_errors = sum(1 for r in cloud_results if r.execution_error is not None)
+    cloud_lat = sum(r.latency_ms for r in cloud_results) / total
+    
     if local_results:
+        local_total = len(local_results)
         local_exec = sum(1 for r in local_results if r.execution_match)
         local_exact = sum(1 for r in local_results if r.exact_match)
-        local_lat = sum(r.latency_ms for r in local_results) / total
+        local_errors = sum(1 for r in local_results if r.execution_error is not None)
+        local_lat = sum(r.latency_ms for r in local_results) / local_total
         
-        cloud_exec = sum(1 for r in cloud_results if r.execution_match)
-        cloud_exact = sum(1 for r in cloud_results if r.exact_match)
-        cloud_lat = sum(r.latency_ms for r in cloud_results) / total
-        
-        typer.echo(f"| **Execution Match %** | {local_exec/total*100:.1f}% ({local_exec}/{total}) | {cloud_exec/total*100:.1f}% ({cloud_exec}/{total}) |")
-        typer.echo(f"| **Exact SQL Match %** | {local_exact/total*100:.1f}% ({local_exact}/{total}) | {cloud_exact/total*100:.1f}% ({cloud_exact}/{total}) |")
+        typer.echo(f"| **Execution Match %** | {local_exec/local_total*100:.1f}% ({local_exec}/{local_total}) | {cloud_exec/total*100:.1f}% ({cloud_exec}/{total}) |")
+        typer.echo(f"| **Exact SQL Match %** | {local_exact/local_total*100:.1f}% ({local_exact}/{local_total}) | {cloud_exact/total*100:.1f}% ({cloud_exact}/{total}) |")
+        typer.echo(f"| **Database Errors**   | {local_errors}/{local_total} | {cloud_errors}/{total} |")
         typer.echo(f"| **Avg Latency (ms)**  | {local_lat:.2f} ms | {cloud_lat:.2f} ms |")
     else:
-        cloud_exec = sum(1 for r in cloud_results if r.execution_match)
-        cloud_exact = sum(1 for r in cloud_results if r.exact_match)
-        cloud_lat = sum(r.latency_ms for r in cloud_results) / total
-        typer.echo(f"| **Execution Match %** | N/A | {cloud_exec/total*100:.1f}% ({cloud_exec}/{total}) |")
-        typer.echo(f"| **Exact SQL Match %** | N/A | {cloud_exact/total*100:.1f}% ({cloud_exact}/{total}) |")
-        typer.echo(f"| **Avg Latency (ms)**  | N/A | {cloud_lat:.2f} ms |")
+        typer.echo(f"| **Execution Match %** | ⏭ Skipped | {cloud_exec/total*100:.1f}% ({cloud_exec}/{total}) |")
+        typer.echo(f"| **Exact SQL Match %** | ⏭ Skipped | {cloud_exact/total*100:.1f}% ({cloud_exact}/{total}) |")
+        typer.echo(f"| **Database Errors**   | ⏭ Skipped | {cloud_errors}/{total} |")
+        typer.echo(f"| **Avg Latency (ms)**  | ⏭ Skipped | {cloud_lat:.2f} ms |")
         
     print_footer()

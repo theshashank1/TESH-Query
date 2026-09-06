@@ -296,14 +296,21 @@ def process_nl_query(
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type="FileNotFoundError")
-        handle_error(
-            e,
-            "Schema file not found",
-            suggest_action=(
-                "Run 'teshq introspect' first, or ensure the schema file exists at "
-                "~/.teshq/schema/schema.txt"
-            ),
-        )
+        if "Local GGUF model not found" in str(e):
+            handle_error(
+                e,
+                "Local model not found",
+                suggest_action="Run 'teshq model pull' first, or configure a valid path.",
+            )
+        else:
+            handle_error(
+                e,
+                "Schema file not found",
+                suggest_action=(
+                    "Run 'teshq introspect' first, or ensure the schema file exists at "
+                    "~/.teshq/schema/schema.txt"
+                ),
+            )
         raise typer.Exit(1)
     except typer.Exit:
         raise

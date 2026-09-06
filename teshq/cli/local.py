@@ -65,10 +65,18 @@ def local_status():
             typer.secho(f"    ✅ File exists (Size: {size_gb:.2f} GB)", fg="green")
         else:
             typer.secho(f"    ✗ Model file does not exist at this path!", fg="red", bold=True)
-            warning("Please check the path or run 'teshq pull' to fetch a default model.")
+            warning("Please check the path or run 'teshq model pull' to fetch a default model.")
+            from teshq.core.model_manager import ModelManager
+            installed = ModelManager().get_installed_models()
+            if installed:
+                tip(f"Auto-troubleshooting found alternative model: {installed[0]['path']}. It will be used automatically.")
     else:
         typer.echo("  • LOCAL_MODEL_PATH:  Not configured (defaulting to empty)")
         warning("No local model is configured. Run 'teshq config --local' to configure one.")
+        from teshq.core.model_manager import ModelManager
+        installed = ModelManager().get_installed_models()
+        if installed:
+            tip(f"Auto-troubleshooting found alternative model: {installed[0]['path']}. It will be used automatically.")
 
     print_footer()
 
@@ -89,21 +97,12 @@ def local_test(
         raise typer.Exit(1)
         
     s = get_settings()
-    if not s.local_model_path:
-        error("LOCAL_MODEL_PATH is not configured in settings.")
-        tip("Run: teshq config --local")
-        raise typer.Exit(1)
-        
-    import os
-    if not os.path.exists(s.local_model_path):
-        error(f"GGUF model file not found at: '{s.local_model_path}'")
-        tip("Run: teshq pull to download a GGUF model")
-        raise typer.Exit(1)
+    model_path = s.local_model_path if s.local_model_path else ""
 
     # Initialize runtime
     runtime = InferenceRuntime()
     config = InferenceConfig(
-        model_path=s.local_model_path,
+        model_path=model_path,
         n_ctx=s.local_n_ctx,
         n_gpu_layers=s.local_n_gpu_layers,
         n_threads=s.local_n_threads,
