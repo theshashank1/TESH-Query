@@ -123,3 +123,79 @@ class TestModelManager(unittest.TestCase):
         is_compat, warn_msg = manager.check_compatibility("qwen3b-coder")
         self.assertTrue(is_compat)
         self.assertEqual(warn_msg, "")
+
+
+class TestLocalPlannerSchemaAgnostic(unittest.TestCase):
+    """Test that the local planner works with non-standard column names and schema-qualified tables."""
+
+    def _make_client(self, db_url="sqlite:///test.db"):
+        """Create a LocalLLMClient with a mocked runtime."""
+        from teshq.core.llm_client import LocalLLMClient
+        from teshq.core.inference import InferenceConfig
+        mock_runtime = MagicMock()
+        config = InferenceConfig(model_path="dummy.gguf")
+        return LocalLLMClient(runtime=mock_runtime, config=config, db_url=db_url)
+
+    def test_plan_non_standard_columns(self):
+        """Planner should score tables with non-standard column names (e.g. emp_salary_amt, txn_dt)."""
+        client = self._make_client()
+        schema = (
+            "TABLE payroll(emp_id PK, emp_salary_amt DECIMAL(10,2), pay_period_dt DATE, deduction_pct REAL)\n"
+            "TABLE departments(dept_id PK, dept_name VARCHAR(100))\n"
+        )
+        # 'departments' matches by table name ('department' singular in query_words)
+        plan = client.generate_plan("total salary by department", schema)
+        self.assertIn("departments", plan.tables)
+
+    def test_plan_primary_from_column_match(self):
+        """When no table name matches, column name matching should pick the right table."""
+        client = self._make_client()
+        schema = (
+            "TABLE payroll(emp_id PK, emp_salary_amt DECIMAL(10,2), pay_period_dt DATE, deduction_pct REAL)\n"
+            "TABLE departments(dept_id PK, dept_name VARCHAR(100))\n"
+        )
+        # 'payroll' gets selected as primary because 'salary' matches emp_salary_amt column
+        plan = client.generate_plan("what is the average salary", schema)
+        self.assertIn("payroll", plan.tables)
+
+    def test_plan_schema_qualified_tables(self):
+        """Planner should handle schema-qualified table names like hr.employees."""
+        client = self._make_client(db_url="postgresql://localhost/hr")
+        schema = (
+            "TABLE hr.employees(emp_id PK, emp_name VARCHAR(100), dept_id FK→hr.departments.dept_id)\n"
+            "TABLE hr.departments(dept_id PK, dept_name VARCHAR(100))\n"
+            "\n"
+            "JOINS:\n"
+            "hr.employees.dept_id → hr.departments.dept_id\n"
+        )
+        plan = client.generate_plan("list all employees", schema)
+        # Base name 'employees' matches query word 'employees'
+        self.assertIn("hr.employees", plan.tables)
+
+    def test_dynamic_numeric_discovery(self):
+        """Planner should find numeric columns by type (DECIMAL, REAL) not just by name."""
+        client = self._make_client()
+        schema = (
+            "TABLE tickets(ticket_id PK, resolution_time_hrs REAL, customer_satisfaction_score REAL, assignee_id FK→agents.agent_id)\n"
+            "TABLE agents(agent_id PK, agent_name VARCHAR(100))\n"
+            "\n"
+            "JOINS:\n"
+            "tickets.assignee_id → agents.agent_id\n"
+        )
+        plan = client.generate_plan("average resolution time", schema)
+        self.assertIn("tickets", plan.tables)
+        # Should detect an aggregation on a numeric column
+        found_agg = any("resolution_time_hrs" in a for a in plan.aggregations)
+        self.assertTrue(found_agg, f"Expected aggregation on resolution_time_hrs but got: {plan.aggregations}")
+
+    def test_fallback_name_hints_still_work(self):
+        """When schema has no type info (stripped), name-based fallback should still work."""
+        client = self._make_client()
+        # Schema with types stripped (like Level 1 compression)
+        schema = (
+            "TABLE orders(order_id PK, customer_id FK→customers.id, total_amount, order_date)\n"
+            "TABLE customers(id PK, name, email)\n"
+        )
+        plan = client.generate_plan("total amount by customer", schema)
+        self.assertIn("orders", plan.tables)
+
