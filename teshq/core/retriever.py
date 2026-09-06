@@ -34,12 +34,29 @@ from teshq.core.schema_pruner import _STOP_WORDS
 
 
 def _tokenize(text: str) -> List[str]:
-    """Split *text* into lowercase alpha tokens, excluding stop-words."""
-    return [
+    """Split *text* into lowercase alpha tokens, excluding stop-words.
+    
+    Splits snake_case identifiers and handles simple plurals so that natural
+    language queries match schema identifiers accurately.
+    """
+    clean_text = text.replace("_", " ").lower()
+    raw_tokens = [
         tok
-        for tok in re.findall(r"[a-zA-Z_]+", text.lower())
+        for tok in re.findall(r"[a-z]+", clean_text)
         if tok not in _STOP_WORDS and len(tok) > 1
     ]
+    tokens: List[str] = []
+    for tok in raw_tokens:
+        tokens.append(tok)
+        if tok.endswith("ies") and len(tok) > 3:
+            singular = tok[:-3] + "y"
+            if singular not in _STOP_WORDS and singular not in tokens:
+                tokens.append(singular)
+        elif tok.endswith("s") and len(tok) > 3 and not tok.endswith("ss"):
+            singular = tok[:-1]
+            if singular not in _STOP_WORDS and singular not in tokens:
+                tokens.append(singular)
+    return tokens
 
 
 class SchemaRetriever:

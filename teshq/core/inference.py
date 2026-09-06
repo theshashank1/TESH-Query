@@ -59,10 +59,20 @@ class InferenceRuntime:
             ) from e
 
         if not config.model_path or not os.path.exists(config.model_path):
-            raise FileNotFoundError(
-                f"Local GGUF model not found at path: '{config.model_path}'. "
-                "Please configure a valid path or run 'teshq pull' first."
-            )
+            logger.warning(f"Configured model path '{config.model_path}' not found or inaccessible. Attempting automatic troubleshooting...")
+            
+            from teshq.core.model_manager import ModelManager
+            installed = ModelManager().get_installed_models()
+            
+            if installed:
+                fallback_path = installed[0]["path"]
+                logger.warning(f"Auto-troubleshooting fallback: using available model at {fallback_path}")
+                config.model_path = fallback_path
+            else:
+                raise FileNotFoundError(
+                    f"Local GGUF model not found at path: '{config.model_path}'. "
+                    "Please configure a valid path or run 'teshq model pull' first."
+                )
 
         logger.info(f"Loading local GGUF model from {config.model_path}...")
         start_time = time.time()

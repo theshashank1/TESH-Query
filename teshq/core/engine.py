@@ -96,6 +96,11 @@ class TeshEngine:
         cfg = get_llm_config()
 
         self._db_url = db_url or get_database_url()
+
+        # Detect dialect early so it's available throughout the engine
+        from teshq.core.dialect import detect_dialect
+        self._dialect = detect_dialect(self._db_url)
+
         self._provider = provider or cfg["provider"]
         self._api_key = api_key or cfg.get("api_key")
         self._model_name = model_name or cfg.get("model_name")
@@ -154,10 +159,12 @@ class TeshEngine:
 
     def _get_sql_gen(self) -> SQLGenerator:
         if self._sql_gen is None:
+            from teshq.core.dialect import detect_dialect
             self._sql_gen = build_sql_generator(
                 api_key=self._api_key,
                 model_name=self._model_name,
                 provider=self._provider,
+                dialect=detect_dialect(self._db_url),
                 **self._llm_kwargs(),
             )
         return self._sql_gen
@@ -246,8 +253,8 @@ class TeshEngine:
             
             # Prune tables and format schema string based on active provider
             if self._provider == "local":
-                # Strict budget for local mode (1500 tokens max) to fit smaller context windows
-                budget_tokens = 1500
+                # Budget for local mode (2500 tokens max) to fit smaller context windows comfortably
+                budget_tokens = 2500
                 relevant_tables = retriever.retrieve(nl_query, top_k=10, budget_tokens=budget_tokens)
                 schema_str = graph.compressed_schema_within_budget(relevant_tables, budget_tokens)
             else:
@@ -289,7 +296,7 @@ class TeshEngine:
             self._last_plan = plan
 
             # Validate
-            validate_sql(sql_text)
+            validate_sql(sql_text, dialect=str(self._dialect))
 
             # Normalize
             sql_text = normalize_sql(sql_text)
@@ -443,7 +450,7 @@ class TeshEngine:
                 healed_sql = healed_sql_result.query
                 healed_params = healed_sql_result.parameters or parameters
 
-                validate_sql(healed_sql)
+                validate_sql(healed_sql, dialect=str(self._dialect))
                 healed_sql = normalize_sql(healed_sql)
 
                 logger.info(

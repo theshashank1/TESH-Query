@@ -12,27 +12,32 @@ from typing import Any, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 
+from teshq.core.dialect import SQLDialect, detect_dialect, get_dialect_rules
 from teshq.core.models import QueryPlan, SQLQuery
 from teshq.utils.logging import logger
 
-_SYSTEM_PROMPT = """You are a production-grade SQL generator.
+
+_SYSTEM_PROMPT_TEMPLATE = """You are a production-grade SQL generator targeting a {dialect} database.
 
 Schema format: TABLE name (col TYPE [PK] [NN] [FK→other_table.col], ...)
   PK = primary key, NN = not null, FK→ = foreign key pointing to another table/column.
 
 Generation rules:
-- Use ANSI SQL unless the schema comment specifies a dialect (e.g. PostgreSQL, MySQL).
-- Use :param_name placeholders for all user-supplied literal values.
+- Generate ONLY valid {dialect} SQL syntax. Do NOT use syntax from other databases.
+- Embed literal values directly in the SQL. Do NOT use :param_name placeholders or bind parameters.
+- Select ONLY the columns the user explicitly asked for — nothing more, nothing less. Do not add extra columns like IDs unless the user requested them.
+- EXCEPTION: When the user asks to "show all", "list all", or "display all" from a table without specifying particular columns, include ALL columns from the primary table.
 - Use explicit column names — never SELECT *.
 - Use table aliases for every table in multi-table queries.
 - Follow FK→ annotations to determine correct JOIN columns.
 - Prefer INNER JOIN unless an outer join is clearly required.
-- For aggregations, always include a GROUP BY clause.
+- For aggregations, the GROUP BY clause must contain ONLY the non-aggregated columns that appear in the SELECT clause. Do NOT add extra columns (like IDs) to GROUP BY if they are not in the SELECT.
 - ORDER BY requires an explicit column; never ORDER BY a bare number.
 - Default to SELECT; only use INSERT/UPDATE/DELETE when the query explicitly requests it.
 - Never emit DROP, TRUNCATE, or ALTER statements.
 - If the query is ambiguous, choose the safest, most read-only interpretation.
-
+- Do NOT add column aliases (AS ...) unless the user explicitly asks for renamed columns.
+{dialect_rules}
 Output only the structured SQLQuery — no markdown, no explanation."""
 
 _HUMAN_TEMPLATE = (
@@ -55,9 +60,17 @@ class SQLGenerator:
     Accepts any LangChain BaseChatModel (Gemini, Azure OpenAI, etc.).
     """
 
-    def __init__(self, llm: Any, provider: str = "google"):
+    def __init__(self, llm: Any, provider: str = "google", dialect: Optional[SQLDialect] = None):
         self._llm = llm
         self._provider = provider.lower()
+        self._dialect = dialect or SQLDialect.GENERIC
+
+        # Build the dialect-aware system prompt
+        system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+            dialect=str(self._dialect),
+            dialect_rules=get_dialect_rules(self._dialect),
+        )
+
         # Azure OpenAI's strict JSON Schema mode rejects Dict[str, Any].
         # For Azure we do a plain chat invocation + manual JSON parsing.
         # For Google Gemini we use with_structured_output (Pydantic schema).
@@ -73,7 +86,7 @@ class SQLGenerator:
                 self._plain_llm = llm
         self._prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", _SYSTEM_PROMPT),
+                ("system", system_prompt),
                 ("human", _HUMAN_TEMPLATE),
             ]
         )
@@ -159,11 +172,16 @@ class SQLGenerator:
         start = time.time()
         from langchain_core.messages import HumanMessage
 
+        dialect_str = str(self._dialect)
         json_instruction = HumanMessage(
             content=(
+                f"IMPORTANT: You are generating {dialect_str} SQL. "
+                f"Use ONLY {dialect_str}-compatible syntax.\n"
+                "Embed all literal values directly in the SQL — do NOT use :param_name placeholders.\n"
+                "Select ONLY the columns the user asked for — no extra columns.\n\n"
                 "Output your answer as a JSON object with exactly two keys: "
-                "\"query\" (the SQL string) and \"parameters\" (an object, usually {}).\n"
-                "Example: {\"query\": \"SELECT ...\", \"parameters\": {}}\n"
+                "\"query\" (the SQL string) and \"parameters\" (an object, always {{}}).\n"
+                "Example: {{\"query\": \"SELECT ...\", \"parameters\": {{}}}}\n"
                 "No markdown, no explanation — raw JSON only."
             )
         )
@@ -186,6 +204,7 @@ def build_sql_generator(
     api_key: Optional[str] = None,
     model_name: Optional[str] = None,
     provider: str = "google",
+    dialect: Optional[SQLDialect] = None,
     **kwargs: Any,
 ) -> SQLGenerator:
     """
@@ -195,12 +214,17 @@ def build_sql_generator(
         api_key:   API key for the chosen provider (falls back to env var).
         model_name: Model/deployment name.
         provider:  ``"google"`` (Gemini) or ``"azure"`` (Azure OpenAI).
+        dialect:   Target SQL dialect. Auto-detected from DB URL if not given.
         **kwargs:  Extra keyword arguments forwarded to ``build_llm()``.
 
     Returns:
         Configured SQLGenerator.
     """
     from teshq.core.llm_factory import build_llm
+
+    # Auto-detect dialect if not explicitly provided
+    if dialect is None:
+        dialect = detect_dialect()
 
     llm = build_llm(
         provider=provider,
@@ -211,4 +235,4 @@ def build_sql_generator(
         top_k=1,
         **kwargs,
     )
-    return SQLGenerator(llm, provider=provider)
+    return SQLGenerator(llm, provider=provider, dialect=dialect)
