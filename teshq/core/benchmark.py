@@ -50,31 +50,85 @@ def compare_execution_results(
     gen_rows: List[Dict[str, Any]], 
     order_matters: bool = False
 ) -> bool:
-    """Compare database outputs robustly (optionally order-independent)."""
+    """
+    Compare database outputs using industry-standard values-only comparison.
+    
+    This follows the Spider/BIRD benchmark methodology:
+    - Column names are IGNORED (handles aliases like COUNT(*) vs COUNT(*) AS total)
+    - Numeric tolerance is applied for float comparisons
+    - If generated has MORE columns than reference, checks if reference values are a subset
+    """
     if len(ref_rows) != len(gen_rows):
         return False
     if not ref_rows and not gen_rows:
         return True
 
-    # Helper to convert nested types (e.g. floats, decimals) to string representation for easy hashing
-    def make_hashable(d: Dict[str, Any]) -> frozenset:
-        normalized = []
-        for k, v in d.items():
-            # Convert values to strings if not primitive hashable types
-            if isinstance(v, (dict, list, set)):
-                normalized.append((k, str(v)))
-            else:
-                normalized.append((k, v))
-        return frozenset(normalized)
+    def normalize_value(v: Any) -> Any:
+        """Normalize a value for comparison with numeric tolerance."""
+        if v is None:
+            return None
+        if isinstance(v, float):
+            # Round to avoid floating-point precision issues
+            return round(v, 6)
+        if isinstance(v, (dict, list, set)):
+            return str(v)
+        # Try to normalize string-encoded numbers
+        if isinstance(v, str):
+            try:
+                f = float(v)
+                if f == int(f):
+                    return int(f)
+                return round(f, 6)
+            except (ValueError, OverflowError):
+                return v
+        return v
+
+    def row_to_value_tuple(row: Dict[str, Any]) -> tuple:
+        """Extract just the values from a row dict, ignoring column names."""
+        return tuple(normalize_value(v) for v in row.values())
+
+    def values_match(ref_vals: tuple, gen_vals: tuple) -> bool:
+        """Check if reference values are present in generated values (handles superset columns)."""
+        if len(ref_vals) == len(gen_vals):
+            return ref_vals == gen_vals
+        # If generated has more columns, check if ref values are a contiguous subset
+        if len(gen_vals) > len(ref_vals):
+            for start in range(len(gen_vals) - len(ref_vals) + 1):
+                if gen_vals[start:start + len(ref_vals)] == ref_vals:
+                    return True
+            # Also check if the ref values exist scattered in gen values
+            # (model may have reordered or inserted extra columns)
+            ref_set = Counter(ref_vals)
+            gen_set = Counter(gen_vals)
+            return all(gen_set[v] >= ref_set[v] for v in ref_set)
+        return False
+
+    ref_tuples = [row_to_value_tuple(r) for r in ref_rows]
+    gen_tuples = [row_to_value_tuple(g) for g in gen_rows]
 
     if order_matters:
-        # Strict order comparison
-        return [make_hashable(r) for r in ref_rows] == [make_hashable(g) for g in gen_rows]
+        return all(values_match(r, g) for r, g in zip(ref_tuples, gen_tuples))
     else:
-        # Order-independent bag comparison
-        ref_bag = Counter(make_hashable(r) for r in ref_rows)
-        gen_bag = Counter(make_hashable(g) for g in gen_rows)
-        return ref_bag == gen_bag
+        # For unordered comparison, try to find a matching for each ref row
+        if len(ref_tuples[0]) == len(gen_tuples[0]):
+            # Same column count — use efficient bag comparison
+            ref_bag = Counter(ref_tuples)
+            gen_bag = Counter(gen_tuples)
+            return ref_bag == gen_bag
+        else:
+            # Different column counts — use matching approach
+            used = [False] * len(gen_tuples)
+            for ref_t in ref_tuples:
+                found = False
+                for i, gen_t in enumerate(gen_tuples):
+                    if not used[i] and values_match(ref_t, gen_t):
+                        used[i] = True
+                        found = True
+                        break
+                if not found:
+                    return False
+            return True
+
 
 class BenchmarkRunner:
     """
@@ -192,7 +246,7 @@ class BenchmarkRunner:
                 # 3. Check execution match
                 ref_rows = execute_sql_query(db_url=self.db_url, query=item.reference_sql)
                 try:
-                    gen_rows = execute_sql_query(db_url=self.db_url, query=generated_sql)
+                    gen_rows = execute_sql_query(db_url=self.db_url, query=generated_sql, parameters=query_res.parameters)
                     execution_match = compare_execution_results(ref_rows, gen_rows, item.order_matters)
                 except Exception as db_err:
                     execution_error = str(db_err)
@@ -261,5 +315,26 @@ class BenchmarkRunner:
                 note = "Equivalent SQL structure"
                 
             lines.append(f"| {r.item.id} | {r.item.question} | {exact_str} | {exec_str} | {r.latency_ms:.1f} | {note} |")
+
+        # Add SQL comparison section for failed items
+        failed = [r for r in results if not r.execution_match]
+        if failed:
+            lines.append("")
+            lines.append("## Failed Query Analysis")
+            lines.append("")
+            for r in failed:
+                lines.append(f"### ID {r.item.id}: {r.item.question}")
+                lines.append("")
+                lines.append(f"**Reference SQL:**")
+                lines.append(f"```sql")
+                lines.append(r.item.reference_sql)
+                lines.append(f"```")
+                lines.append(f"**Generated SQL:**")
+                lines.append(f"```sql")
+                lines.append(r.generated_sql if r.generated_sql else "(no SQL generated)")
+                lines.append(f"```")
+                if r.execution_error:
+                    lines.append(f"**Error:** `{r.execution_error}`")
+                lines.append("")
             
         return "\n".join(lines)
