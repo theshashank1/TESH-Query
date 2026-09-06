@@ -161,6 +161,35 @@ class ConnectionManager:
                 "echo": self.config.echo,
             }
 
+    @staticmethod
+    def _set_query_timeout(connection, database_url: str, timeout_seconds: int) -> None:
+        """Set a per-connection query timeout using dialect-appropriate SQL.
+
+        Args:
+            connection: Active SQLAlchemy connection.
+            database_url: Database URL (used for dialect detection).
+            timeout_seconds: Maximum query execution time in seconds.
+        """
+        from teshq.core.connectors import UnifiedDatabaseConnector
+        db_type = UnifiedDatabaseConnector.detect_database_type(database_url)
+        timeout_ms = timeout_seconds * 1000
+
+        try:
+            if db_type == "postgresql":
+                connection.execute(text(f"SET statement_timeout = {timeout_ms}"))
+            elif db_type == "mysql":
+                # MAX_EXECUTION_TIME is in milliseconds (MySQL 5.7.8+)
+                connection.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}"))
+            elif db_type == "mssql":
+                # SQL Server uses LOCK_TIMEOUT (ms); there is no direct query timeout via SQL
+                connection.execute(text(f"SET LOCK_TIMEOUT {timeout_ms}"))
+            # SQLite, Oracle, Cassandra: no server-side query timeout via SQL
+        except SQLAlchemyError:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
     @contextmanager
     def get_connection(self, database_url: str, engine_name: str = "default"):
         """Get a database connection with automatic cleanup."""
@@ -171,13 +200,7 @@ class ConnectionManager:
             with log_operation("get_database_connection", engine_name=engine_name):
                 connection = engine.connect()
                 if not database_url.startswith("sqlite"):
-                    try:
-                        connection.execute(text(f"SET statement_timeout = {self.config.query_timeout * 1000}"))
-                    except SQLAlchemyError:
-                        try:
-                            connection.rollback()
-                        except Exception:
-                            pass
+                    self._set_query_timeout(connection, database_url, self.config.query_timeout)
                 yield connection
         except Exception as e:
             logger.error("Database connection error", error=e, engine_name=engine_name)
@@ -186,6 +209,7 @@ class ConnectionManager:
             if connection:
                 connection.close()
                 logger.debug("Database connection closed", engine_name=engine_name)
+
 
     def _is_read_only(self, query: str) -> bool:
         if not query or not query.strip():

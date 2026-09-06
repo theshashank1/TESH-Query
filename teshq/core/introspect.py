@@ -19,6 +19,7 @@ def introspect_db(
     include_sample_data: bool = False,
     sample_size: int = 3,
     schema_mode: str = "minimal",
+    schema_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Introspect a database and produce a structured schema description suitable for LLM query generation.
@@ -29,9 +30,12 @@ def introspect_db(
         include_indexes (bool): Include index metadata when True.
         include_sample_data (bool): Include example rows for each table when True.
         sample_size (int): Maximum number of sample rows to retrieve per table when sample data is enabled.
+        schema_name (Optional[str]): Specific database schema to introspect (e.g. 'public', 'dbo', 'hr').
+            If None, the default schema is used. For multi-schema databases (PostgreSQL, SQL Server, Oracle),
+            tables from non-default schemas are stored with schema-qualified names (e.g. 'hr.employees').
     
     Returns:
-        Dict[str, Any]: Schema information containing keys such as "tables" (per-table column, PK, FK, index, sample, row count, description), "relationships" (explicit and implicit lists), and "data_model_summary" (textual summary).
+        Dict[str, Any]: Schema information containing keys such as "tables" (per-table column, PK, FK, index, sample, row count, description), "relationships" (explicit and implicit lists), "data_model_summary" (textual summary), and "dialect" (detected SQL dialect string).
     
     Raises:
         ValueError: If no database URL is provided and get_db_url() returns none.
@@ -44,6 +48,10 @@ def introspect_db(
     if not db_url:
         raise ValueError("Database URL not provided and get_db_url() did not return one.")
 
+    # Detect dialect for downstream consumers
+    from teshq.core.dialect import detect_dialect
+    dialect = detect_dialect(db_url)
+
     # Connect with minimal logging during introspection
     engine = create_engine(db_url, echo=False)
     metadata = MetaData()
@@ -51,7 +59,10 @@ def introspect_db(
     try:
         # Reflect can fail if DB is not accessible or permissions are wrong
         with engine.connect() as connection:  # Ensure connection is possible before reflecting
-            metadata.reflect(bind=connection)
+            if schema_name:
+                metadata.reflect(bind=connection, schema=schema_name)
+            else:
+                metadata.reflect(bind=connection)
     except Exception as e:
         # It's often better to let specific SQLAlchemy errors propagate
         # or wrap them in a custom exception.
@@ -64,19 +75,62 @@ def introspect_db(
         "tables": {},
         "relationships": {"explicit": [], "implicit": []},
         "data_model_summary": "",
+        "dialect": str(dialect),
     }
 
-    # Get all tables first so we can detect relationships
+    # Determine which schemas to introspect
+    # For multi-schema databases, enumerate available schemas
+    schemas_to_introspect: List[Optional[str]] = [schema_name]
+    multi_schema_dbs = {"postgresql", "mssql", "oracle"}
+    _SKIP_SCHEMAS = {"information_schema", "pg_catalog", "pg_toast", "sys", "INFORMATION_SCHEMA"}
+
+    url_lower = db_url.lower()
+    is_multi_schema = any(url_lower.startswith(prefix) for prefix in multi_schema_dbs)
+
+    if is_multi_schema and schema_name is None:
+        try:
+            available_schemas = inspector.get_schema_names()
+            # Filter out system schemas
+            user_schemas = [s for s in available_schemas if s not in _SKIP_SCHEMAS]
+            if user_schemas:
+                schemas_to_introspect = user_schemas  # type: ignore[assignment]
+        except Exception:
+            # Fallback: just use default schema (None)
+            pass
+
+    # Determine the default schema for the database
+    default_schema = inspector.default_schema_name
+
+    # Get all tables across schemas
+    all_tables: List[str] = []
     try:
-        all_tables = sorted(inspector.get_table_names())
+        for s in schemas_to_introspect:
+            raw_tables = sorted(inspector.get_table_names(schema=s))
+            for t in raw_tables:
+                # Use schema-qualified name for non-default schemas
+                if s and s != default_schema:
+                    qualified = f"{s}.{t}"
+                else:
+                    qualified = t
+                all_tables.append(qualified)
     except Exception as e:
         raise RuntimeError(f"Failed to retrieve table names: {e}") from e
+
 
     # Track column names across tables for implicit relationship detection
     primary_keys_registry: Dict[str, List[str]] = {}
 
+    def _split_qualified(name: str) -> Tuple[Optional[str], str]:
+        """Split 'schema.table' → (schema, table) or (None, table)."""
+        if "." in name:
+            parts = name.split(".", 1)
+            return parts[0], parts[1]
+        return None, name
+
     # First pass: collect basic table and column information
     for table_name in all_tables:
+        tbl_schema, tbl_raw = _split_qualified(table_name)
+
         table_info: Dict[str, Any] = {
             "columns": [],
             "primary_keys": [],
@@ -89,19 +143,19 @@ def introspect_db(
 
         # Get columns
         try:
-            columns = inspector.get_columns(table_name)
+            columns = inspector.get_columns(tbl_raw, schema=tbl_schema)
         except Exception as e:
             logger.warning(f"Could not get columns for table {table_name}: {e}")
             columns = []
 
         # Get primary keys
         try:
-            pk_constraint = inspector.get_pk_constraint(table_name)
+            pk_constraint = inspector.get_pk_constraint(tbl_raw, schema=tbl_schema)
             pk_columns = pk_constraint.get("constrained_columns", [])
             table_info["primary_keys"] = pk_columns
             primary_keys_registry[table_name] = pk_columns
         except Exception as e:
-            print(f"Warning: Could not get PK constraint for table {table_name}: {e}")
+            logger.warning(f"Could not get PK constraint for table {table_name}: {e}")
             pk_columns = []  # Ensure pk_columns is defined
             table_info["primary_keys"] = []
             primary_keys_registry[table_name] = []
@@ -121,15 +175,20 @@ def introspect_db(
 
         # Get foreign keys
         try:
-            fks = inspector.get_foreign_keys(table_name)
+            fks = inspector.get_foreign_keys(tbl_raw, schema=tbl_schema)
         except Exception as e:
-            print(f"Warning: Could not get foreign keys for table {table_name}: {e}")
+            logger.warning(f"Could not get foreign keys for table {table_name}: {e}")
             fks = []
 
         for fk in fks:
+            # Qualify referred_table if it lives in a non-default schema
+            referred_schema = fk.get("referred_schema")
+            referred_table = fk["referred_table"]
+            if referred_schema and referred_schema != default_schema:
+                referred_table = f"{referred_schema}.{referred_table}"
             fk_info = {
                 "constrained_columns": fk["constrained_columns"],
-                "referred_table": fk["referred_table"],
+                "referred_table": referred_table,
                 "referred_columns": fk["referred_columns"],
                 "name": fk.get("name"),
             }
@@ -147,7 +206,7 @@ def introspect_db(
                     {
                         "from_table": table_name,
                         "from_column": constrained_col,
-                        "to_table": fk["referred_table"],
+                        "to_table": referred_table,
                         "to_column": referred_col,
                         "relationship_type": "many-to-one",  # Default assumption
                     }
@@ -156,7 +215,8 @@ def introspect_db(
         # Get indexes if requested
         if include_indexes:
             try:
-                indexes = inspector.get_indexes(table_name)
+                indexes = inspector.get_indexes(tbl_raw, schema=tbl_schema)
+
                 for idx in indexes:
                     idx_info = {
                         "name": idx["name"],
@@ -165,7 +225,7 @@ def introspect_db(
                     }
                     table_info["indexes"].append(idx_info)
             except Exception as e:
-                print(f"Warning: Could not get indexes for table {table_name}: {e}")
+                logger.warning(f"Could not get indexes for table {table_name}: {e}")
                 # table_info["indexes"] will remain empty or partially filled
 
         schema_info["tables"][table_name] = table_info
@@ -299,7 +359,7 @@ def collect_stats_and_samples(
     for table_name in all_tables:
         # Ensure table object is available from reflected metadata
         if table_name not in metadata.tables:
-            print(f"Warning: Table '{table_name}' not found in metadata for stats/sampling. Skipping.")
+            logger.warning(f"Table '{table_name}' not found in metadata for stats/sampling. Skipping.")
             continue
         table_obj = cast(Table, metadata.tables[table_name])  # Cast to Table type
         current_table_info = schema_info["tables"][table_name]
@@ -315,7 +375,7 @@ def collect_stats_and_samples(
             row_count_val = result.scalar_one_or_none()
             current_table_info["row_count"] = row_count_val if row_count_val is not None else 0
         except Exception as e:
-            print(f"Warning: Error getting row count for {table_name}: {e}")
+            logger.warning(f"Error getting row count for {table_name}: {e}")
             current_table_info["row_count"] = "Unknown"  # Keep as string if error
 
         # Get sample data if requested
@@ -343,7 +403,7 @@ def collect_stats_and_samples(
                     sample_rows.append(sample_row)
                 current_table_info["sample_data"] = sample_rows
             except Exception as e:
-                print(f"Warning: Error getting sample data for {table_name}: {e}")
+                logger.warning(f"Error getting sample data for {table_name}: {e}")
                 current_table_info["sample_data"] = []  # Default to empty list on error
 
 
