@@ -36,6 +36,10 @@ SETTINGS_KEYS = {
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_DEPLOYMENT",
     "AZURE_OPENAI_API_VERSION",
+    "TESHQ_API_BASE_URL",
+    "TESHQ_API_TIMEOUT",
+    "SUBSCRIBER_EMAIL",
+    "SUBSCRIBER_ID",
 }
 
 
@@ -107,6 +111,12 @@ class Settings(BaseSettings):
         alias="FILE_STORE_PATH",
     )
     no_telemetry: bool = Field(default=False, alias="TESHQ_NO_TELEMETRY")
+
+    # --- Subscription settings ---
+    teshq_api_base_url: str = Field(default="", alias="TESHQ_API_BASE_URL")
+    teshq_api_timeout: int = Field(default=10, alias="TESHQ_API_TIMEOUT")
+    subscriber_email: Optional[str] = Field(default=None, alias="SUBSCRIBER_EMAIL")
+    subscriber_id: Optional[str] = Field(default=None, alias="SUBSCRIBER_ID")
 
     model_config = SettingsConfigDict(
         env_file=str(SECRETS_FILE),

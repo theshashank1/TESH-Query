@@ -176,3 +176,7 @@ usage_metrics.jsonl
 
 
 CLA.md
+
+# macOS metadata
+.DS_Store
+*.DS_Store
