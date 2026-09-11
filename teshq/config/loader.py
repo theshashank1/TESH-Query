@@ -27,10 +27,15 @@ SETTINGS_KEYS = {
     "GEMINI_MODEL",
     "OUTPUT_PATH",
     "FILE_STORE_PATH",
+    "TESHQ_NO_TELEMETRY",
     "LLM_PROVIDER",
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_DEPLOYMENT",
     "AZURE_OPENAI_API_VERSION",
+    "TESHQ_API_BASE_URL",
+    "TESHQ_API_TIMEOUT",
+    "SUBSCRIBER_EMAIL",
+    "SUBSCRIBER_ID",
 }
 CONFIG_KEYS = list(SECRET_KEYS) + list(SETTINGS_KEYS)
 
@@ -59,7 +64,8 @@ def get_config() -> Dict[str, Optional[str]]:
             # Subscription settings
             "TESHQ_API_BASE_URL": s.teshq_api_base_url or None,
             "TESHQ_API_TIMEOUT": str(s.teshq_api_timeout) if s.teshq_api_timeout else None,
-            "TESHQ_ADMIN_API_KEY": s.teshq_admin_api_key or None,
+            "SUBSCRIBER_EMAIL": s.subscriber_email or None,
+            "SUBSCRIBER_ID": s.subscriber_id or None,
         }
     except Exception:
         # Graceful degradation if config files are completely broken/unreadable
