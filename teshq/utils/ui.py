@@ -528,6 +528,8 @@ class ModernUI:
         choices: List[str] = None,
     ) -> Any:
         """Enhanced prompt with validation"""
+        from rich.prompt import Prompt
+
         icon = self._get_icon(Icons.PROMPT)
 
         # Build prompt text
@@ -535,19 +537,25 @@ class ModernUI:
 
         if choices:
             prompt_parts.append(f"[{Colors.MUTED}]({'/'.join(choices)})[/]")
-        elif default is not None:
+        elif default is not None and str(default).strip() != "":
             prompt_parts.append(f"[{Colors.MUTED}]({default})[/]")
 
-        prompt_text = " ".join(prompt_parts) + f" [{Colors.MUTED}]❯[/] "
+        prompt_text = " ".join(prompt_parts) + f" [{Colors.MUTED}]❯[/]"
 
         for attempt in range(3):
             try:
-                if password:
-                    result = typer.prompt(
-                        prompt_text, default=str(default) if default else None, hide_input=True, show_default=False
-                    )
-                else:
-                    result = typer.prompt(prompt_text, default=str(default) if default else None, show_default=False)
+                kwargs = {
+                    "prompt": prompt_text,
+                    "console": self.console,
+                    "password": password,
+                    "show_default": False,
+                }
+                if choices:
+                    kwargs["choices"] = choices
+                if default is not None:
+                    kwargs["default"] = str(default)
+
+                result = Prompt.ask(**kwargs)
 
                 # Validate choices
                 if choices and result not in choices:
@@ -578,17 +586,17 @@ class ModernUI:
 
     def confirm(self, text: str, default: bool = False, danger: bool = False) -> bool:
         """Confirmation with optional danger styling"""
+        from rich.prompt import Confirm
+
         icon_type = Icons.WARNING if danger else Icons.PROMPT
         color = Colors.WARNING if danger else Colors.PRIMARY
 
         icon = self._get_icon(icon_type)
-        suffix = " [Y/n]" if default else " [y/N]"
-
-        prompt_text = f"[{color}]{icon}[/] {text}{suffix} [{Colors.MUTED}]❯[/] "
+        prompt_text = f"[{color}]{icon}[/] {text} [{Colors.MUTED}]❯[/]"
 
         try:
-            return typer.confirm(prompt_text, default=default, show_default=False)
-        except typer.Abort:
+            return Confirm.ask(prompt_text, default=default, console=self.console)
+        except (typer.Abort, KeyboardInterrupt):
             self.info("Confirmation cancelled")
             return False
 

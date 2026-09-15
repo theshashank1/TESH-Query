@@ -1,6 +1,6 @@
 """
 TESHQ Subscribe Command
-Allows users to subscribe to updates via CLI using ModernUI
+Allows users to subscribe to updates and announcements via CLI.
 """
 
 from typing import Optional
@@ -8,7 +8,7 @@ from typing import Optional
 import typer
 from pydantic import ValidationError
 
-from teshq.config.loader import get_config, save_config
+from teshq.config.loader import save_config
 from teshq.subscriptions.client import SubscriberClient, SubscriptionRequest, SubscriptionStatus
 from teshq.utils.ui import confirm, error, handle_error, info, print_header, print_markdown, prompt, space
 from teshq.utils.ui import status as ui_status
@@ -25,7 +25,11 @@ except ImportError:
     __version__ = "1.0.0"
 
 
-app = typer.Typer(name="subscribe", help="Subscribe to TESHQ updates and announcements.", invoke_without_command=True)
+app = typer.Typer(
+    name="subscribe",
+    help="Subscribe to TESHQ updates and announcements.",
+    invoke_without_command=True,
+)
 
 
 def display_welcome():
@@ -53,8 +57,8 @@ You can unsubscribe at any time.
 def get_validated_name() -> str:
     """Get and validate user name"""
     while True:
-        name = prompt("Enter your name", default="")
-        if len(name.strip()) >= 2:
+        name = prompt("Enter your name")
+        if name and len(name.strip()) >= 2:
             return name.strip()
         warning("Name must be at least 2 characters long")
 
@@ -62,11 +66,10 @@ def get_validated_name() -> str:
 def get_validated_email() -> str:
     """Get and validate email with Pydantic"""
     while True:
-        email = prompt("Enter your email", default="")
-        email = email.strip()
+        email = prompt("Enter your email")
         try:
-            SubscriptionRequest(name="Test User", email=email, cli_version=__version__)
-            return email
+            SubscriptionRequest(name="Valid Name", email=email, cli_version=__version__)
+            return email.strip().lower()
         except ValidationError as e:
             errors = e.errors()
             email_errors = [err for err in errors if "email" in str(err.get("loc", []))]
@@ -91,29 +94,30 @@ def handle_subscription_result(result, email: str) -> int:
     space()
     if result.status == SubscriptionStatus.SUCCESS:
         success("🎉 Subscription successful! Welcome to TESHQ.")
+        save_data = {"SUBSCRIBER_EMAIL": email}
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
-            save_config({
-                "SUBSCRIBER_EMAIL": email,
-                "SUBSCRIBER_ID": result.subscriber_id,
-            })
+            save_data["SUBSCRIBER_ID"] = result.subscriber_id
+        save_config(save_data)
         space()
         tip("Check your email for a confirmation message")
         return 0
+
     elif result.status == SubscriptionStatus.RESUBSCRIBED:
         success("🎉 Welcome back! You have been re-subscribed.")
+        save_data = {"SUBSCRIBER_EMAIL": email}
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
-            save_config({
-                "SUBSCRIBER_EMAIL": email,
-                "SUBSCRIBER_ID": result.subscriber_id,
-            })
+            save_data["SUBSCRIBER_ID"] = result.subscriber_id
+        save_config(save_data)
         return 0
+
     elif result.status == SubscriptionStatus.ALREADY_SUBSCRIBED:
         info("You are already subscribed. Thank you!")
         if result.subscriber_id:
             info(f"Subscriber ID: {result.subscriber_id}", dim=True)
         return 0
+
     elif result.status == SubscriptionStatus.DISPOSABLE_EMAIL:
         error(result.message)
         space()
@@ -122,6 +126,7 @@ def handle_subscription_result(result, email: str) -> int:
         info("  • Your work or school email", indent=1)
         info("  • Your personal domain", indent=1)
         return 1
+
     elif result.status == SubscriptionStatus.INVALID_INPUT:
         error(result.message)
         if result.details:
@@ -130,22 +135,32 @@ def handle_subscription_result(result, email: str) -> int:
             for key, value in result.details.items():
                 info(f"  • {key}: {value}", indent=1)
         return 1
+
     elif result.status == SubscriptionStatus.RATE_LIMITED:
         warning(f"⏳ {result.message}")
         space()
-        info("This is a temporary limit to prevent abuse.", dim=True)
-        tip("Please try again in an hour")
+        info("This is a temporary rate limit to prevent abuse.", dim=True)
+        tip("Please try again later")
         return 1
+
+    elif result.status == SubscriptionStatus.SERVICE_UNAVAILABLE:
+        error(f"🔧 {result.message}")
+        space()
+        tip("Please try again later")
+        return 1
+
     elif result.status == SubscriptionStatus.PERMANENTLY_DELETED:
         error(f"🚫 {result.message}")
         space()
         info("This email address cannot be used for subscriptions.", dim=True)
         return 1
+
     elif result.status == SubscriptionStatus.CLIENT_ERROR:
         error(f"🌐 {result.message}")
         space()
         tip("Check your internet connection and try again")
         return 1
+
     else:
         error(result.message)
         space()
@@ -153,7 +168,7 @@ def handle_subscription_result(result, email: str) -> int:
         return 1
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def subscribe(
     ctx: typer.Context,
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Your full name (2-100 characters)"),
@@ -164,17 +179,17 @@ def subscribe(
     Subscribe to TESHQ updates and announcements.
 
     Examples:
-        
+
         # Interactive mode (recommended)
         $ teshq subscribe
-        
-        # With arguments
-        $ teshq subscribe --name "Shashank Kumar" --email "shashank@example.com"
-        
-        # Skip confirmation
-        $ teshq subscribe -n "John Doe" -e "john@example.com" -y
+
+        # Non-interactive mode
+        $ teshq subscribe --name "Shashank Kumar" --email "shashank@example.com" -y
     """
-    exit_code = 1  # Default to error
+    if ctx.invoked_subcommand is not None:
+        return
+
+    exit_code = 1
     try:
         if not (name and email):
             display_welcome()
@@ -190,9 +205,9 @@ def subscribe(
                 raise typer.Abort()
 
         space()
-        with ui_status("Submitting subscription", "Subscription submitted successfully"):
-            client = SubscriberClient(cli_version=__version__)
-            result = client.subscribe(name=name, email=email)
+        with ui_status("Submitting subscription", "Subscription submitted"):
+            with SubscriberClient(cli_version=__version__) as client:
+                result = client.subscribe(name=name, email=email)
 
         exit_code = handle_subscription_result(result, email)
 
