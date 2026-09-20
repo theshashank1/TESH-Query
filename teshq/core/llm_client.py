@@ -13,7 +13,7 @@ from teshq.core.planner import QueryPlanner, build_planner
 from teshq.core.sql_gen import SQLGenerator, build_sql_generator
 from teshq.core.inference import InferenceRuntime, InferenceConfig
 from teshq.core.grammar import get_sql_grammar
-from teshq.core.dialect import SQLDialect, detect_dialect, get_dialect_hints, get_dialect_rules
+from teshq.core.dialect import SQLDialect, detect_dialect, get_dialect_display_name, get_dialect_rules
 from teshq.utils.logging import logger
 
 class LLMClient(Protocol):
@@ -177,7 +177,9 @@ class LocalLLMClient(LLMClient):
                 t_singular = t_base[:-1]
             else:
                 t_singular = t_base
-            if t_name in query_words or t_base in query_words or t_singular in query_words:
+            # For schema-qualified names like 'hr.employees', also match on underscore-split word tokens
+            t_base_words = set(t_base.replace("_", " ").lower().split())
+            if t_name in query_words or t_base in query_words or t_singular in query_words or (t_base_words & query_words):
                 score += 20
             if subject_word and (t_base == subject_word or t_singular == subject_sing or t_singular == subject_word):
                 score += 15
@@ -446,21 +448,8 @@ class LocalLLMClient(LLMClient):
         """Generates SQL using grammar constraints and custom local prompt."""
         self._runtime.load(self._config)
         
-        dialect_str = str(self._dialect)
-        hints = get_dialect_hints(self._dialect)
+        dialect_str = get_dialect_display_name(self._dialect)
         rules = get_dialect_rules(self._dialect)
-
-        dialect_date_rule = ""
-        if self._dialect == SQLDialect.SQLITE:
-            dialect_date_rule = "When calculating difference between dates in SQLite, always use CAST(julianday(date2) - julianday(date1) AS INTEGER). NEVER subtract date strings directly."
-        elif self._dialect == SQLDialect.POSTGRESQL:
-            dialect_date_rule = "When calculating difference between dates in PostgreSQL, use DATE_PART('day', date2 - date1) or (date2::date - date1::date)."
-        elif self._dialect == SQLDialect.MYSQL:
-            dialect_date_rule = "When calculating difference between dates in MySQL, use DATEDIFF(date2, date1)."
-        elif self._dialect == SQLDialect.MSSQL:
-            dialect_date_rule = "When calculating difference between dates in SQL Server, use DATEDIFF(day, date1, date2)."
-        elif self._dialect == SQLDialect.ORACLE:
-            dialect_date_rule = "When calculating difference between dates in Oracle, use (date2 - date1)."
 
         system_prompt = (
             f"You are a strict text-to-SQL assistant targeting a {dialect_str} database. "
@@ -482,12 +471,8 @@ class LocalLLMClient(LLMClient):
             "14. If you JOIN the same table more than once, give each instance a unique alias (e.g., orders o1, orders o2 or orders1, orders2). If the query plan references orders1 and orders2, alias them accordingly (e.g., FROM orders orders1 JOIN orders orders2 ON ...).\n"
             "15. If you select a column from a table (e.g. alias.column or table.column), that table MUST be included in the FROM or JOIN clause. NEVER select a column from a table that is not joined in FROM."
         )
-        if dialect_date_rule:
-            system_prompt += f"\n16. {dialect_date_rule}"
         if rules:
-            system_prompt += f"\n{rules}"
-        if hints:
-            system_prompt += f"\n{hints}"
+            system_prompt += f"\n16. Follow these {dialect_str} rules precisely:\n{rules}"
 
         # Focus schema string to tables identified in plan
         if plan and plan.tables:

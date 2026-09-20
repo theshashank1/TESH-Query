@@ -52,8 +52,14 @@ def introspect_db(
     from teshq.core.dialect import detect_dialect
     dialect = detect_dialect(db_url)
 
-    # Connect with minimal logging during introspection
-    engine = create_engine(db_url, echo=False)
+    # Connect using the unified connector system for optimized pool/timeout handling.
+    # Falls back to raw create_engine for databases not in the connector registry.
+    from teshq.core.connectors import UnifiedDatabaseConnector
+    try:
+        engine = UnifiedDatabaseConnector.create_engine(db_url, {"echo": False})
+    except (ValueError, ImportError):
+        # Fallback for databases not in the connector registry
+        engine = create_engine(db_url, echo=False)
     metadata = MetaData()
 
     try:
@@ -78,21 +84,20 @@ def introspect_db(
         "dialect": str(dialect),
     }
 
-    # Determine which schemas to introspect
-    # For multi-schema databases, enumerate available schemas
-    schemas_to_introspect: List[Optional[str]] = [schema_name]
-    multi_schema_dbs = {"postgresql", "mssql", "oracle"}
+    # Determine which schemas to introspect.
+    # Instead of a hardcoded whitelist, dynamically detect multi-schema databases
+    # by asking the inspector — this works for PostgreSQL, MSSQL, Oracle, BigQuery,
+    # Snowflake, Redshift, CockroachDB, and any future multi-schema database.
     _SKIP_SCHEMAS = {"information_schema", "pg_catalog", "pg_toast", "sys", "INFORMATION_SCHEMA"}
+    schemas_to_introspect: List[Optional[str]] = [schema_name]
 
-    url_lower = db_url.lower()
-    is_multi_schema = any(url_lower.startswith(prefix) for prefix in multi_schema_dbs)
-
-    if is_multi_schema and schema_name is None:
+    if schema_name is None:
         try:
             available_schemas = inspector.get_schema_names()
             # Filter out system schemas
             user_schemas = [s for s in available_schemas if s not in _SKIP_SCHEMAS]
-            if user_schemas:
+            if len(user_schemas) > 1:
+                # Multiple user schemas detected — introspect all of them
                 schemas_to_introspect = user_schemas  # type: ignore[assignment]
         except Exception:
             # Fallback: just use default schema (None)

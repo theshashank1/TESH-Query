@@ -127,8 +127,8 @@ class ConnectionManager:
                 return engine
                 
             except ValueError as e:
-                # Fallback to original implementation for unsupported databases
-                logger.warning(f"Using fallback connection method: {e}")
+                # Safety fallback — should rarely trigger now that GenericSQLAlchemyConnector exists
+                logger.warning(f"Connector fallback triggered: {e}")
                 database_url, engine_args = self._get_engine_args(database_url)
                 engine = create_engine(database_url, **engine_args)
                 self._engines[cache_key] = engine
@@ -183,7 +183,13 @@ class ConnectionManager:
             elif db_type == "mssql":
                 # SQL Server uses LOCK_TIMEOUT (ms); there is no direct query timeout via SQL
                 connection.execute(text(f"SET LOCK_TIMEOUT {timeout_ms}"))
-            # SQLite, Oracle, Cassandra: no server-side query timeout via SQL
+            elif db_type not in ("sqlite", "cassandra"):
+                # Best-effort for unknown databases (Snowflake, CockroachDB, etc.)
+                # Many PostgreSQL-compatible DBs support statement_timeout
+                try:
+                    connection.execute(text(f"SET statement_timeout = {timeout_ms}"))
+                except Exception:
+                    logger.debug(f"Query timeout not available for '{db_type}'")
         except SQLAlchemyError:
             try:
                 connection.rollback()

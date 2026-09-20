@@ -159,12 +159,11 @@ class TeshEngine:
 
     def _get_sql_gen(self) -> SQLGenerator:
         if self._sql_gen is None:
-            from teshq.core.dialect import detect_dialect
             self._sql_gen = build_sql_generator(
                 api_key=self._api_key,
                 model_name=self._model_name,
                 provider=self._provider,
-                dialect=detect_dialect(self._db_url),
+                dialect=self._dialect,  # Already detected in __init__
                 **self._llm_kwargs(),
             )
         return self._sql_gen

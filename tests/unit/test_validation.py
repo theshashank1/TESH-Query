@@ -45,11 +45,11 @@ class TestConfigValidator:
         assert is_valid
         assert "Valid oracle database URL format" in message
 
-    def test_validate_database_url_invalid_scheme(self):
-        """Test invalid database scheme."""
+    def test_validate_database_url_generic_scheme(self):
+        """Test generic database scheme (now supported via fallback)."""
         is_valid, message = ConfigValidator.validate_database_url("unsupported://user@host/db")
-        assert not is_valid
-        assert "Unsupported database type" in message
+        assert is_valid
+        assert "Valid unsupported database URL format" in message
 
     def test_validate_database_url_missing_hostname(self):
         """Test missing hostname for non-SQLite database."""

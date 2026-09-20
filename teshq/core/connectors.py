@@ -244,6 +244,46 @@ class CassandraConnector(DatabaseConnector):
         return ["cassandra-driver", "cqlalchemy"]
 
 
+class GenericSQLAlchemyConnector(DatabaseConnector):
+    """Fallback connector for any SQLAlchemy-supported database.
+
+    Provides sensible defaults (QueuePool, standard timeouts, SELECT 1 health check)
+    for databases that don't have a specialized connector registered. This allows
+    BigQuery, Snowflake, DuckDB, Redshift, ClickHouse, CockroachDB, etc. to work
+    out of the box as long as the user has the appropriate SQLAlchemy dialect driver
+    installed (e.g. ``pip install sqlalchemy-bigquery``).
+    """
+
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "poolclass": QueuePool,
+            "pool_size": config.get("pool_size", 5),
+            "max_overflow": config.get("max_overflow", 10),
+            "pool_timeout": config.get("pool_timeout", 30),
+            "pool_recycle": config.get("pool_recycle", 3600),
+            "pool_pre_ping": config.get("pool_pre_ping", True),
+            "echo": config.get("echo", False),
+        }
+
+    def test_connection_query(self) -> str:
+        return "SELECT 1"
+
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": True,
+            "supports_indexes": True,
+            "supports_check_constraints": False,
+            "supports_sequences": False,
+            "information_schema_available": False,
+        }
+
+    def normalize_url(self, url: str) -> str:
+        return url
+
+    def get_required_packages(self) -> List[str]:
+        return []
+
+
 class UnifiedDatabaseConnector:
     """
     Unified interface for connecting to various database systems.
@@ -295,14 +335,20 @@ class UnifiedDatabaseConnector:
     
     @classmethod
     def get_connector(cls, url: str) -> DatabaseConnector:
-        """Get appropriate connector for database URL."""
+        """Get appropriate connector for database URL.
+        
+        Returns the optimized connector for known database types, or a
+        GenericSQLAlchemyConnector for any unknown database — allowing
+        SQLAlchemy-supported databases to work out of the box.
+        """
         db_type = cls.detect_database_type(url)
         
         if db_type not in cls._connectors:
-            raise ValueError(
-                f"Unsupported database type: {db_type}. "
-                f"Supported types: {', '.join(cls.get_supported_databases())}"
+            logger.info(
+                f"No optimized connector for '{db_type}' — using generic SQLAlchemy defaults. "
+                f"Install the appropriate SQLAlchemy dialect driver for full support."
             )
+            return GenericSQLAlchemyConnector()
         
         return cls._connectors[db_type]
     

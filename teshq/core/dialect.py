@@ -47,6 +47,11 @@ _URL_PREFIX_MAP = (
 )
 
 
+# Stores the raw scheme name when detect_dialect returns GENERIC,
+# so LLM prompts can say "BigQuery SQL" instead of just "SQL".
+_last_generic_dialect_name: Optional[str] = None
+
+
 def detect_dialect(db_url: Optional[str] = None) -> SQLDialect:
     """
     Detect SQL dialect from a database URL.
@@ -60,6 +65,8 @@ def detect_dialect(db_url: Optional[str] = None) -> SQLDialect:
     Returns:
         The detected :class:`SQLDialect`.
     """
+    global _last_generic_dialect_name
+
     if not db_url:
         try:
             from teshq.config.loader import get_database_url
@@ -68,14 +75,53 @@ def detect_dialect(db_url: Optional[str] = None) -> SQLDialect:
             pass
 
     if not db_url:
+        _last_generic_dialect_name = None
         return SQLDialect.GENERIC
 
     url_lower = db_url.lower().strip()
     for prefix, dialect in _URL_PREFIX_MAP:
         if url_lower.startswith(prefix):
+            _last_generic_dialect_name = None
             return dialect
 
+    # For unknown databases, extract the scheme name so LLM prompts can
+    # target the correct dialect (e.g. "BigQuery SQL" instead of just "SQL")
+    if "://" in url_lower:
+        scheme = url_lower.split("://")[0].split("+")[0]
+        _last_generic_dialect_name = scheme.title()
+    else:
+        _last_generic_dialect_name = None
+
     return SQLDialect.GENERIC
+
+
+def get_dialect_display_name(dialect: SQLDialect, db_url: Optional[str] = None) -> str:
+    """Return a human-readable dialect name suitable for LLM prompts.
+
+    For known dialects (SQLite, PostgreSQL, etc.) returns the enum value.
+    For ``GENERIC``, returns the URL scheme name if available (e.g. ``"Bigquery SQL"``),
+    otherwise falls back to ``"SQL"``.
+
+    Args:
+        dialect: The detected SQL dialect enum.
+        db_url: Optional database URL (used to extract scheme for GENERIC dialects).
+
+    Returns:
+        A display name string like ``"SQLite"``, ``"PostgreSQL"``, or ``"Bigquery SQL"``.
+    """
+    if dialect != SQLDialect.GENERIC:
+        return str(dialect)
+
+    # Try the cached name from the last detect_dialect() call
+    if _last_generic_dialect_name:
+        return f"{_last_generic_dialect_name} SQL"
+
+    # Try to extract from a provided db_url
+    if db_url and "://" in db_url:
+        scheme = db_url.lower().split("://")[0].split("+")[0]
+        return f"{scheme.title()} SQL"
+
+    return str(dialect)
 
 
 def get_dialect_rules(dialect: SQLDialect) -> str:
