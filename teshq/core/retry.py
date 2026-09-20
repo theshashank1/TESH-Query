@@ -144,7 +144,9 @@ def retry_with_backoff(config: Optional[RetryConfig] = None, operation_name: str
                     time.sleep(delay)
 
             # If we get here, all retries failed
-            raise last_exception
+            if last_exception is not None:
+                raise last_exception
+            raise RuntimeError(f"No attempts were made for {operation_name} (max_attempts={config.max_attempts})")
 
         return wrapper
 
@@ -216,7 +218,9 @@ class AsyncRetryManager:
                 await asyncio.sleep(delay)
 
         # If we get here, all retries failed
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        raise RuntimeError(f"No attempts were made for {operation_name} (max_attempts={self.config.max_attempts})")
 
 
 # Predefined retry configurations for common scenarios

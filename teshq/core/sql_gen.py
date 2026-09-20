@@ -14,6 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from teshq.core.dialect import SQLDialect, detect_dialect, get_dialect_rules
 from teshq.core.models import QueryPlan, SQLQuery
+from teshq.core.retry import retry_with_backoff, API_RETRY_CONFIG
 from teshq.utils.logging import logger
 
 
@@ -91,7 +92,21 @@ class SQLGenerator:
             ]
         )
 
-    def generate(self, nl_query: str, schema: str, plan: QueryPlan, error_hint: Optional[str] = None, callbacks: Optional[list] = None) -> SQLQuery:
+    @retry_with_backoff(API_RETRY_CONFIG)
+    def _call_llm_with_retry(self, messages, callbacks):
+        if self._provider == "azure":
+            return self._invoke_azure(messages, callbacks)
+        else:
+            return self._structured_llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
+
+    def generate(
+        self,
+        nl_query: str,
+        schema: str,
+        plan: QueryPlan,
+        error_hint: Optional[str] = None,
+        callbacks: Optional[list] = None,
+    ) -> SQLQuery:
         """
         Generate a structured SQLQuery from the plan and compressed schema.
 
@@ -128,10 +143,7 @@ class SQLGenerator:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                if self._provider == "azure":
-                    sql_query = self._invoke_azure(messages, callbacks)
-                else:
-                    sql_query = self._structured_llm.invoke(messages, config={"callbacks": callbacks} if callbacks else None)
+                sql_query = self._call_llm_with_retry(messages, callbacks)
 
                 elapsed_ms = int((time.time() - start) * 1000)
                 logger.success(

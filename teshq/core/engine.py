@@ -7,6 +7,9 @@ validation, normalization, execution, and telemetry.
 
 import time
 import atexit
+import hashlib
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -33,6 +36,7 @@ from teshq.core.sql_validator import validate_sql
 from teshq.core.token_counter import DEFAULT_TOKEN_THRESHOLD, exceeds_threshold
 from teshq.telemetry.events import track_query_event
 from teshq.config.loader import get_database_url, get_llm_config
+from teshq.config.paths import SCHEMA_DIR
 from teshq.utils.logging import logger
 from teshq.core.retry import RetryConfig, calculate_delay, is_retryable
 from teshq.core.validation import ValidationError
@@ -187,10 +191,35 @@ class TeshEngine:
         return self._llm_client
 
     def _get_schema_graph(self) -> SchemaGraph:
-        """Load and cache the SchemaGraph from the live database."""
+        """Load and cache the SchemaGraph from the live database or disk cache."""
         if self._schema_graph is None:
+            # Hash the database URL to create a unique cache key
+            db_hash = hashlib.md5(self._db_url.encode()).hexdigest()
+            cache_file = SCHEMA_DIR / f"schema_cache_{db_hash}.json"
+            
+            # 24-hour cache TTL
+            if cache_file.exists() and (time.time() - os.path.getmtime(cache_file) < 86400):
+                try:
+                    logger.debug("Loading schema from disk cache", cache_file=str(cache_file))
+                    with open(cache_file, "r", encoding="utf-8") as f:
+                        schema_info = json.load(f)
+                    self._schema_graph = SchemaGraph.from_introspected(schema_info)
+                    return self._schema_graph
+                except Exception as e:
+                    logger.warning("Failed to load schema cache, falling back to introspection", error=str(e))
+            
             logger.info("Loading schema from database…")
             schema_info = introspect_db(db_url=self._db_url)
+            
+            # Save to cache
+            try:
+                SCHEMA_DIR.mkdir(parents=True, exist_ok=True)
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(schema_info, f)
+                logger.debug("Schema cached to disk", cache_file=str(cache_file))
+            except Exception as e:
+                logger.warning("Failed to write schema cache", error=str(e))
+                
             self._schema_graph = SchemaGraph.from_introspected(schema_info)
         return self._schema_graph
 

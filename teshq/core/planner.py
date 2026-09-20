@@ -13,8 +13,10 @@ from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import ValidationError
 
 from teshq.core.models import QueryPlan
+from teshq.core.retry import retry_with_backoff, API_RETRY_CONFIG
 from teshq.utils.logging import logger
 
 _SYSTEM_PROMPT = (
@@ -89,6 +91,7 @@ class QueryPlanner:
 
         return plan
 
+    @retry_with_backoff(API_RETRY_CONFIG)
     def _invoke_google(self, messages: list, start: float, callbacks: Optional[list] = None) -> QueryPlan:
         """Invoke via structured output (Pydantic schema) for Google Gemini."""
         max_attempts = 3
@@ -127,6 +130,7 @@ class QueryPlanner:
         logger.error("Query planning failed", error=last_exc, plan_latency_ms=elapsed_ms)
         raise last_exc  # type: ignore[misc]
 
+    @retry_with_backoff(API_RETRY_CONFIG)
     def _invoke_azure(self, messages: list, start: float, callbacks: Optional[list] = None) -> QueryPlan:
         """
         Invoke via plain text for Azure OpenAI.
