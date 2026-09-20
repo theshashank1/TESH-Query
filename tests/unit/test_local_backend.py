@@ -9,9 +9,20 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Mock llama_cpp module in sys.modules to prevent ModuleNotFoundError during patching
-mock_llama_cpp = MagicMock()
-sys.modules['llama_cpp'] = mock_llama_cpp
+import pytest
+
+@pytest.fixture(autouse=True)
+def mock_llama_cpp_module():
+    """Mock llama_cpp module in sys.modules to prevent ModuleNotFoundError during patching."""
+    original = sys.modules.get('llama_cpp')
+    sys.modules['llama_cpp'] = MagicMock()
+    try:
+        yield
+    finally:
+        if original is None:
+            sys.modules.pop('llama_cpp', None)
+        else:
+            sys.modules['llama_cpp'] = original
 
 from teshq.core.hardware import detect_hardware, recommend_quant, recommend_gpu_layers
 from teshq.core.inference import InferenceRuntime, InferenceConfig

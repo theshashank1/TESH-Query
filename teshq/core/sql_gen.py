@@ -61,14 +61,15 @@ class SQLGenerator:
     Accepts any LangChain BaseChatModel (Gemini, Azure OpenAI, etc.).
     """
 
-    def __init__(self, llm: Any, provider: str = "google", dialect: Optional[SQLDialect] = None):
+    def __init__(self, llm: Any, provider: str = "google", dialect: Optional[SQLDialect] = None, db_url: Optional[str] = None):
         self._llm = llm
         self._provider = provider.lower()
         self._dialect = dialect or SQLDialect.GENERIC
 
         # Build the dialect-aware system prompt
+        from teshq.core.dialect import get_dialect_display_name
         system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
-            dialect=str(self._dialect),
+            dialect=get_dialect_display_name(self._dialect, db_url),
             dialect_rules=get_dialect_rules(self._dialect),
         )
 
@@ -217,6 +218,7 @@ def build_sql_generator(
     model_name: Optional[str] = None,
     provider: str = "google",
     dialect: Optional[SQLDialect] = None,
+    db_url: Optional[str] = None,
     **kwargs: Any,
 ) -> SQLGenerator:
     """
@@ -236,7 +238,7 @@ def build_sql_generator(
 
     # Auto-detect dialect if not explicitly provided
     if dialect is None:
-        dialect = detect_dialect()
+        dialect = detect_dialect(db_url)
 
     llm = build_llm(
         provider=provider,
@@ -247,4 +249,4 @@ def build_sql_generator(
         top_k=1,
         **kwargs,
     )
-    return SQLGenerator(llm, provider=provider, dialect=dialect)
+    return SQLGenerator(llm, provider=provider, dialect=dialect, db_url=db_url)

@@ -281,6 +281,8 @@ class BenchmarkRunner:
         total_prompt_tokens = sum(r.prompt_tokens for r in results)
         total_comp_tokens = sum(r.completion_tokens for r in results)
         
+        pct = lambda x: (x / total * 100) if total else 0.0
+        
         lines = [
             "# TESH-Query Benchmark Report",
             "",
@@ -289,9 +291,9 @@ class BenchmarkRunner:
             f"| Metric | Value |",
             f"| :--- | :--- |",
             f"| **Total Queries Tested** | {total} |",
-            f"| **Exact SQL Matches** | {exact_matches} ({exact_matches/total*100:.1f}%) |",
-            f"| **Execution Matches** | {exec_matches} ({exec_matches/total*100:.1f}%) |",
-            f"| **Database Errors** | {errors} ({errors/total*100:.1f}%) |",
+            f"| **Exact SQL Matches** | {exact_matches} ({pct(exact_matches):.1f}%) |",
+            f"| **Execution Matches** | {exec_matches} ({pct(exec_matches):.1f}%) |",
+            f"| **Database Errors** | {errors} ({pct(errors):.1f}%) |",
             f"| **Average Latency** | {avg_latency:.2f} ms |",
             f"| **Total Prompt Tokens** | {total_prompt_tokens} |",
             f"| **Total Completion Tokens** | {total_comp_tokens} |",

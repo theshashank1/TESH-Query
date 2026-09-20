@@ -116,8 +116,14 @@ class ModelManager:
             repo = name_or_repo
             file = filename
 
+        if "/" in file or "\\" in file or os.path.isabs(file):
+            raise ValueError(f"Invalid filename: {file}")
+            
+        dest_path = (self.models_dir / file).resolve()
+        if dest_path.parent != self.models_dir.resolve():
+            raise ValueError(f"Invalid model destination: {dest_path}")
+
         url = f"https://huggingface.co/{repo}/resolve/main/{file}"
-        dest_path = self.models_dir / file
 
         logger.info(f"Downloading from {url} to {dest_path}...")
         
@@ -143,7 +149,12 @@ class ModelManager:
 
     def delete_model(self, filename: str) -> bool:
         """Delete a local GGUF model file."""
-        target_path = self.models_dir / filename
+        if "/" in filename or "\\" in filename or os.path.isabs(filename):
+            raise ValueError(f"Invalid filename: {filename}")
+            
+        target_path = (self.models_dir / filename).resolve()
+        if target_path.parent != self.models_dir.resolve():
+            raise ValueError(f"Invalid model destination: {target_path}")
         if target_path.exists() and target_path.suffix == ".gguf":
             target_path.unlink()
             logger.success(f"Deleted local GGUF model: {filename}")

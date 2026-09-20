@@ -11,7 +11,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from teshq.core.exceptions import (
     DatabaseConnectionError,
@@ -332,7 +332,7 @@ class TeshEngine:
             # Execute (unless dry run)
             if not dry_run:
                 t0 = time.time()
-                rows = self._execute_with_retry(sql_text, parameters)
+                rows, sql_text, parameters = self._execute_with_retry(sql_text, parameters)
                 exec_ms = int((time.time() - t0) * 1000)
 
         except ValidationError as e:
@@ -387,7 +387,7 @@ class TeshEngine:
             cost_estimate_usd=(prompt_tokens / 1000 * 0.000075) + (completion_tokens / 1000 * 0.0003) if self._provider == "google" else 0.0,
         )
 
-    def _execute_with_retry(self, sql: str, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _execute_with_retry(self, sql: str, parameters: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
         """
         Execute SQL with self-healing retry and exponential backoff.
 
@@ -409,7 +409,7 @@ class TeshEngine:
         last_db_error: Optional[Exception] = None
         for attempt in range(1, db_retry_cfg.max_attempts + 1):
             try:
-                return execute_sql_query(db_url=self._db_url, query=sql, parameters=parameters)
+                return execute_sql_query(db_url=self._db_url, query=sql, parameters=parameters), sql, parameters
             except Exception as exc:
                 if is_retryable(exc, db_retry_cfg) and attempt < db_retry_cfg.max_attempts:
                     delay = calculate_delay(attempt, db_retry_cfg)
@@ -485,7 +485,7 @@ class TeshEngine:
                     f"Self-healing round {heal_round} generated new SQL — retrying execution",
                     sql=healed_sql[:200],
                 )
-                return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params)
+                return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params), healed_sql, healed_params
 
             except Exception as retry_error:
                 logger.error(

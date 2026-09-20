@@ -181,8 +181,10 @@ class ConnectionManager:
                 # MAX_EXECUTION_TIME is in milliseconds (MySQL 5.7.8+)
                 connection.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}"))
             elif db_type == "mssql":
-                # SQL Server uses LOCK_TIMEOUT (ms); there is no direct query timeout via SQL
-                connection.execute(text(f"SET LOCK_TIMEOUT {timeout_ms}"))
+                # Apply query_timeout through the SQL Server driver's mechanism
+                dbapi_conn = connection.connection.dbapi_connection
+                if hasattr(dbapi_conn, "timeout"):
+                    dbapi_conn.timeout = timeout_seconds
             elif db_type not in ("sqlite", "cassandra"):
                 # Best-effort for unknown databases (Snowflake, CockroachDB, etc.)
                 # Many PostgreSQL-compatible DBs support statement_timeout

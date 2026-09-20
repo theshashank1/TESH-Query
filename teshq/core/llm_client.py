@@ -609,7 +609,15 @@ class LocalLLMClient(LLMClient):
                         if where_pos != -1:
                             cleaned_query = cleaned_query[:where_pos] + join_clause + "\n" + cleaned_query[where_pos:]
                         else:
-                            cleaned_query += "\n" + join_clause
+                            insert_pos = len(cleaned_query)
+                            for kw in ("GROUP BY", "ORDER BY", "LIMIT", ";"):
+                                pos = cleaned_query.upper().find(kw)
+                                if pos != -1 and pos < insert_pos:
+                                    insert_pos = pos
+                            if insert_pos < len(cleaned_query):
+                                cleaned_query = cleaned_query[:insert_pos] + join_clause + "\n" + cleaned_query[insert_pos:]
+                            else:
+                                cleaned_query += "\n" + join_clause
                         from_join_tables.add(missing_table.lower())
                         if prefix:
                             cleaned_query = re.sub(rf"\b{re.escape(prefix)}\.{re.escape(col)}\b", f"{missing_table}.{col}", cleaned_query)
@@ -624,7 +632,15 @@ class LocalLLMClient(LLMClient):
                         if where_pos != -1:
                             cleaned_query = cleaned_query[:where_pos] + join_clause + "\n" + cleaned_query[where_pos:]
                         else:
-                            cleaned_query += "\n" + join_clause
+                            insert_pos = len(cleaned_query)
+                            for kw in ("GROUP BY", "ORDER BY", "LIMIT", ";"):
+                                pos = cleaned_query.upper().find(kw)
+                                if pos != -1 and pos < insert_pos:
+                                    insert_pos = pos
+                            if insert_pos < len(cleaned_query):
+                                cleaned_query = cleaned_query[:insert_pos] + join_clause + "\n" + cleaned_query[insert_pos:]
+                            else:
+                                cleaned_query += "\n" + join_clause
                         from_join_tables.add(missing_table.lower())
                         if prefix:
                             cleaned_query = re.sub(rf"\b{re.escape(prefix)}\.{re.escape(col)}\b", f"{missing_table}.{col}", cleaned_query)
