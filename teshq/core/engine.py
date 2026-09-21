@@ -100,6 +100,11 @@ class TeshEngine:
         cfg = get_llm_config()
 
         self._db_url = db_url or get_database_url()
+        if not self._db_url:
+            raise TeshqConfigurationError(
+                "Database URL is not configured",
+                detail="Set DATABASE_URL via 'teshq config --db' or pass db_url directly.",
+            )
 
         # Detect dialect early so it's available throughout the engine
         from teshq.core.dialect import detect_dialect
@@ -168,6 +173,7 @@ class TeshEngine:
                 model_name=self._model_name,
                 provider=self._provider,
                 dialect=self._dialect,  # Already detected in __init__
+                db_url=self._db_url,
                 **self._llm_kwargs(),
             )
         return self._sql_gen
@@ -209,7 +215,13 @@ class TeshEngine:
                     logger.warning("Failed to load schema cache, falling back to introspection", error=str(e))
             
             logger.info("Loading schema from database…")
-            schema_info = introspect_db(db_url=self._db_url)
+            try:
+                schema_info = introspect_db(db_url=self._db_url)
+            except Exception as e:
+                raise SchemaIntrospectionError(
+                    "Failed to introspect database schema",
+                    detail=str(e),
+                ) from e
             
             # Save to cache
             try:

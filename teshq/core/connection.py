@@ -182,9 +182,12 @@ class ConnectionManager:
                 connection.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}"))
             elif db_type == "mssql":
                 # Apply query_timeout through the SQL Server driver's mechanism
-                dbapi_conn = connection.connection.dbapi_connection
-                if hasattr(dbapi_conn, "timeout"):
-                    dbapi_conn.timeout = timeout_seconds
+                try:
+                    dbapi_conn = connection.connection.dbapi_connection
+                    if hasattr(dbapi_conn, "timeout"):
+                        dbapi_conn.timeout = timeout_seconds
+                except Exception:
+                    logger.debug("Query timeout configuration not supported on this MSSQL connection")
             elif db_type not in ("sqlite", "cassandra"):
                 # Best-effort for unknown databases (Snowflake, CockroachDB, etc.)
                 # Many PostgreSQL-compatible DBs support statement_timeout

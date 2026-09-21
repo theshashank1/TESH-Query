@@ -116,6 +116,8 @@ class LocalLLMClient(LLMClient):
         self._runtime = runtime
         self._config = config
         self._grammar = get_sql_grammar()
+        if self._grammar is None:
+            raise RuntimeError("Local LLM inference requires llama-cpp-python, but it is not installed or could not be loaded. Run: pip install teshq[local]")
         self._prompt_tokens = 0
         self._completion_tokens = 0
         self._dialect = detect_dialect(db_url)
@@ -594,6 +596,8 @@ class LocalLLMClient(LLMClient):
                         continue
                     left = p[0].strip()
                     right = p[1].strip()
+                    if "." not in left or "." not in right:
+                        continue
                     t_left = left.rsplit(".", 1)[0].lower()
                     t_right = right.rsplit(".", 1)[0].lower()
                     c_left = left.rsplit(".", 1)[1]

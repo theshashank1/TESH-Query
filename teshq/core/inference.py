@@ -131,42 +131,57 @@ class InferenceRuntime:
         # Prepare parameters
         stop_words = stop or []
         
-        if system_prompt:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ]
-            
-            response = self._llm.create_chat_completion(
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                grammar=grammar,
-                stop=stop_words,
-            )
-            
-            choice = response["choices"][0]
-            text = choice["message"]["content"]
-            usage = response["usage"]
-            prompt_tokens = usage["prompt_tokens"]
-            completion_tokens = usage["completion_tokens"]
-            total_tokens = usage["total_tokens"]
-        else:
-            # Use raw completion if no system prompt is provided
-            response = self._llm.create_completion(
-                prompt=prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                grammar=grammar,
-                stop=stop_words,
-            )
-            
-            choice = response["choices"][0]
-            text = choice["text"]
-            usage = response["usage"]
-            prompt_tokens = usage["prompt_tokens"]
-            completion_tokens = usage["completion_tokens"]
-            total_tokens = usage["total_tokens"]
+        try:
+            if system_prompt:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ]
+                
+                response = self._llm.create_chat_completion(
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    grammar=grammar,
+                    stop=stop_words,
+                )
+                
+                if not response.get("choices"):
+                    raise RuntimeError("Local model returned empty response (no choices). The prompt may be too long or the model may be incompatible.")
+                
+                choice = response["choices"][0]
+                text = choice.get("message", {}).get("content", "")
+                usage = response.get("usage", {})
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+                total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
+            else:
+                # Use raw completion if no system prompt is provided
+                response = self._llm.create_completion(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    grammar=grammar,
+                    stop=stop_words,
+                )
+                
+                if not response.get("choices"):
+                    raise RuntimeError("Local model returned empty response (no choices). The prompt may be too long or the model may be incompatible.")
+                
+                choice = response["choices"][0]
+                text = choice.get("text", "")
+                usage = response.get("usage", {})
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+                total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
+        except (KeyError, IndexError, TypeError) as e:
+            raise RuntimeError(
+                f"Failed to parse local model response: {e}. "
+                "The model may be incompatible or corrupted."
+            ) from e
+
+        if not text or not text.strip():
+            logger.warning("Local model generated empty text output")
 
         latency = (time.time() - start_time) * 1000
         

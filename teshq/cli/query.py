@@ -18,6 +18,7 @@ from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
 from teshq.telemetry.events import track_command, track_error, track_feature
 from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success, warning
+from teshq.core.exceptions import TeshqConfigurationError
 from teshq.core.validation import CLIValidator, ValidationError
 
 app = typer.Typer()
@@ -311,6 +312,30 @@ def process_nl_query(
                     "~/.teshq/schema/schema.txt"
                 ),
             )
+        raise typer.Exit(1)
+    except ImportError as e:
+        track_error("query", "ImportError")
+        if logging_active:
+            duration = time.time() - start_time
+            cli_logger.log_command_end(False, duration, error=str(e), error_type="ImportError")
+        
+        handle_error(
+            e,
+            "Missing Dependencies",
+            suggest_action="To use the local GGUF backend, you must install the optional dependencies. Run: pip install teshq[local]"
+        )
+        raise typer.Exit(1)
+    except TeshqConfigurationError as e:
+        track_error("query", "TeshqConfigurationError")
+        if logging_active:
+            duration = time.time() - start_time
+            cli_logger.log_command_end(False, duration, error=str(e), error_type="TeshqConfigurationError")
+            
+        handle_error(
+            e,
+            "Configuration Error",
+            suggest_action="Ensure your DATABASE_URL and other required settings are properly configured."
+        )
         raise typer.Exit(1)
     except typer.Exit:
         raise

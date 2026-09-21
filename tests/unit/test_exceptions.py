@@ -127,8 +127,9 @@ class TestExecuteWithRetry:
         """When execute_sql_query succeeds on first try, no retry occurs."""
         engine = self._make_engine()
         with patch("teshq.core.engine.execute_sql_query", return_value=[{"id": 1}]):
-            rows = engine._execute_with_retry("SELECT 1", {})
+            rows, executed_sql, executed_params = engine._execute_with_retry("SELECT 1", {})
         assert rows == [{"id": 1}]
+        assert executed_sql == "SELECT 1"
 
     def test_transient_db_error_retries_then_succeeds(self):
         """ConnectionError on first attempt should be retried with backoff."""
@@ -144,9 +145,10 @@ class TestExecuteWithRetry:
 
         with patch("teshq.core.engine.execute_sql_query", side_effect=flaky_execute), \
              patch("teshq.core.engine.time.sleep"):
-            rows = engine._execute_with_retry("SELECT 1", {})
+            rows, executed_sql, executed_params = engine._execute_with_retry("SELECT 1", {})
 
         assert rows == [{"ok": True}]
+        assert executed_sql == "SELECT 1"
         assert call_count == 2
 
     def test_non_retryable_error_triggers_self_heal(self):
@@ -174,9 +176,11 @@ class TestExecuteWithRetry:
         with patch("teshq.core.engine.execute_sql_query", side_effect=fail_then_succeed), \
              patch("teshq.core.engine.validate_sql"), \
              patch("teshq.core.engine.normalize_sql", side_effect=lambda s: s):
-            rows = engine._execute_with_retry("SELECT foo FROM users", {})
+            rows, executed_sql, executed_params = engine._execute_with_retry("SELECT foo FROM users", {})
 
         assert rows == [{"id": 1}]
+        # After self-healing, the executed SQL should be the healed version
+        assert executed_sql == "SELECT id FROM users"
         mock_gen.generate.assert_called_once()
 
     def test_self_heal_exhausted_raises(self):

@@ -127,23 +127,28 @@ class ModelManager:
 
         logger.info(f"Downloading from {url} to {dest_path}...")
         
-        response = requests.get(url, stream=True)
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"Failed to fetch model from HF. HTTP Status: {response.status_code}. "
-                "Verify the repository and filename are correct."
-            )
+        try:
+            response = requests.get(url, stream=True)
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to fetch model from HF. HTTP Status: {response.status_code}. "
+                    "Verify the repository and filename are correct."
+                )
+                
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 1024 * 1024  # 1MB
             
-        total_size = int(response.headers.get('content-length', 0))
-        block_size = 1024 * 1024  # 1MB
-        
-        downloaded = 0
-        with open(dest_path, "wb") as f:
-            for data in response.iter_content(block_size):
-                f.write(data)
-                downloaded += len(data)
-                if progress_callback:
-                    progress_callback(downloaded, total_size)
+            downloaded = 0
+            with open(dest_path, "wb") as f:
+                for data in response.iter_content(block_size):
+                    f.write(data)
+                    downloaded += len(data)
+                    if progress_callback:
+                        progress_callback(downloaded, total_size)
+        except requests.RequestException as e:
+            if dest_path.exists():
+                dest_path.unlink()
+            raise RuntimeError(f"Network error while downloading model: {e}") from e
                     
         return str(dest_path)
 
