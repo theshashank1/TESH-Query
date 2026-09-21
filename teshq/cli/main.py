@@ -22,7 +22,7 @@ from typing import Optional
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.cli import analytics, config, db, query, local, bench, model
+from teshq.cli import analytics, config, db, query, local, bench, model, chat
 from teshq.utils.logging import configure_global_logger
 
 try:
@@ -43,25 +43,26 @@ try:
 except ImportError:
     _TELEMETRY_CMD_AVAILABLE = False
 
-from teshq.utils.ui import handle_error
-from teshq.utils.ui import info as ui_info
+from teshq.cli.ui import handle_error
+from teshq.cli.ui import info as ui_info
 
 app = typer.Typer(
     name="teshq",
     help=(
-        "TESH-Query: convert natural language into SQL and run it against your database.\n\n"
+        "TESH-Query: Autonomous Natural Language SQL Exploration Engine.\n\n"
         "Quick start:\n\n"
-        "  1. teshq config --db          # set up database connection\n\n"
-        "  2. teshq config --gemini      # Gemini API key  (or --azure for Azure OpenAI)\n\n"
-        "  3. teshq db introspect        # introspect the database schema\n\n"
-        "  4. teshq query \"show top 10 customers by revenue\"\n\n"
+        "  1. teshq chat                 # launch interactive natural language terminal\n\n"
+        "  2. teshq query \"your question\" # run single natural language query\n\n"
+        "  3. teshq db explore           # view database schema in a visual tree\n\n"
+        "  4. teshq config --db          # configure database connection URL\n\n"
         "Tips:\n\n"
+        "  • Use 'teshq chat' for conversational follow-ups and slash commands.\n\n"
         "  • Set NO_COLOR=1 to disable coloured output (CI / piped output).\n\n"
         "  • Use --verbose to write detailed logs to ~/.teshq/logs/ for debugging.\n"
     ),
-    short_help="Natural-language SQL query tool",
+    short_help="Autonomous Natural Language SQL Engine",
     epilog="Docs & source: https://github.com/theshashank1/TESH-Query",
-    no_args_is_help=True,
+    no_args_is_help=False,
 )
 
 
@@ -78,7 +79,7 @@ def _callback(
         False, "--verbose", help="Write detailed logs to ~/.teshq/logs/ for debugging."
     ),
 ):
-    """TESH-Query CLI — natural language to SQL."""
+    """TESH-Query CLI — autonomous natural language to SQL."""
     configure_global_logger(enable_cli_output=verbose)
 
     if version:
@@ -98,9 +99,54 @@ def _callback(
         typer.echo("LinkedIn: https://www.linkedin.com/in/gunda-shashank/")
         raise typer.Exit()
 
+    # If invoked with no subcommand, present the award-winning welcome HUD
+    if ctx.invoked_subcommand is None:
+        from teshq.cli.ui.banner import print_hero_banner, print_hud, print_suggested_prompts
+        from teshq.cli.chat import _get_env_summary
+        from teshq.cli.ui.theme import console, Colors, Icons
+        from rich.panel import Panel
+        from rich.text import Text
+
+        print_hero_banner()
+        db_status, db_type, llm_name, table_count = _get_env_summary()
+        print_hud(db_status=db_status, db_type=db_type, llm_model=llm_name, schema_tables_count=table_count)
+        console.print()
+        print_suggested_prompts()
+
+        # Quick Commands panel
+        cmds = Text()
+        cmds.append(f"\n  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
+        cmds.append("teshq chat", style=f"bold {Colors.TEXT}")
+        cmds.append("             Start interactive conversational terminal\n", style=f"dim {Colors.MUTED}")
+        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
+        cmds.append('teshq query "..."', style=f"bold {Colors.TEXT}")
+        cmds.append("       Run single natural language query\n", style=f"dim {Colors.MUTED}")
+        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
+        cmds.append("teshq db explore", style=f"bold {Colors.TEXT}")
+        cmds.append("         Explore database tables in a visual tree\n", style=f"dim {Colors.MUTED}")
+        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
+        cmds.append("teshq config --db", style=f"bold {Colors.TEXT}")
+        cmds.append("        Configure database connection URL\n", style=f"dim {Colors.MUTED}")
+        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
+        cmds.append("teshq --help", style=f"bold {Colors.TEXT}")
+        cmds.append("             View all subcommands and flags\n", style=f"dim {Colors.MUTED}")
+
+        from teshq.cli.ui.theme import ROUNDED_BOX
+        console.print(Panel(
+            cmds,
+            title=f"[bold {Colors.PRIMARY}]{Icons.bolt()} Quick Commands[/bold {Colors.PRIMARY}]",
+            title_align="left",
+            border_style=Colors.BORDER_SUBTLE,
+            box=ROUNDED_BOX,
+            padding=(0, 2),
+        ))
+        console.print()
+        raise typer.Exit()
 
 
 # Register sub-typers
+app.add_typer(chat.app, name="chat", help="Launch interactive multi-turn SQL chat session.")
+app.add_typer(chat.app, name="repl", help="Alias for 'teshq chat'.")
 app.add_typer(db.app, name="db", help="Manage database connections and schema introspection.")
 app.add_typer(config.app, name="config", help="Configure database and API credentials.")
 app.add_typer(query.app)  # already named "query" internally

@@ -107,8 +107,92 @@ def introspect(
             cli_logger.cleanup()
 
 
+@app.command(name="explore", help="Display visual schema tree of tables, columns, and foreign keys.")
+def explore_schema() -> None:
+    """Explore introspected schema in an interactive visual tree."""
+    from rich.tree import Tree
+    from teshq.cli.ui.theme import Colors, Icons, console
+    from teshq.core.schema_graph import SchemaGraph
+
+    print_header("Database Schema Explorer", level=2)
+
+    try:
+        graph = SchemaGraph.from_schema_file()
+        tables = graph.get_all_tables()
+
+        if not tables:
+            tip("No cached schema found. Run 'teshq db introspect' first to introspect your database.")
+            raise typer.Exit(0)
+
+        root = Tree(f"[bold {Colors.PRIMARY}]{Icons.database()} Introspected Database Schema[/bold {Colors.PRIMARY}] [dim]({len(tables)} tables)[/dim]")
+
+        for tbl in sorted(tables):
+            cols = graph.get_columns_for_table(tbl)
+            fks = graph.get_foreign_keys_for_table(tbl)
+            fk_map = {fk.get("constrained_column"): fk.get("referred_table") for fk in fks}
+
+            tbl_node = root.add(f"[bold {Colors.TEXT}]{Icons.table()} {tbl}[/bold {Colors.TEXT}] [dim]({len(cols)} columns)[/dim]")
+
+            for col in cols:
+                name = col.get("name", "")
+                ctype = col.get("type", "")
+                is_pk = col.get("primary_key", False)
+
+                badges = []
+                if is_pk:
+                    badges.append(f"[bold {Colors.WARNING}]{Icons.key()} PK[/bold {Colors.WARNING}]")
+                if name in fk_map:
+                    badges.append(f"[bold {Colors.SECONDARY}]{Icons.link()} FK ➔ {fk_map[name]}[/bold {Colors.SECONDARY}]")
+
+                badge_str = f"  {' '.join(badges)}" if badges else ""
+                tbl_node.add(f"[dim {Colors.MUTED}]{name}[/dim {Colors.MUTED}] [dim]({ctype})[/dim]{badge_str}")
+
+        console.print(root)
+        console.print()
+
+    except Exception as e:
+        handle_error(e, "Schema Explorer", suggest_action="Run 'teshq db introspect' to refresh your schema.")
+        raise typer.Exit(1)
+
+
+@app.command(name="preview", help="Preview sample rows from any table.")
+def preview_table(
+    table_name: str = typer.Argument(..., help="Name of the table to preview."),
+    limit: int = typer.Option(5, "--limit", "-n", help="Number of rows to preview."),
+) -> None:
+    """Preview sample rows from a specific database table."""
+    from teshq.cli.ui import print_results_table, error, success
+    from teshq.core.engine import TeshEngine
+
+    try:
+        engine = TeshEngine()
+        query = f"SELECT * FROM {table_name} LIMIT {limit};"
+        
+        with status(f"Fetching sample data from {table_name}..."):
+            rows = engine.connection.execute_query(query)
+
+        if not rows:
+            tip(f"Table '{table_name}' contains 0 rows.")
+            raise typer.Exit(0)
+
+        headers = list(rows[0].keys())
+        data = [[row[h] for h in headers] for row in rows]
+
+        print_results_table(
+            headers=headers,
+            rows=data,
+            title=f"Sample Preview: {table_name}",
+            summary=f"Showing {len(rows)} sample record(s)",
+        )
+    except Exception as e:
+        handle_error(e, f"Table Preview ({table_name})", suggest_action=f"Verify table '{table_name}' exists using 'teshq db explore'")
+        raise typer.Exit(1)
+
+
+# Register alias for explore
+app.command(name="tree", help="Alias for 'teshq db explore'")(explore_schema)
+
+
 if __name__ == "__main__":
-    # This script runs as a Typer CLI application.
-    # Execute `python -m teshq.cli.main --help` to see commands.
     app()
     print_footer()

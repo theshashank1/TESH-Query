@@ -120,7 +120,7 @@ class OutputFormatter:
             show_count: Whether to show row count
             tablefmt: Table format (ignored, kept for compatibility)
         """
-        from teshq.utils.ui import warning, print_query_results
+        from teshq.cli.ui import warning, print_results_table
         
         if not results:
             count_msg = " (0 records)" if show_count else ""
@@ -134,7 +134,7 @@ class OutputFormatter:
         rows = [[row[h] for h in headers] for row in display_results]
         
         summary = f"{len(results)} record{'s' if len(results) != 1 else ''}" if show_count else ""
-        print_query_results(headers=headers, rows=rows, title=title, summary=summary)
+        print_results_table(headers=headers, rows=rows, title=title, summary=summary)
 
 
 
@@ -193,24 +193,24 @@ class QueryResult:
     
     def print_query_table(self) -> None:
         """Print query results nicely using modern UI."""
-        from teshq.utils.ui import warning, print_query_results, print_header
+        from teshq.cli.ui import warning, print_results_table, print_header
         
         if self.natural_language_query:
-            print_header("REQUEST", self.natural_language_query, level=2)
+            print_header(f"Query: \"{self.natural_language_query}\"", level=2)
             
         if not self._normalized_results:
-            warning("No data found.")
+            warning("No data found for this query.")
             return
         
         display_results = self.display_results
         headers = list(display_results[0].keys())
         rows = [[row[h] for h in headers] for row in display_results]
         
-        print_query_results(
+        print_results_table(
             headers=headers, 
             rows=rows, 
             title="Results",
-            summary=f"Found {len(self._normalized_results)} record(s)"
+            summary=f"Found {len(self._normalized_results):,} record(s)"
         )
 
     

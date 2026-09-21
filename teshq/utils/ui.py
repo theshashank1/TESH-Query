@@ -306,7 +306,8 @@ class ModernUI:
 
     def print_sql(self, sql: str, title: str = "SQL Query", show_line_numbers: bool = False):
         """Display SQL with syntax highlighting"""
-        self.print_code(sql, "sql", title, line_numbers=show_line_numbers)
+        from teshq.cli.ui.cards import print_sql_card
+        print_sql_card(sql, title=title)
 
     def print_json(self, json_data: str, title: str = "JSON Data"):
         """Display JSON with syntax highlighting"""
@@ -651,25 +652,9 @@ class ModernUI:
     def handle_error(
         self, error: Exception, context: str = "Operation", show_traceback: bool = False, suggest_action: str = ""
     ):
-        """Enhanced error handling"""
-        self.error(f"{context} failed: {type(error).__name__}")
-
-        if str(error):
-            self.info(str(error), dim=True, indent=1)
-
-        if suggest_action:
-            self.tip(suggest_action)
-
-        if show_traceback and self.has_rich:
-            import traceback
-
-            tb_text = traceback.format_exc()
-
-            if tb_text and "NoneType: None" not in tb_text:
-                self.space()
-                syntax = Syntax(tb_text, "python", theme="monokai", word_wrap=True)
-                panel = Panel(syntax, title="Traceback", border_style=Colors.ERROR, box=box.ROUNDED)
-                self.console.print(panel)
+        """Enhanced error handling with empathetic self-healing card."""
+        from teshq.cli.ui.cards import print_error_card
+        print_error_card(error, context=context, suggest_action=suggest_action, show_traceback=show_traceback)
 
     # --- Context Managers ---
     @contextmanager

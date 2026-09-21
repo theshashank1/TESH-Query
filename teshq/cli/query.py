@@ -17,7 +17,7 @@ from teshq.config.loader import get_database_url as get_db_url
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
 from teshq.telemetry.events import track_command, track_error, track_feature
-from teshq.utils.ui import error, handle_error, info, print_divider, print_sql, status, success, warning
+from teshq.cli.ui import Colors, error, handle_error, info, print_divider, print_metrics, print_sql_card, status, success, tip, warning
 from teshq.core.exceptions import TeshqConfigurationError
 from teshq.core.validation import CLIValidator, ValidationError
 
@@ -77,6 +77,12 @@ def process_nl_query(
         False,
         "--schema-preview",
         help="Print the compressed schema that will be sent to the LLM, then exit.",
+    ),
+    confirm_run: bool = typer.Option(
+        False,
+        "--confirm",
+        "-i",
+        help="Interactively review and confirm generated SQL before running it.",
     ),
     local: bool = typer.Option(
         False,
@@ -193,27 +199,38 @@ def process_nl_query(
                     )
                     raise typer.Exit(1)
 
-        with status("Initializing Engine", "Engine ready"):
-                db_url_val = get_db_url()
-                engine = TeshEngine(db_url=db_url_val, provider=provider_override)
+        with status("Initializing TESH Engine...", "Engine ready"):
+            db_url_val = get_db_url()
+            engine = TeshEngine(db_url=db_url_val, provider=provider_override)
 
-        if dry_run:
-            info("🧠 Generating SQL in dry-run mode (no execution)...")
+        dialect_name = getattr(engine, "_dialect", "SQL") or "SQL"
+
+        # If confirm_run is requested, synthesize SQL first and ask for review
+        if confirm_run and not dry_run:
+            with status("Synthesizing SQL query..."):
+                engine_result = engine.query(natural_language_request, dry_run=True)
+            sql_query, parameters = engine_result.sql, engine_result.parameters
+            print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")
+            
+            from rich.prompt import Confirm
+            should_run = Confirm.ask(f"[bold {Colors.WARNING}]Execute this query against your database?[/bold {Colors.WARNING}]", default=True)
+            if not should_run:
+                warning("Execution cancelled by user.")
+                raise typer.Exit(code=0)
+            
+            with status("Executing query against database..."):
+                engine_result = engine.query(natural_language_request, dry_run=False)
         else:
             db_display = db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database"
-            info(f"🧠 Generating and executing query on {db_display}...")
+            status_msg = "Synthesizing SQL (dry-run)..." if dry_run else f"Synthesizing & executing query on {db_display}..."
+            with status(status_msg):
+                engine_result = engine.query(natural_language_request, dry_run=dry_run)
 
-        engine_result = engine.query(natural_language_request, dry_run=dry_run)
-
-        sql_query, parameters = engine_result.sql, engine_result.parameters
-        
-        print_sql(sql_query, title="Generated SQL Query")
-
-        if parameters:
-            info(f"🔧 Query parameters: {parameters}")
+            sql_query, parameters = engine_result.sql, engine_result.parameters
+            print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")
 
         if dry_run:
-            success("✅ SQL generated. Dry-run complete — query was NOT executed.")
+            success("SQL generated. Dry-run complete — query was NOT executed.")
             if explain and engine_result.plan:
                 info(f"📊 Explain:\n  Tables: {engine_result.plan.tables}\n  Filters: {engine_result.plan.filters}\n  SQL: {sql_query}\n  Parameters: {parameters}")
             raise typer.Exit(code=0)
@@ -226,14 +243,21 @@ def process_nl_query(
             natural_language_query=natural_language_request
         )
 
-        success("✅ SQL query executed successfully!")
-        print_divider()
-
         if explain:
             info(f"📊 Explain:\n  SQL: {sql_query}\n  Parameters: {parameters}")
         
         # Use the unified output system for consistent display
         result.print_query_table()
+
+        # Telemetry metrics panel
+        print_metrics(
+            plan_latency_ms=engine_result.plan_latency_ms,
+            sql_latency_ms=engine_result.sql_latency_ms,
+            exec_latency_ms=engine_result.exec_latency_ms,
+            total_tokens=engine_result.total_tokens,
+            cost_estimate_usd=engine_result.cost_estimate_usd,
+            row_count=len(result),
+        )
 
         # Log query execution with real latency
         if logging_active:
@@ -243,11 +267,6 @@ def process_nl_query(
                 row_count=len(result),
                 execution_time_ms=engine_result.exec_latency_ms
             )
-
-        # Show token usage summary for this query (from engine result)
-        info(f"🏷️  Token usage: {engine_result.total_tokens:,} tokens, estimated cost: ${engine_result.cost_estimate_usd:.4f}")
-        total_ms = engine_result.plan_latency_ms + engine_result.sql_latency_ms + engine_result.exec_latency_ms
-        info(f"⏱️  Latency: {total_ms}ms (Plan: {engine_result.plan_latency_ms}ms, SQL: {engine_result.sql_latency_ms}ms, Exec: {engine_result.exec_latency_ms}ms)")
 
         # Save results if requested - use the normalized DataFrame
         if result is not None and (save_csv or save_excel or save_sqlite):
