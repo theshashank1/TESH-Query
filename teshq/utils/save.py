@@ -1,9 +1,132 @@
 import os
+import re
 import sqlite3
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Tuple
 
 import pandas as pd
 
 from teshq.utils.logging import logger
+
+
+# ── Stop words stripped from NL queries when generating file slugs ─────────
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "shall",
+    "should", "may", "might", "must", "can", "could",
+    "i", "me", "my", "we", "our", "you", "your",
+    "show", "give", "get", "find", "list", "display", "tell", "print",
+    "fetch", "retrieve", "return", "select", "query",
+    "all", "each", "every", "any", "some", "many", "much", "few",
+    "from", "in", "on", "at", "to", "for", "of", "with", "by",
+    "and", "or", "but", "not", "no", "if", "then", "than", "that",
+    "this", "these", "those", "it", "its", "what", "which", "who",
+    "how", "where", "when", "why", "please", "just", "also",
+})
+
+
+def get_default_output_dir() -> Path:
+    """
+    Return the default output directory for query exports.
+
+    Uses ``.teshq/outputs/`` relative to the current working directory.
+    Creates the directory (and parent ``.teshq/``) if they don't exist.
+
+    Returns:
+        Path: The output directory (guaranteed to exist).
+    """
+    output_dir = Path.cwd() / ".teshq" / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def generate_query_slug(query_text: Optional[str], max_words: int = 4) -> str:
+    """
+    Convert a natural-language query into a short, filesystem-safe slug.
+
+    Examples::
+
+        "Show all customer table names"  → "customer_table_names"
+        "top 10 orders by revenue"       → "top_10_orders_revenue"
+        ""                               → "query_results"
+
+    Args:
+        query_text: The natural-language query string.
+        max_words:  Maximum number of meaningful words to keep.
+
+    Returns:
+        A lowercase, underscore-separated slug (3–5 words typically).
+    """
+    if not query_text or not query_text.strip():
+        return "query_results"
+
+    # Lowercase and strip non-alphanumeric (keep spaces and digits)
+    text = re.sub(r"[^a-z0-9\s]", "", query_text.lower())
+    words = text.split()
+
+    # Remove stop words but keep numbers (e.g. "top 10")
+    meaningful = [w for w in words if w not in _STOP_WORDS or w.isdigit()]
+
+    if not meaningful:
+        # All words were stop words — fall back to first few raw words
+        meaningful = words[:max_words] if words else ["query_results"]
+
+    slug = "_".join(meaningful[:max_words])
+    # Clamp slug length to avoid excessively long filenames
+    return slug[:60] if slug else "query_results"
+
+
+def resolve_output_path(
+    query_text: Optional[str] = None,
+    ext: str = "csv",
+    custom_path: Optional[str] = None,
+) -> Tuple[Path, str]:
+    """
+    Resolve the final output file path for an export operation.
+
+    Priority logic:
+
+    1. **custom_path with directories** (e.g. ``reports/q1.csv``)
+       → honoured as-is (parent dirs created automatically).
+    2. **custom_path bare filename** (e.g. ``my_report.csv``)
+       → placed inside ``.teshq/outputs/my_report.csv``.
+    3. **No custom_path**
+       → auto-generates ``<slug>_<YYYYMMDD_HHMMSS>.<ext>``
+       inside ``.teshq/outputs/``.
+
+    Args:
+        query_text:  The natural-language query (used for slug generation).
+        ext:         File extension without dot (``csv``, ``xlsx``, ``db``).
+        custom_path: User-supplied filename or path (from ``/export csv name``
+                     or ``--save-csv name``).
+
+    Returns:
+        Tuple of (resolved_absolute_path, clean_relative_display_path).
+    """
+    ext = ext.lstrip(".")
+
+    if custom_path:
+        p = Path(custom_path)
+
+        # If user gave a path with directory separators, honour it fully
+        if str(p.parent) not in (".", ""):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p.resolve(), str(p)
+
+        # Bare filename → route into .teshq/outputs/
+        output_dir = get_default_output_dir()
+        resolved = output_dir / p
+        return resolved.resolve(), str(resolved.relative_to(Path.cwd()))
+
+    # No custom path → auto-generate slug + timestamp
+    slug = generate_query_slug(query_text)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{slug}_{timestamp}.{ext}"
+
+    output_dir = get_default_output_dir()
+    resolved = output_dir / filename
+    return resolved.resolve(), str(resolved.relative_to(Path.cwd()))
 
 
 def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):

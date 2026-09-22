@@ -15,7 +15,7 @@ from teshq.core.engine import TeshEngine
 from teshq.cli.logging import CLILogger
 from teshq.config.loader import get_database_url as get_db_url
 from teshq.utils.output import QueryResult
-from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite
+from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite, resolve_output_path
 from teshq.telemetry.events import track_command, track_error, track_feature
 from teshq.cli.ui import Colors, error, handle_error, info, print_divider, print_metrics, print_sql_card, status, success, tip, warning
 from teshq.core.exceptions import TeshqConfigurationError
@@ -35,17 +35,35 @@ def save_results(
     excel_path: str = None,
     sqlite_path: str = None,
     sqlite_table: str = "results",
-) -> str:
-    """Saves the query results to the specified formats. Returns normalized excel_path."""
+    query_text: str = None,
+) -> dict:
+    """Saves the query results to the specified formats.
+
+    Returns a dict mapping format names to their resolved display paths.
+    """
+    saved = {}
     if csv_path:
-        save_to_csv(df, csv_path)
+        resolved, display = resolve_output_path(query_text=query_text, ext="csv", custom_path=csv_path)
+        resolved_str = str(resolved)
+        if not resolved_str.endswith(".csv"):
+            resolved_str += ".csv"
+        save_to_csv(df, resolved_str)
+        saved["csv"] = display
     if excel_path:
-        if not excel_path.endswith((".xlsx", ".xls")):
-            excel_path += ".xlsx"
-        save_to_excel(df, excel_path)
+        resolved, display = resolve_output_path(query_text=query_text, ext="xlsx", custom_path=excel_path)
+        resolved_str = str(resolved)
+        if not resolved_str.endswith((".xlsx", ".xls")):
+            resolved_str += ".xlsx"
+        save_to_excel(df, resolved_str)
+        saved["excel"] = display
     if sqlite_path:
-        save_to_sqlite(df, sqlite_path, sqlite_table)
-    return excel_path
+        resolved, display = resolve_output_path(query_text=query_text, ext="db", custom_path=sqlite_path)
+        resolved_str = str(resolved)
+        if not resolved_str.endswith((".db", ".sqlite", ".sqlite3")):
+            resolved_str += ".db"
+        save_to_sqlite(df, resolved_str, sqlite_table)
+        saved["sqlite"] = display
+    return saved
 
 
 @app.command(
@@ -175,13 +193,8 @@ def process_nl_query(
             )
             raise typer.Exit(1)
 
-        # Auto-append extensions if missing
-        if save_csv and not save_csv.lower().endswith(".csv"):
-            save_csv += ".csv"
-        if save_excel and not (save_excel.lower().endswith(".xlsx") or save_excel.lower().endswith(".xls")):
-            save_excel += ".xlsx"
-        if save_sqlite and not (save_sqlite.lower().endswith(".db") or save_sqlite.lower().endswith(".sqlite") or save_sqlite.lower().endswith(".sqlite3")):
-            save_sqlite += ".db"
+        # Extension appending is now handled by resolve_output_path + save_results
+        # We still validate user-provided save paths if they have directory components
 
         # Validate save paths if provided
         save_options = [(save_csv, "csv"), (save_excel, "excel"), (save_sqlite, "sqlite")]
@@ -282,22 +295,28 @@ def process_nl_query(
             if len(result) == 0:
                 warning("⚠️  Query returned 0 rows — saving empty result set.")
             df = result.dataframe
-            save_excel = save_results(df, save_csv, save_excel, save_sqlite)
+            saved_paths = save_results(
+                df, save_csv, save_excel, save_sqlite,
+                query_text=natural_language_request,
+            )
 
             # Track feature usage
-            for fmt, path in [("save_csv", save_csv), ("save_excel", save_excel), ("save_sqlite", save_sqlite)]:
-                if path:
-                    track_feature(fmt)
+            for fmt_key in ("csv", "excel", "sqlite"):
+                if fmt_key in saved_paths:
+                    track_feature(f"save_{fmt_key}")
+
+            # Show saved paths to user
+            for fmt_key, display in saved_paths.items():
+                success(f"  Saved {fmt_key.upper()} → {display}")
 
             # Log file operations
             if logging_active:
-                for save_path, format_name in [(save_csv, "CSV"), (save_excel, "Excel"), (save_sqlite, "SQLite")]:
-                    if save_path:
-                        try:
-                            file_size = Path(save_path).stat().st_size if Path(save_path).exists() else None
-                            cli_logger.log_file_operation(f"Save {format_name}", save_path, True, file_size)
-                        except Exception:
-                            cli_logger.log_file_operation(f"Save {format_name}", save_path, False)
+                for fmt_key, display in saved_paths.items():
+                    try:
+                        file_size = Path(display).stat().st_size if Path(display).exists() else None
+                        cli_logger.log_file_operation(f"Save {fmt_key.upper()}", display, True, file_size)
+                    except Exception:
+                        cli_logger.log_file_operation(f"Save {fmt_key.upper()}", display, False)
 
         success("🎉 Query processed and result displayed.")
         

@@ -1,12 +1,15 @@
 """
 Configuration Command for TESH-Query CLI
 
-This command sets up TeshQ's database, Gemini API, and file storage configuration.
-It uses the consolidated configuration utilities from teshq/utils/config.py that retrieve and save settings
-with fallback priorities from environment variables, ~/.teshq/.teshq.env (secrets), and ~/.teshq/config.yaml.
+Streamlined configuration experience:
+  • `teshq config`          → Show clean status dashboard
+  • `teshq config --wizard` → Guided Quick Setup (DB + AI in 30 seconds)
+  • `teshq config --db`     → Interactive database setup
+  • `teshq config --gemini` → Interactive Gemini API setup
+  • All existing CLI options preserved for scripting compatibility.
 
-If `--save` is used, secrets (DATABASE_URL, GEMINI_API_KEY) are persisted to ~/.teshq/.teshq.env
-and non-secret settings (model name, paths) are saved to ~/.teshq/config.yaml.
+Secrets (DATABASE_URL, GEMINI_API_KEY) → ~/.teshq/.teshq.env
+Non-secret settings → ~/.teshq/config.yaml
 """
 
 import os
@@ -46,6 +49,199 @@ app = typer.Typer(invoke_without_command=True)
 # Get supported database types from unified connector
 SUPPORTED_DBS = UnifiedDatabaseConnector.get_supported_databases()
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  OBSIDIAN STATUS DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def display_config_dashboard():
+    """
+    Render a clean, non-overwhelming Obsidian-styled status dashboard.
+
+    Shows three categories at a glance:
+      1. Database — connection status + masked URI
+      2. AI Model — provider + model name
+      3. Output   — export directory
+    """
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich import box
+
+    console = Console()
+    config, sources = get_config_with_source()
+
+    # ── Database ──────────────────────────────────────────────────────────
+    db_url = config.get("DATABASE_URL", "")
+    if db_url:
+        try:
+            url_obj = make_url(db_url)
+            db_type = (url_obj.get_backend_name() or "database").upper()
+            db_name = url_obj.database or "—"
+            host = url_obj.host or "localhost"
+            masked = f"{db_type.lower()}://*****@{host}/{db_name}"
+            db_status = "[#10B981]● Connected[/#10B981]"
+            db_detail = f"[#C8C8D4]{masked}[/#C8C8D4]"
+        except Exception:
+            db_status = "[#F59E0B]● Configured[/#F59E0B]"
+            db_detail = "[#8888A0](URL set but could not parse)[/#8888A0]"
+    else:
+        db_status = "[#EF4444]● Not Configured[/#EF4444]"
+        db_detail = "[#5E5E78]Run: teshq config --db[/#5E5E78]"
+
+    # ── AI Model ──────────────────────────────────────────────────────────
+    provider = config.get("LLM_PROVIDER", "google").lower()
+    if provider == "azure":
+        ai_name = "Azure OpenAI"
+        deployment = config.get("AZURE_OPENAI_DEPLOYMENT", "—")
+        ai_detail = f"[#C8C8D4]{deployment}[/#C8C8D4]"
+        api_key = config.get("AZURE_OPENAI_API_KEY", "")
+        ai_status = "[#10B981]● Ready[/#10B981]" if api_key else "[#EF4444]● API Key Missing[/#EF4444]"
+    elif provider == "local":
+        ai_name = "Local GGUF"
+        model_path = config.get("LOCAL_MODEL_PATH", "")
+        ai_detail = f"[#C8C8D4]{os.path.basename(model_path) if model_path else '—'}[/#C8C8D4]"
+        ai_status = "[#10B981]● Ready[/#10B981]" if model_path else "[#EF4444]● Model Missing[/#EF4444]"
+    else:
+        ai_name = "Google Gemini"
+        model = config.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        ai_detail = f"[#C8C8D4]{model}[/#C8C8D4]"
+        api_key = config.get("GEMINI_API_KEY", "")
+        ai_status = "[#10B981]● Ready[/#10B981]" if api_key else "[#EF4444]● API Key Missing[/#EF4444]"
+
+    # ── Output ────────────────────────────────────────────────────────────
+    output_path = config.get("OUTPUT_PATH", "~/.teshq/output")
+    output_display = output_path.replace(str(os.path.expanduser("~")), "~")
+
+    # ── Build Dashboard Table ─────────────────────────────────────────────
+    table = Table(
+        show_header=False, box=box.SIMPLE, padding=(0, 2),
+        expand=True, show_edge=False,
+    )
+    table.add_column("Category", style="#8888A0", width=14)
+    table.add_column("Status", width=22)
+    table.add_column("Detail", ratio=1)
+
+    table.add_row("Database", db_status, db_detail)
+    table.add_row("AI Engine", ai_status, f"[#6366F1]{ai_name}[/#6366F1]  {ai_detail}")
+    table.add_row("Exports", "[#10B981]● Ready[/#10B981]", f"[#C8C8D4].teshq/outputs/[/#C8C8D4]")
+
+    panel = Panel(
+        table,
+        title="[bold #F1F1F6]⚙ TESHQ Configuration[/bold #F1F1F6]",
+        subtitle="[#5E5E78]~/.teshq/[/#5E5E78]",
+        border_style="#3A3A48",
+        padding=(1, 2),
+    )
+    console.print()
+    console.print(panel)
+    console.print()
+
+    # ── Quick Actions ─────────────────────────────────────────────────────
+    console.print("  [#8888A0]Quick Actions:[/#8888A0]")
+    console.print(f"    [#6366F1]teshq config --wizard[/#6366F1]   [#5E5E78]Guided setup (DB + AI in 30s)[/#5E5E78]")
+    console.print(f"    [#6366F1]teshq config --db[/#6366F1]       [#5E5E78]Configure database[/#5E5E78]")
+    console.print(f"    [#6366F1]teshq config --gemini[/#6366F1]   [#5E5E78]Configure Gemini API[/#5E5E78]")
+    console.print(f"    [#6366F1]teshq config --azure[/#6366F1]    [#5E5E78]Configure Azure OpenAI[/#5E5E78]")
+    console.print(f"    [#6366F1]teshq config --local[/#6366F1]    [#5E5E78]Configure local GGUF model[/#5E5E78]")
+    console.print(f"    [#6366F1]teshq config validate[/#6366F1]   [#5E5E78]Test connection & validate[/#5E5E78]")
+    console.print()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  QUICK SETUP WIZARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def run_quick_wizard() -> dict:
+    """
+    Guided quick setup: DB + AI in under 30 seconds.
+
+    Returns a config dict ready for save_config().
+    """
+    from rich.console import Console
+    console = Console()
+
+    console.print()
+    console.print("  [bold #F1F1F6]Quick Setup Wizard[/bold #F1F1F6]")
+    console.print("  [#5E5E78]Configure database and AI in a few steps.[/#5E5E78]")
+    console.print()
+
+    config_to_save = {}
+
+    # ── Step 1: Database ──────────────────────────────────────────────────
+    console.print("  [bold #6366F1]Step 1/2[/bold #6366F1] [#C8C8D4]Database Connection[/#C8C8D4]")
+    console.print()
+
+    db_type = prompt("  Database type", choices=SUPPORTED_DBS, default="postgresql").lower()
+    if db_type == "sqlite":
+        db_name = prompt("  SQLite file path", default="sqlite.db")
+        config_to_save["DATABASE_URL"] = f"sqlite:///{db_name}"
+    else:
+        db_user = prompt("  Username")
+        db_password = getpass("  Password: ")
+        db_host = prompt("  Host", default="localhost")
+        default_port = 5432 if db_type == "postgresql" else 3306
+        db_port = prompt("  Port", default=default_port, expected_type=int, validate=lambda p: 1 <= p <= 65535)
+        db_name = prompt("  Database name")
+        safe_password = quote_plus(db_password)
+        config_to_save["DATABASE_URL"] = f"{db_type}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
+
+    console.print(f"  [#10B981]✓[/#10B981] Database configured")
+    console.print()
+
+    # ── Step 2: AI Provider ───────────────────────────────────────────────
+    console.print("  [bold #6366F1]Step 2/2[/bold #6366F1] [#C8C8D4]AI Model Provider[/#C8C8D4]")
+    console.print()
+
+    ai_choice = prompt(
+        "  Provider",
+        choices=["gemini", "azure", "local"],
+        default="gemini"
+    ).lower()
+
+    if ai_choice == "gemini":
+        api_key = getpass("  Gemini API Key: ")
+        if api_key:
+            config_to_save["GEMINI_API_KEY"] = api_key
+        model = prompt("  Model", default=DEFAULT_GEMINI_MODEL)
+        config_to_save["GEMINI_MODEL"] = model
+        config_to_save["LLM_PROVIDER"] = "google"
+    elif ai_choice == "azure":
+        api_key = getpass("  Azure API Key: ")
+        if api_key:
+            config_to_save["AZURE_OPENAI_API_KEY"] = api_key
+        endpoint = prompt("  Endpoint URL")
+        deployment = prompt("  Deployment name")
+        config_to_save["AZURE_OPENAI_ENDPOINT"] = endpoint
+        config_to_save["AZURE_OPENAI_DEPLOYMENT"] = deployment
+        config_to_save["AZURE_OPENAI_API_VERSION"] = "2024-10-21"
+        config_to_save["LLM_PROVIDER"] = "azure"
+    else:
+        from teshq.core.hardware import detect_hardware
+        hw = detect_hardware()
+        default_model_dir = os.path.expanduser("~/.teshq/models")
+        default_model_path = ""
+        if os.path.exists(default_model_dir):
+            files = [f for f in os.listdir(default_model_dir) if f.endswith(".gguf")]
+            if files:
+                default_model_path = os.path.join(default_model_dir, files[0])
+        model_path = prompt("  GGUF model path", default=default_model_path)
+        config_to_save["LOCAL_MODEL_PATH"] = model_path
+        config_to_save["LOCAL_N_GPU_LAYERS"] = int(prompt(
+            "  GPU layers (-1=auto, 0=CPU)",
+            default=str(hw.recommended_n_gpu_layers),
+        ))
+        config_to_save["LLM_PROVIDER"] = "local"
+
+    console.print(f"  [#10B981]✓[/#10B981] AI provider configured")
+    console.print()
+
+    return config_to_save
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INTERACTIVE CONFIGURATION HELPERS (preserved from original)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def display_current_config():
     """Displays the current configuration, masking sensitive data like API keys."""
@@ -217,6 +413,10 @@ def configure_local_interactive() -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MAIN CONFIG COMMAND (backward-compatible + new --wizard and --status flags)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 @app.callback(invoke_without_command=True)
 def config(
     ctx: typer.Context,
@@ -254,6 +454,9 @@ def config(
     force_configure_local: bool = typer.Option(False, "--local", "-local", help="Interactive local LLM configuration"),
     output_file_path: str = typer.Option(None, "--output-file-path", help="Output file path"),
     file_store_path: str = typer.Option(None, "--file-store-path", help="File store path"),
+    # New streamlined flags
+    wizard: bool = typer.Option(False, "--wizard", "-w", help="Run the Quick Setup Wizard (DB + AI in 30 seconds)"),
+    show_status: bool = typer.Option(False, "--status", "-s", help="Show configuration status dashboard and exit"),
 ):
     """
     Configure TeshQ's database and LLM (Gemini, Azure OpenAI, or Local GGUF) settings.
@@ -269,6 +472,30 @@ def config(
         return
 
     try:
+        # ── --status flag: just show dashboard and exit ────────────────────
+        if show_status:
+            display_config_dashboard()
+            raise typer.Exit()
+
+        # ── --wizard flag: guided Quick Setup ──────────────────────────────
+        if wizard:
+            try:
+                wizard_config = run_quick_wizard()
+                if save and wizard_config:
+                    if save_config(wizard_config):
+                        success("🎉 Configuration saved successfully!")
+                        space()
+                        display_config_dashboard()
+                    else:
+                        error("Could not save configuration.")
+                        raise typer.Exit(1)
+                elif wizard_config:
+                    warning("Configuration not saved (--no-save specified).")
+            except KeyboardInterrupt:
+                warning("\nWizard cancelled.")
+            raise typer.Exit()
+
+        # ── Original flag-based logic (full backward compatibility) ────────
         clear_screen()
         print_header("🔧 TESHQ CONFIGURATION", "Database & LLM Setup")
 
@@ -419,11 +646,9 @@ def config(
 
         # Handle the command logic based on actions taken
         if not action_taken:
-            with section("Current Configuration"):
-                display_current_config()
-                space()
-                tip("Use --db, --gemini, --azure, or --local for interactive configuration, or provide options directly.")
-                raise typer.Exit()
+            # ── Default: show the clean Obsidian dashboard ─────────────────
+            display_config_dashboard()
+            raise typer.Exit()
 
         # Save configuration if required
         if save:

@@ -23,7 +23,7 @@ from teshq.config.loader import get_database_url as get_db_url, get_settings
 from teshq.core.engine import TeshEngine
 from teshq.core.exceptions import TeshqConfigurationError
 from teshq.utils.output import QueryResult
-from teshq.utils.save import save_to_csv, save_to_excel
+from teshq.utils.save import save_to_csv, save_to_excel, resolve_output_path
 from teshq.cli.ui.banner import print_hero_banner, print_hud, print_suggested_prompts
 from teshq.cli.ui.cards import print_error_card, print_metrics, print_sql_card
 from teshq.cli.ui.tables import print_results_table, render_results_table
@@ -325,24 +325,43 @@ def interactive_chat(
                     continue
 
                 fmt = parts[1].lower() if len(parts) > 1 else "csv"
-                default_name = f"query_results_{int(time.time())}"
-                target_path = parts[2] if len(parts) > 2 else f"{default_name}.{fmt}"
+                custom_name = parts[2] if len(parts) > 2 else None
+
+                # Map format aliases to extensions
+                ext_map = {"excel": "xlsx", "xlsx": "xlsx", "xls": "xlsx",
+                           "csv": "csv", "sqlite": "db", "db": "db"}
+                ext = ext_map.get(fmt, "csv")
 
                 try:
                     df = last_result.dataframe
-                    if fmt in ("excel", "xlsx"):
+                    resolved_path, display_path = resolve_output_path(
+                        query_text=last_nl_query,
+                        ext=ext,
+                        custom_path=custom_name,
+                    )
+                    target_path = str(resolved_path)
+
+                    if fmt in ("excel", "xlsx", "xls"):
                         if not target_path.endswith((".xlsx", ".xls")):
                             target_path += ".xlsx"
+                            display_path += ".xlsx"
                         save_to_excel(df, target_path)
+                    elif fmt in ("sqlite", "db"):
+                        from teshq.utils.save import save_to_sqlite
+                        if not target_path.endswith((".db", ".sqlite", ".sqlite3")):
+                            target_path += ".db"
+                            display_path += ".db"
+                        save_to_sqlite(df, target_path, table_name="results")
                     else:
                         if not target_path.endswith(".csv"):
                             target_path += ".csv"
+                            display_path += ".csv"
                         save_to_csv(df, target_path)
 
                     console.print(
                         f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
                         f"Exported {len(df):,} rows to "
-                        f"[bold {Colors.TEXT_PRIMARY}]{target_path}"
+                        f"[bold {Colors.TEXT_PRIMARY}]{display_path}"
                         f"[/bold {Colors.TEXT_PRIMARY}]\n"
                     )
                 except Exception as e:
