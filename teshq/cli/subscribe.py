@@ -54,29 +54,39 @@ You can unsubscribe at any time.
     space()
 
 
+PANEL_DETAILS = "✨ Subscriber Details"
+PANEL_AUTOMATION = "⚙️ Automation & Scripting"
+
+
 def get_validated_name() -> str:
     """Get and validate user name"""
     while True:
-        name = prompt("Enter your name")
-        if name and len(name.strip()) >= 2:
-            return name.strip()
-        warning("Name must be at least 2 characters long")
+        try:
+            name = prompt("Enter your name")
+            if name and len(name.strip()) >= 2:
+                return name.strip()
+            warning("Name must be at least 2 characters long")
+        except (KeyboardInterrupt, typer.Abort):
+            raise KeyboardInterrupt
 
 
 def get_validated_email() -> str:
     """Get and validate email with Pydantic"""
     while True:
-        email = prompt("Enter your email")
         try:
-            SubscriptionRequest(name="Valid Name", email=email, cli_version=__version__)
-            return email.strip().lower()
-        except ValidationError as e:
-            errors = e.errors()
-            email_errors = [err for err in errors if "email" in str(err.get("loc", []))]
-            if email_errors:
-                warning(f"{email_errors[0]['msg']}")
-            else:
-                warning("Please enter a valid email address")
+            email = prompt("Enter your email")
+            try:
+                SubscriptionRequest(name="Valid Name", email=email, cli_version=__version__)
+                return email.strip().lower()
+            except ValidationError as e:
+                errors = e.errors()
+                email_errors = [err for err in errors if "email" in str(err.get("loc", []))]
+                if email_errors:
+                    warning(f"{email_errors[0]['msg']}")
+                else:
+                    warning("Please enter a valid email address")
+        except (KeyboardInterrupt, typer.Abort):
+            raise KeyboardInterrupt
 
 
 def display_confirmation(name: str, email: str) -> bool:
@@ -171,9 +181,27 @@ def handle_subscription_result(result, email: str) -> int:
 @app.callback(invoke_without_command=True)
 def subscribe(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Your full name (2-100 characters)"),
-    email: Optional[str] = typer.Option(None, "--email", "-e", help="Your email address"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompts"),
+    name: Optional[str] = typer.Option(
+        None,
+        "--name",
+        "-n",
+        help="Your full name (2-100 characters).",
+        rich_help_panel=PANEL_DETAILS,
+    ),
+    email: Optional[str] = typer.Option(
+        None,
+        "--email",
+        "-e",
+        help="Your email address for release notifications.",
+        rich_help_panel=PANEL_DETAILS,
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip confirmation prompts (script-friendly).",
+        rich_help_panel=PANEL_AUTOMATION,
+    ),
 ):
     """
     Subscribe to TESHQ updates and announcements.
@@ -211,14 +239,10 @@ def subscribe(
 
         exit_code = handle_subscription_result(result, email)
 
-    except typer.Abort:
+    except (typer.Abort, KeyboardInterrupt):
         space()
-        warning("Subscription cancelled by user")
+        info("Subscription cancelled.")
         exit_code = 0
-    except KeyboardInterrupt:
-        space()
-        warning("Subscription interrupted by user")
-        exit_code = 130
     except Exception as e:
         space()
         handle_error(e, "Subscription", suggest_action="Check your internet connection and try again")

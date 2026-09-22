@@ -66,64 +66,112 @@ def save_results(
     return saved
 
 
+PANEL_EXPORT = "📤 Export & Output Files"
+PANEL_EXECUTION = "⚡ Execution & Query Controls"
+PANEL_ROUTING = "🤖 Model & Inference Routing"
+PANEL_DIAGNOSTICS = "⚙️ Diagnostics & Logging"
+
+
 @app.command(
     name="query",
     help="Run a natural language query against your database.",
 )
 def process_nl_query(
-    natural_language_request: str = typer.Argument(..., help="What you want to know, in plain English."),
-    save_csv: str = typer.Option(None, "--save-csv", metavar="FILE", help="Save results to a CSV file."),
-    save_excel: str = typer.Option(None, "--save-excel", metavar="FILE", help="Save results to an Excel (.xlsx) file."),
-    save_sqlite: str = typer.Option(None, "--save-sqlite", metavar="FILE", help="Save results to a SQLite database file."),
-    limit: int = typer.Option(None, "--limit", "-n", metavar="N", help="Limit results to N rows (adds LIMIT to SQL)."),
-    full_schema: bool = typer.Option(
-        False,
-        "--full-schema",
-        help="Use full verbose schema (schema_full.txt) for highest SQL accuracy. Requires prior: teshq db introspect --all",
+    natural_language_request: str = typer.Argument(
+        None,
+        help="What you want to know, in plain English. (Prompts interactively if omitted)",
     ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Generate and validate SQL but do NOT execute it against the database.",
+    save_csv: str = typer.Option(
+        None, "--save-csv", metavar="FILE",
+        help="Save results to CSV [default: .teshq/outputs/<query_slug>_<timestamp>.csv]",
+        rich_help_panel=PANEL_EXPORT,
     ),
-    explain: bool = typer.Option(
-        False,
-        "--explain",
-        help="Print the query plan, selected tables, generated SQL, and execution time.",
+    save_excel: str = typer.Option(
+        None, "--save-excel", metavar="FILE",
+        help="Save results to an Excel spreadsheet (.xlsx)",
+        rich_help_panel=PANEL_EXPORT,
     ),
-    schema_preview: bool = typer.Option(
-        False,
-        "--schema-preview",
-        help="Print the compressed schema that will be sent to the LLM, then exit.",
+    save_sqlite: str = typer.Option(
+        None, "--save-sqlite", metavar="FILE",
+        help="Save results to a SQLite database file",
+        rich_help_panel=PANEL_EXPORT,
+    ),
+    limit: int = typer.Option(
+        None, "--limit", "-n", metavar="N",
+        help="Limit results to N rows (adds LIMIT to SQL)",
+        rich_help_panel=PANEL_EXECUTION,
     ),
     confirm_run: bool = typer.Option(
-        False,
-        "--confirm",
-        "-i",
-        help="Interactively review and confirm generated SQL before running it.",
+        False, "--confirm", "-i",
+        help="Interactively review and confirm generated SQL before running it",
+        rich_help_panel=PANEL_EXECUTION,
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run",
+        help="Generate and validate SQL without executing it against the database",
+        rich_help_panel=PANEL_EXECUTION,
+    ),
+    explain: bool = typer.Option(
+        False, "--explain",
+        help="Print the query plan, selected tables, generated SQL, and execution time",
+        rich_help_panel=PANEL_EXECUTION,
+    ),
+    schema_preview: bool = typer.Option(
+        False, "--schema-preview",
+        help="Print the compressed schema that will be sent to the LLM, then exit",
+        rich_help_panel=PANEL_EXECUTION,
+    ),
+    full_schema: bool = typer.Option(
+        False, "--full-schema",
+        help="Use full schema (schema_full.txt) with row counts and indexes",
+        rich_help_panel=PANEL_EXECUTION,
     ),
     local: bool = typer.Option(
-        False,
-        "--local",
-        help="Force local GGUF model inference.",
+        False, "--local",
+        help="Force local GGUF model inference",
+        rich_help_panel=PANEL_ROUTING,
     ),
     cloud: bool = typer.Option(
-        False,
-        "--cloud",
-        help="Force cloud model inference.",
+        False, "--cloud",
+        help="Force cloud model inference (Gemini or Azure OpenAI)",
+        rich_help_panel=PANEL_ROUTING,
     ),
-    verbose: bool = typer.Option(None, "--verbose", help="Write detailed logs to ~/.teshq/logs/."),
+    verbose: bool = typer.Option(
+        None, "--verbose",
+        help="Write detailed logs to ~/.teshq/logs/",
+        rich_help_panel=PANEL_DIAGNOSTICS,
+    ),
 ):
     """
     Convert a natural-language question into SQL and execute it.
 
-    Examples:
+    Beginners:
+      • Run 'teshq query' for an interactive prompt.
+      • Run 'teshq query -i "your question"' to review SQL before execution.
 
-      teshq query "show the top 10 customers by revenue"
-
-      teshq query "how many orders were placed last month" --save-csv monthly_orders.csv
+    Power Users & Scripting:
+      • Pass direct questions and output flags:
+        teshq query "top 10 customers by revenue" --save-csv top10.csv
+        teshq query "orders placed last month" --dry-run
     """
-    
+    import sys
+    from teshq.utils.ui import prompt
+
+    # Interactive fallback if natural_language_request is omitted
+    if not natural_language_request:
+        if sys.stdin.isatty():
+            try:
+                natural_language_request = prompt("What would you like to know from your database?")
+            except (KeyboardInterrupt, typer.Abort):
+                raise typer.Exit(0)
+            if not natural_language_request or not natural_language_request.strip():
+                tip("No query provided. Run 'teshq query \"your question\"' or 'teshq chat' for interactive mode.")
+                raise typer.Exit(0)
+        else:
+            error("Missing argument 'NATURAL_LANGUAGE_REQUEST'.")
+            tip("Usage: teshq query \"your question\"")
+            raise typer.Exit(1)
+
     # Initialize CLI logger
     cli_logger = CLILogger("query")
     logging_active = cli_logger.setup_file_logging(verbose)
@@ -140,7 +188,6 @@ def process_nl_query(
         save_excel=bool(save_excel),
         save_sqlite=bool(save_sqlite),
         local=local,
-        cloud=cloud,
     )
 
     # Resolve provider override
@@ -229,7 +276,11 @@ def process_nl_query(
             print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")
             
             from rich.prompt import Confirm
-            should_run = Confirm.ask(f"[bold {Colors.WARNING}]Execute this query against your database?[/bold {Colors.WARNING}]", default=True)
+            try:
+                should_run = Confirm.ask(f"[bold {Colors.WARNING}]Execute this query against your database?[/bold {Colors.WARNING}]", default=True)
+            except KeyboardInterrupt:
+                warning("\nExecution cancelled.")
+                raise typer.Exit(code=0)
             if not should_run:
                 warning("Execution cancelled by user.")
                 raise typer.Exit(code=0)
@@ -386,6 +437,9 @@ def process_nl_query(
         raise typer.Exit(1)
     except typer.Exit:
         raise
+    except KeyboardInterrupt:
+        warning("\nQuery cancelled.")
+        raise typer.Exit(0)
     except Exception as e:
         track_error("query", type(e).__name__)
         if logging_active:

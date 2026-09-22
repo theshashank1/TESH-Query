@@ -5,7 +5,7 @@ Converts introspected schema into a relational graph with FK relationships
 and generates compressed, token-efficient schema summaries for LLM prompts.
 """
 
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel
 
@@ -82,6 +82,71 @@ class SchemaGraph(BaseModel):
 
         summary = cls._build_summary(tables, joins)
         return cls(tables=tables, joins=joins, summary=summary, dialect=dialect)
+
+    @classmethod
+    def from_schema_file(cls, path: Optional[str] = None) -> "SchemaGraph":
+        """
+        Load SchemaGraph from a schema.json file.
+        Searches path, then database schema path, then default SCHEMA_DIR.
+        """
+        import json
+        from pathlib import Path
+        from teshq.config.paths import SCHEMA_DIR, get_db_schema_path
+        from teshq.config.loader import get_database_url
+
+        target_path: Optional[Path] = None
+        if path:
+            target_path = Path(path)
+        else:
+            db_url = get_database_url()
+            candidates = []
+            if db_url:
+                candidates.append(get_db_schema_path(db_url).parent / "schema.json")
+            candidates.append(SCHEMA_DIR / "schema.json")
+            candidates.append(Path("schema.json"))
+
+            for c in candidates:
+                if c.exists():
+                    target_path = c
+                    break
+
+        if not target_path or not target_path.exists():
+            return cls(tables={}, joins=[], summary="")
+
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return cls.from_introspected(data)
+        except Exception:
+            return cls(tables={}, joins=[], summary="")
+
+    def get_all_tables(self) -> List[str]:
+        """Return list of all table names."""
+        return list(self.tables.keys())
+
+    def get_columns_for_table(self, table_name: str) -> List[Dict[str, Any]]:
+        """Return structured column information for a table."""
+        descriptors = self.tables.get(table_name, [])
+        cols = []
+        for desc in descriptors:
+            parts = desc.split()
+            name = parts[0] if parts else ""
+            is_pk = "PK" in parts
+            ctype = parts[1] if len(parts) > 1 and not is_pk and not parts[1].startswith("FK→") else "TEXT"
+            cols.append({"name": name, "type": ctype, "primary_key": is_pk})
+        return cols
+
+    def get_foreign_keys_for_table(self, table_name: str) -> List[Dict[str, str]]:
+        """Return foreign keys where table_name is the left table."""
+        fks = []
+        for edge in self.joins:
+            if edge.left_table == table_name:
+                fks.append({
+                    "constrained_column": edge.left_column,
+                    "referred_table": edge.right_table,
+                    "referred_column": edge.right_column,
+                })
+        return fks
 
     @staticmethod
     def _build_summary(tables: Dict[str, List[str]], joins: List[JoinEdge]) -> str:
