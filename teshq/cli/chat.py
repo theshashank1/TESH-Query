@@ -274,6 +274,204 @@ def clear_command_history() -> None:
             pass
 
 
+def _get_cached_table_names() -> List[str]:
+    """Get list of cached table names for tab autocomplete."""
+    try:
+        from teshq.core.schema_graph import SchemaGraph
+        graph = SchemaGraph.from_schema_file()
+        return graph.get_all_tables()
+    except Exception:
+        return []
+
+
+try:
+    from prompt_toolkit.completion import Completer, Completion
+except ImportError:
+    class Completer:  # type: ignore
+        pass
+    Completion = None  # type: ignore
+
+
+class ChatActionCompleter(Completer):
+    """Prompt-toolkit completer offering commands, shortcuts, and database tables on Tab."""
+
+    def __init__(self, get_tables_fn=None):
+        self.get_tables_fn = get_tables_fn
+
+    def get_completions(self, document, complete_event):
+        try:
+            from prompt_toolkit.completion import Completion
+        except ImportError:
+            return
+
+        text = document.text_before_cursor
+        text_lower = text.lower().strip()
+        stripped_slash = text_lower.lstrip("/")
+
+        # Quick single-tap shortcuts & slash commands
+        actions = [
+            ("1", "Copy SQL", "Copy generated SQL to system clipboard"),
+            ("2", "Copy Results", "Copy results table to clipboard as CSV"),
+            ("3", "Export CSV", "Export query results to .teshq/outputs/"),
+            ("4", "Explain", "Show AI reasoning & query breakdown"),
+            ("5", "Rerun", "Rerun the previous query"),
+            ("tables", "Explore schema tree", "Display relational tables tree"),
+            ("schema", "Inspect table schema", "Inspect columns and foreign keys"),
+            ("sql", "Show last SQL", "Display last generated SQL query"),
+            ("export excel", "Export Excel", "Export active results to Excel (.xlsx)"),
+            ("history", "Session history", "Show queries executed this session"),
+            ("clear", "Clear screen & history", "Clear terminal screen and history"),
+            ("help", "Command guide", "Show full keyboard shortcuts and commands"),
+        ]
+
+        for code, label, desc in actions:
+            matches = (
+                not text_lower
+                or code == text_lower
+                or label.lower().startswith(text_lower)
+                or label.lower().startswith(stripped_slash)
+                or f"/{code}".startswith(text_lower)
+                or code.startswith(text_lower)
+            )
+            if matches:
+                insert_text = f"/{code}" if text.startswith("/") else code
+                yield Completion(
+                    insert_text,
+                    start_position=-len(text),
+                    display=f"[{code}] {label}",
+                    display_meta=desc,
+                )
+
+        # Database tables for query autocomplete
+        if self.get_tables_fn:
+            try:
+                for tbl in self.get_tables_fn():
+                    if not text_lower or tbl.lower().startswith(text_lower):
+                        yield Completion(
+                            tbl,
+                            start_position=-len(text),
+                            display=f"⊞ {tbl}",
+                            display_meta="Database Table",
+                        )
+            except Exception:
+                pass
+
+
+def create_prompt_session(get_tables_fn=None):
+    """Create a prompt_toolkit PromptSession with tab autocomplete, keybindings, and mouse support."""
+    try:
+        import sys, shutil
+        from prompt_toolkit.shortcuts import PromptSession
+        from prompt_toolkit.history import InMemoryHistory
+        from prompt_toolkit.styles import Style
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.filters import has_completions
+        from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+        from prompt_toolkit.formatted_text import FormattedText
+
+        # 1. Output engine with VT100 fallback (handles Windows Terminal, ConPTY, legacy console)
+        out = None
+        try:
+            from prompt_toolkit.output.defaults import create_output
+            out = create_output(stdout=sys.stdout)
+        except Exception:
+            pass
+
+        if out is None:
+            try:
+                from prompt_toolkit.output.vt100 import Vt100_Output
+                get_size = lambda: (shutil.get_terminal_size().columns, shutil.get_terminal_size().lines)
+                out = Vt100_Output(sys.stdout, get_size)
+            except Exception:
+                pass
+
+        # 2. Key bindings for immediate Tab completion, arrow navigation, and Enter execution
+        kb = KeyBindings()
+
+        @kb.add("tab")
+        def _(event):
+            b = event.current_buffer
+            if b.complete_state:
+                b.complete_next()
+            else:
+                b.start_completion(select_first=True)
+
+        @kb.add("s-tab")
+        def _(event):
+            b = event.current_buffer
+            if b.complete_state:
+                b.complete_previous()
+
+        @kb.add("down", filter=has_completions)
+        def _(event):
+            b = event.current_buffer
+            b.complete_next()
+
+        @kb.add("up", filter=has_completions)
+        def _(event):
+            b = event.current_buffer
+            b.complete_previous()
+
+        @kb.add("escape", filter=has_completions)
+        def _(event):
+            b = event.current_buffer
+            b.cancel_completion()
+
+        @kb.add("enter", filter=has_completions)
+        def _(event):
+            b = event.current_buffer
+            if b.complete_state:
+                if b.complete_state.current_completion:
+                    b.apply_completion(b.complete_state.current_completion)
+                elif b.complete_state.completions:
+                    b.apply_completion(b.complete_state.completions[0])
+            b.validate_and_handle()
+
+        completer = ChatActionCompleter(get_tables_fn=get_tables_fn)
+
+        style = Style.from_dict({
+            "prompt": "bold #00d2ff",
+            "completion-menu": "bg:#161922 #cdd6f4",
+            "completion-menu.completion": "bg:#161922 #cdd6f4",
+            "completion-menu.completion.current": "bold bg:#00d2ff #0a0e14",
+            "completion-menu.meta.completion": "bg:#1a1e2a #8993a4",
+            "completion-menu.meta.completion.current": "bg:#00b4d8 #0a0e14",
+            "scrollbar.background": "bg:#10131a",
+            "scrollbar.button": "bg:#3b4252",
+            "toolbar-muted": "#5c6370",
+            "toolbar-key": "bold #00d2ff",
+            "toolbar-gold": "#e5c07b",
+        })
+
+        def get_toolbar():
+            return FormattedText([
+                ("class:toolbar-muted", "Press "),
+                ("class:toolbar-key", "Tab"),
+                ("class:toolbar-muted", " Actions Menu  ·  Tap "),
+                ("class:toolbar-key", "1-5"),
+                ("class:toolbar-muted", " Quick Action  ·  "),
+                ("class:toolbar-gold", "/help"),
+            ])
+
+        session_kwargs = {
+            "history": InMemoryHistory(),
+            "completer": completer,
+            "key_bindings": kb,
+            "style": style,
+            "mouse_support": True,
+            "complete_while_typing": False,
+            "auto_suggest": AutoSuggestFromHistory(),
+            "bottom_toolbar": get_toolbar,
+        }
+        if out is not None:
+            session_kwargs["output"] = out
+
+        session = PromptSession(**session_kwargs)
+        return session
+    except Exception:
+        return None
+
+
 @app.callback(invoke_without_command=True)
 def interactive_chat(
     ctx: typer.Context,
@@ -324,6 +522,9 @@ def interactive_chat(
     last_dialect: str = "SQL"
     last_error: Optional[str] = None
 
+    # Initialize prompt_toolkit session for Tab autocomplete and mouse click support
+    prompt_session = create_prompt_session(get_tables_fn=_get_cached_table_names)
+
     # Session stats
     session_queries = 0
     session_total_time = 0.0
@@ -336,9 +537,21 @@ def interactive_chat(
     # ── Interactive Prompt Loop ───────────────────────────────────────
     while True:
         try:
-            # Minimal prompt: just the › character
-            prompt_str = f"[bold {Colors.PRIMARY}]{Icons.prompt()}[/bold {Colors.PRIMARY}] "
-            user_input = console.input(prompt_str).strip()
+            user_input = ""
+            if prompt_session is not None:
+                try:
+                    from prompt_toolkit.formatted_text import FormattedText
+                    prompt_ft = FormattedText([("class:prompt", "› ")])
+                    user_input = prompt_session.prompt(prompt_ft).strip()
+                except (KeyboardInterrupt, EOFError):
+                    raise
+                except Exception:
+                    # Fallback to rich console input if terminal has no screen buffer (pipes, tests)
+                    prompt_str = f"[bold {Colors.PRIMARY}]{Icons.prompt()}[/bold {Colors.PRIMARY}] "
+                    user_input = console.input(prompt_str).strip()
+            else:
+                prompt_str = f"[bold {Colors.PRIMARY}]{Icons.prompt()}[/bold {Colors.PRIMARY}] "
+                user_input = console.input(prompt_str).strip()
         except (KeyboardInterrupt, EOFError):
             console.print(_render_session_summary(
                 session_queries, session_total_time, session_total_tokens,
@@ -365,6 +578,26 @@ def interactive_chat(
         # Map plain-text action chips or shortcuts to canonical slash commands
         is_slash = clean_input.startswith("/")
         cmd_candidate = clean_input.lower()
+
+        # Single-digit tap shortcuts (1-5) or bracketed [1]-[5]
+        if cmd_candidate in ("1", "2", "3", "4", "5", "[1]", "[2]", "[3]", "[4]", "[5]"):
+            digit = cmd_candidate.strip("[]")
+            if last_error and not last_sql:
+                # Error context: [1] Retry, [2] Explain, [3] Copy Error
+                err_map = {"1": "/rerun", "2": "/explain", "3": "/copy error"}
+                clean_input = err_map.get(digit, clean_input)
+            else:
+                # Success context: [1] Copy SQL, [2] Copy Results, [3] Export CSV, [4] Explain, [5] Rerun
+                action_map = {
+                    "1": "/copy sql",
+                    "2": "/copy results",
+                    "3": "/export csv",
+                    "4": "/explain",
+                    "5": "/rerun",
+                }
+                clean_input = action_map.get(digit, clean_input)
+            is_slash = clean_input.startswith("/")
+            cmd_candidate = clean_input.lower()
 
         if not is_slash:
             if cmd_candidate in ("copy sql", "copy"):
@@ -401,6 +634,12 @@ def interactive_chat(
 
             elif cmd in ("/clear", "/cls"):
                 clear_command_history()
+                if prompt_session is not None:
+                    try:
+                        from prompt_toolkit.history import InMemoryHistory
+                        prompt_session.history = InMemoryHistory()
+                    except Exception:
+                        pass
                 clear_terminal_screen()
                 print_status_bar(
                     db_status=db_status, db_type=db_type, db_name=db_name,

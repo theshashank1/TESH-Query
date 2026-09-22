@@ -38,6 +38,7 @@ dependencies = [
     "langchain-google-genai>=2.0",
     "typer>=0.9,<1.0",
     "rich>=13.0,<15.0",
+    "prompt-toolkit>=3.0.38",
     "logfire>=2.0",
     "tabulate>=0.9",
     "pandas>=2.0",          # Allowing >=2.3 which may have pre-built cp314 wheels

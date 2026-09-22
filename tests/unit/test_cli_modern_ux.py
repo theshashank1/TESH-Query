@@ -264,17 +264,16 @@ class TestChatCLIUX:
 
         hints = render_action_hints()
         rendered = str(hints)
-        assert "/copy sql" in rendered
-        assert "Copy SQL" in rendered
-        assert "/copy results" in rendered
-        assert "Copy Results" in rendered
-        assert "/export csv" in rendered
-        assert "Export CSV" in rendered
-        assert "/explain" in rendered
-        assert "/rerun" in rendered
+        assert "[1] Copy SQL" in rendered
+        assert "[2] Copy Results" in rendered
+        assert "[3] Export CSV" in rendered
+        assert "[4] Explain" in rendered
+        assert "[5] Rerun" in rendered
+        assert "tap 1-5 or press Tab" in rendered
 
         err_hints = render_error_action_hints()
         err_rendered = str(err_hints)
-        assert "/retry" in err_rendered
-        assert "/explain" in err_rendered
-        assert "/copy error" in err_rendered
+        assert "[1] Retry" in err_rendered
+        assert "[2] Explain" in err_rendered
+        assert "[3] Copy Error" in err_rendered
+        assert "tap 1-3 or press Tab" in err_rendered

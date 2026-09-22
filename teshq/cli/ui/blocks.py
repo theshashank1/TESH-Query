@@ -291,25 +291,28 @@ def render_action_hints(
     """
     Render inline action hints below a command block.
 
-    Actions are displayed as interactive command shortcuts:
-      Actions: [/copy sql] Copy SQL · [/copy results] Copy Results · [/export csv] Export CSV · [/explain] Explain · [/rerun] Rerun
+    Actions are displayed as single-tap numbered shortcuts:
+      Actions: [1] Copy SQL · [2] Copy Results · [3] Export CSV · [4] Explain · [5] Rerun  (tap 1-5 or press Tab)
     """
     hints = Text("  ")
     hints.append("Actions: ", style=f"bold {Colors.TEXT_MUTED}")
 
     if actions is None:
         action_pairs = [
-            ("/copy sql", "Copy SQL"),
-            ("/copy results", "Copy Results"),
-            ("/export csv", "Export CSV"),
-            ("/explain", "Explain"),
-            ("/rerun", "Rerun"),
+            ("1", "Copy SQL"),
+            ("2", "Copy Results"),
+            ("3", "Export CSV"),
+            ("4", "Explain"),
+            ("5", "Rerun"),
         ]
-        for i, (cmd, label) in enumerate(action_pairs):
+        for i, (num, label) in enumerate(action_pairs):
             if i > 0:
                 hints.append("  ·  ", style=f"{Colors.TEXT_MUTED}")
-            hints.append(f"[{cmd}]", style=f"bold {Colors.PRIMARY}")
+            hints.append(f"[{num}]", style=f"bold {Colors.PRIMARY}")
             hints.append(f" {label}", style=f"{Colors.TEXT_SECONDARY}")
+
+        hints.append("  ", style="")
+        hints.append("(tap 1-5 or press Tab)", style=f"dim {Colors.TEXT_MUTED}")
         return hints
 
     for i, action in enumerate(actions):
@@ -324,15 +327,18 @@ def render_error_action_hints() -> Text:
     hints = Text("  ")
     hints.append("Actions: ", style=f"bold {Colors.TEXT_MUTED}")
     action_pairs = [
-        ("/retry", "Retry"),
-        ("/explain", "Explain"),
-        ("/copy error", "Copy Error"),
+        ("1", "Retry"),
+        ("2", "Explain"),
+        ("3", "Copy Error"),
     ]
-    for i, (cmd, label) in enumerate(action_pairs):
+    for i, (num, label) in enumerate(action_pairs):
         if i > 0:
             hints.append("  ·  ", style=f"{Colors.TEXT_MUTED}")
-        hints.append(f"[{cmd}]", style=f"bold {Colors.WARNING}")
+        hints.append(f"[{num}]", style=f"bold {Colors.WARNING}")
         hints.append(f" {label}", style=f"{Colors.TEXT_SECONDARY}")
+
+    hints.append("  ", style="")
+    hints.append("(tap 1-3 or press Tab)", style=f"dim {Colors.TEXT_MUTED}")
     return hints
 
 
