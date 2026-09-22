@@ -41,6 +41,7 @@ dependencies = [
     "logfire>=2.0",
     "tabulate>=0.9",
     "pandas>=2.0",          # Allowing >=2.3 which may have pre-built cp314 wheels
+    "openpyxl>=3.1.0",       # Excel export support (.xlsx)
     "pyyaml~=6.0",
     "pydantic~=2.0",
     "pydantic-settings~=2.0",

@@ -99,47 +99,44 @@ def _callback(
         typer.echo("LinkedIn: https://www.linkedin.com/in/gunda-shashank/")
         raise typer.Exit()
 
-    # If invoked with no subcommand, present the award-winning welcome HUD
+    # If invoked with no subcommand, show minimal welcome
     if ctx.invoked_subcommand is None:
-        from teshq.cli.ui.banner import print_hero_banner, print_hud, print_suggested_prompts
+        from teshq.cli.ui.banner import print_hero_banner, print_hud
         from teshq.cli.chat import _get_env_summary
         from teshq.cli.ui.theme import console, Colors, Icons
-        from rich.panel import Panel
         from rich.text import Text
 
         print_hero_banner()
         db_status, db_type, llm_name, table_count = _get_env_summary()
         print_hud(db_status=db_status, db_type=db_type, llm_model=llm_name, schema_tables_count=table_count)
         console.print()
-        print_suggested_prompts()
 
-        # Quick Commands panel
-        cmds = Text()
-        cmds.append(f"\n  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
-        cmds.append("teshq chat", style=f"bold {Colors.TEXT}")
-        cmds.append("             Start interactive conversational terminal\n", style=f"dim {Colors.MUTED}")
-        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
-        cmds.append('teshq query "..."', style=f"bold {Colors.TEXT}")
-        cmds.append("       Run single natural language query\n", style=f"dim {Colors.MUTED}")
-        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
-        cmds.append("teshq db explore", style=f"bold {Colors.TEXT}")
-        cmds.append("         Explore database tables in a visual tree\n", style=f"dim {Colors.MUTED}")
-        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
-        cmds.append("teshq config --db", style=f"bold {Colors.TEXT}")
-        cmds.append("        Configure database connection URL\n", style=f"dim {Colors.MUTED}")
-        cmds.append(f"  {Icons.chevron()} ", style=f"bold {Colors.PRIMARY}")
-        cmds.append("teshq --help", style=f"bold {Colors.TEXT}")
-        cmds.append("             View all subcommands and flags\n", style=f"dim {Colors.MUTED}")
+        # Clean command list — no panels, no borders
+        commands = [
+            ("teshq chat",              "Interactive conversational terminal"),
+            ('teshq query "..."',       "Single natural language query"),
+            ("teshq db explore",        "Explore database schema"),
+            ("teshq config --db",       "Configure database connection"),
+            ("teshq --help",            "All commands and options"),
+        ]
 
-        from teshq.cli.ui.theme import ROUNDED_BOX
-        console.print(Panel(
-            cmds,
-            title=f"[bold {Colors.PRIMARY}]{Icons.bolt()} Quick Commands[/bold {Colors.PRIMARY}]",
-            title_align="left",
-            border_style=Colors.BORDER_SUBTLE,
-            box=ROUNDED_BOX,
-            padding=(0, 2),
-        ))
+        console.print(f"  [{Colors.TEXT_TERTIARY}]Get started:[/{Colors.TEXT_TERTIARY}]")
+        for cmd, desc in commands:
+            console.print(
+                f"    [{Colors.PRIMARY}]{cmd:<28s}[/{Colors.PRIMARY}]"
+                f"[{Colors.TEXT_MUTED}]{desc}[/{Colors.TEXT_MUTED}]"
+            )
+
+        console.print()
+        console.print(
+            f"  [{Colors.TEXT_TERTIARY}]Try:[/{Colors.TEXT_TERTIARY}]"
+        )
+        console.print(
+            f"    [{Colors.PRIMARY}]{Icons.prompt()}[/{Colors.PRIMARY}] "
+            f"[italic {Colors.TEXT_SECONDARY}]teshq query "
+            f"\"show top 5 customers by revenue\""
+            f"[/italic {Colors.TEXT_SECONDARY}]"
+        )
         console.print()
         raise typer.Exit()
 

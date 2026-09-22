@@ -11,7 +11,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from teshq.core.exceptions import (
     DatabaseConnectionError,
@@ -244,6 +244,7 @@ class TeshEngine:
         nl_query: str,
         dry_run: bool = False,
         schema_graph: Optional[SchemaGraph] = None,
+        on_progress: Optional[Callable[[int, str, Optional[str]], None]] = None,
     ) -> QueryResult:
         """
         Execute a natural language query end-to-end.
@@ -252,10 +253,21 @@ class TeshEngine:
             nl_query: User's natural language query.
             dry_run: If True, generate and validate SQL but do not execute.
             schema_graph: Optional pre-built SchemaGraph (for testing/caching).
+            on_progress: Optional callback invoked with (step_idx, stage_name, detail)
+                         to report live progress to UI.
 
         Returns:
             A QueryResult with all relevant output.
         """
+        def _notify(step: int, name: str, detail: Optional[str] = None) -> None:
+            if on_progress:
+                try:
+                    on_progress(step, name, detail)
+                except Exception:
+                    pass
+
+        _notify(0, "Parsing natural language", "analyzing request intent")
+
         plan_ms = 0
         sql_ms = 0
         exec_ms = 0
@@ -285,10 +297,12 @@ class TeshEngine:
         tracker = TokenTracker()
 
         try:
+            _notify(1, "Analyzing schema", "reading schema graph")
             graph = schema_graph or self._get_schema_graph()
 
             # Retrieve the most relevant tables via TF-IDF cosine similarity.
             # SchemaRetriever handles synonyms/plurals far better than keyword substring match.
+            _notify(2, "Selecting relevant tables", "ranking schema entities")
             retriever = SchemaRetriever(graph)
             
             # Prune tables and format schema string based on active provider
@@ -308,14 +322,19 @@ class TeshEngine:
                     relevant_tables = relevant_tables[:keep]
                     schema_str = graph.compressed_schema(relevant_tables)
 
+            _notify(2, "Selecting relevant tables", f"matched {len(relevant_tables)} table(s)")
             client = self._get_llm_client()
 
+            provider_label = "Azure OpenAI" if self._provider == "azure" else ("Local GGUF" if self._provider == "local" else "Gemini")
+
             # — Stage 1: Query Planning —
+            _notify(3, "Generating SQL", f"planning query with {provider_label}")
             t0 = time.time()
             plan = client.generate_plan(nl_query, schema_str, callbacks=[tracker])
             plan_ms = int((time.time() - t0) * 1000)
 
             # — Stage 2: SQL Generation —
+            _notify(3, "Generating SQL", f"synthesizing SQL query ({provider_label})")
             t0 = time.time()
             sql_result: SQLQuery = client.generate_sql(nl_query, schema_str, plan, callbacks=[tracker])
             sql_ms = int((time.time() - t0) * 1000)
@@ -336,6 +355,7 @@ class TeshEngine:
             self._last_plan = plan
 
             # Validate
+            _notify(4, "Validating query", "verifying AST & safety rules")
             validate_sql(sql_text, dialect=str(self._dialect))
 
             # Normalize
@@ -343,9 +363,14 @@ class TeshEngine:
 
             # Execute (unless dry run)
             if not dry_run:
+                dialect_label = str(getattr(self, "_dialect", "database")).upper()
+                _notify(5, "Executing against database", f"running on {dialect_label}")
                 t0 = time.time()
                 rows, sql_text, parameters = self._execute_with_retry(sql_text, parameters)
                 exec_ms = int((time.time() - t0) * 1000)
+                _notify(5, "Executing against database", f"returned {len(rows)} row(s)")
+            else:
+                _notify(5, "Executing against database", "dry run (skipped)")
 
         except ValidationError as e:
             error = str(e)

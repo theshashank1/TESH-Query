@@ -207,8 +207,11 @@ def process_nl_query(
 
         # If confirm_run is requested, synthesize SQL first and ask for review
         if confirm_run and not dry_run:
-            with status("Synthesizing SQL query..."):
-                engine_result = engine.query(natural_language_request, dry_run=True)
+            with status("Synthesizing SQL query...") as s:
+                def _prog_dry(idx, name, detail=None):
+                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]" + (f" [dim italic]({detail})[/dim italic]" if detail else "")
+                    if hasattr(s, "update"): s.update(msg)
+                engine_result = engine.query(natural_language_request, dry_run=True, on_progress=_prog_dry)
             sql_query, parameters = engine_result.sql, engine_result.parameters
             print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")
             
@@ -218,13 +221,19 @@ def process_nl_query(
                 warning("Execution cancelled by user.")
                 raise typer.Exit(code=0)
             
-            with status("Executing query against database..."):
-                engine_result = engine.query(natural_language_request, dry_run=False)
+            with status("Executing query against database...") as s:
+                def _prog_exec(idx, name, detail=None):
+                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]" + (f" [dim italic]({detail})[/dim italic]" if detail else "")
+                    if hasattr(s, "update"): s.update(msg)
+                engine_result = engine.query(natural_language_request, dry_run=False, on_progress=_prog_exec)
         else:
             db_display = db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database"
-            status_msg = "Synthesizing SQL (dry-run)..." if dry_run else f"Synthesizing & executing query on {db_display}..."
-            with status(status_msg):
-                engine_result = engine.query(natural_language_request, dry_run=dry_run)
+            status_msg = "Synthesizing SQL (dry-run)..." if dry_run else f"Processing query on {db_display}..."
+            with status(status_msg) as s:
+                def _prog(idx, name, detail=None):
+                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]" + (f" [dim italic]({detail})[/dim italic]" if detail else "")
+                    if hasattr(s, "update"): s.update(msg)
+                engine_result = engine.query(natural_language_request, dry_run=dry_run, on_progress=_prog)
 
             sql_query, parameters = engine_result.sql, engine_result.parameters
             print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")

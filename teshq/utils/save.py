@@ -47,6 +47,13 @@ def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", i
         **kwargs: Additional arguments to pass to df.to_excel().
     """
     try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        raise ImportError(
+            "Excel export requires 'openpyxl'. Install it with: pip install openpyxl"
+        ) from None
+
+    try:
         logger.info("Saving data to Excel", file_path=filename, sheet_name=sheet_name, row_count=len(df))
         # Ensure directory exists if filename has a directory path
         parent_dir = os.path.dirname(filename)
