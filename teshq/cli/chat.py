@@ -193,6 +193,87 @@ def _render_session_summary(
     return summary
 
 
+def copy_to_clipboard(text: str) -> bool:
+    """Copy text to system clipboard across Windows, macOS, and Linux without extra dependencies."""
+    if not text:
+        return False
+    # Windows clip.exe
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            p = subprocess.Popen(
+                ["clip"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=True,
+            )
+            p.communicate(text.encode("utf-8"))
+            if p.returncode == 0:
+                return True
+        except Exception:
+            pass
+    # macOS pbcopy
+    elif sys.platform == "darwin":
+        try:
+            import subprocess
+            p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+            p.communicate(text.encode("utf-8"))
+            if p.returncode == 0:
+                return True
+        except Exception:
+            pass
+    # Linux xclip / wl-copy / xsel
+    else:
+        for cmd in [["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]]:
+            try:
+                import subprocess
+                p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                p.communicate(text.encode("utf-8"))
+                if p.returncode == 0:
+                    return True
+            except Exception:
+                continue
+    return False
+
+
+def clear_terminal_screen() -> None:
+    """Clear terminal screen and scrollback buffer across platforms."""
+    try:
+        if os.name == "nt":
+            os.system("cls")
+        else:
+            os.system("clear")
+    except Exception:
+        pass
+    console.clear()
+
+
+def clear_command_history() -> None:
+    """Clear interactive input history so Up-arrow begins fresh."""
+    try:
+        import importlib
+        pyrepl_rl = importlib.import_module("_pyrepl.readline")
+        if hasattr(pyrepl_rl, "clear_history"):
+            pyrepl_rl.clear_history()
+    except Exception:
+        pass
+
+    try:
+        import readline
+        if hasattr(readline, "clear_history"):
+            readline.clear_history()
+    except Exception:
+        pass
+
+    if sys.platform == "win32":
+        try:
+            os.system("doskey /listsize=0 >nul 2>&1")
+            os.system("doskey /listsize=50 >nul 2>&1")
+        except Exception:
+            pass
+
+
 @app.callback(invoke_without_command=True)
 def interactive_chat(
     ctx: typer.Context,
@@ -200,8 +281,9 @@ def interactive_chat(
     cloud: bool = typer.Option(False, "--cloud", help="Force cloud model."),
 ) -> None:
     """Launch the interactive TESH-Query conversational terminal."""
-    # ── Welcome ───────────────────────────────────────────────────────
-    console.clear()
+    # ── Clear Past Screen & Command History ────────────────────────────
+    clear_command_history()
+    clear_terminal_screen()
     print_hero_banner()
 
     db_status, db_type, llm_name, table_count = _get_env_summary()
@@ -240,11 +322,13 @@ def interactive_chat(
     last_result: Optional[QueryResult] = None
     last_nl_query: Optional[str] = None
     last_dialect: str = "SQL"
+    last_error: Optional[str] = None
 
     # Session stats
     session_queries = 0
     session_total_time = 0.0
     session_total_tokens = 0
+    session_history: List[str] = []
 
     # Reset block counter for this session
     CommandBlock.reset_counter()
@@ -264,16 +348,51 @@ def interactive_chat(
         if not user_input:
             continue
 
+        session_history.append(user_input)
+
+        # Clean input and strip brackets if user clicked, typed, or copied bracketed hint [Action]
+        clean_input = user_input.strip()
+        if clean_input.startswith("[") and clean_input.endswith("]"):
+            clean_input = clean_input[1:-1].strip()
+
         # Check exit commands
-        if user_input.lower() in ("exit", "quit", ":q", "q"):
+        if clean_input.lower() in ("exit", "quit", ":q", "q"):
             console.print(_render_session_summary(
                 session_queries, session_total_time, session_total_tokens,
             ))
             break
 
+        # Map plain-text action chips or shortcuts to canonical slash commands
+        is_slash = clean_input.startswith("/")
+        cmd_candidate = clean_input.lower()
+
+        if not is_slash:
+            if cmd_candidate in ("copy sql", "copy"):
+                clean_input = "/copy sql"
+            elif cmd_candidate in ("copy results", "copy data"):
+                clean_input = "/copy results"
+            elif cmd_candidate in ("copy error",):
+                clean_input = "/copy error"
+            elif cmd_candidate in ("rerun", "retry"):
+                clean_input = "/rerun"
+            elif cmd_candidate == "explain":
+                clean_input = "/explain"
+            elif cmd_candidate.startswith("export "):
+                clean_input = f"/{clean_input}"
+            elif cmd_candidate == "export":
+                clean_input = "/export"
+            elif cmd_candidate in ("tables", "schema"):
+                clean_input = f"/{clean_input}"
+            elif cmd_candidate in ("clear", "cls"):
+                clean_input = "/clear"
+            elif cmd_candidate in ("help", "?"):
+                clean_input = "/help"
+            elif cmd_candidate in ("history", "hist"):
+                clean_input = "/history"
+
         # ── Slash Commands ────────────────────────────────────────────
-        if user_input.startswith("/"):
-            parts = user_input.split(maxsplit=2)
+        if clean_input.startswith("/"):
+            parts = clean_input.split(maxsplit=2)
             cmd = parts[0].lower()
 
             if cmd in ("/help", "/?"):
@@ -281,7 +400,8 @@ def interactive_chat(
                 continue
 
             elif cmd in ("/clear", "/cls"):
-                console.clear()
+                clear_command_history()
+                clear_terminal_screen()
                 print_status_bar(
                     db_status=db_status, db_type=db_type, db_name=db_name,
                     llm_model=llm_name, schema_tables_count=table_count,
@@ -389,13 +509,85 @@ def interactive_chat(
                     )
                 continue
 
-            elif cmd == "/explain":
-                if not last_sql:
+            elif cmd == "/copy":
+                target = parts[1].lower() if len(parts) > 1 else "sql"
+                if target in ("sql", "query"):
+                    if not last_sql:
+                        console.print(
+                            f"  [{Colors.TEXT_TERTIARY}]No SQL query generated yet to copy."
+                            f"[/{Colors.TEXT_TERTIARY}]\n"
+                        )
+                    else:
+                        if copy_to_clipboard(last_sql):
+                            console.print(
+                                f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
+                                f"[bold {Colors.TEXT_PRIMARY}]SQL copied to system clipboard![/bold {Colors.TEXT_PRIMARY}]\n"
+                            )
+                        else:
+                            console.print(
+                                f"  [{Colors.WARNING}]{Icons.warn()} Clipboard not available in this environment. "
+                                f"Here is the SQL query:[/{Colors.WARNING}]\n"
+                            )
+                            print_sql_card(last_sql, dialect=last_dialect, parameters=last_parameters, title="SQL")
+                            console.print()
+                elif target in ("results", "data", "result", "csv"):
+                    if not last_result or last_result.dataframe is None:
+                        console.print(
+                            f"  [{Colors.WARNING}]{Icons.warn()} No active results to copy."
+                            f"[/{Colors.WARNING}]\n"
+                        )
+                    else:
+                        df = last_result.dataframe
+                        csv_data = df.to_csv(index=False)
+                        if copy_to_clipboard(csv_data):
+                            console.print(
+                                f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
+                                f"[bold {Colors.TEXT_PRIMARY}]Results ({len(df):,} rows) copied to clipboard as CSV![/bold {Colors.TEXT_PRIMARY}]\n"
+                            )
+                        else:
+                            console.print(
+                                f"  [{Colors.WARNING}]{Icons.warn()} Clipboard not available in this environment.[/{Colors.WARNING}]\n"
+                            )
+                elif target in ("error", "err"):
+                    if not last_error:
+                        console.print(
+                            f"  [{Colors.TEXT_TERTIARY}]No error recorded to copy.[/{Colors.TEXT_TERTIARY}]\n"
+                        )
+                    else:
+                        if copy_to_clipboard(last_error):
+                            console.print(
+                                f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
+                                f"[bold {Colors.TEXT_PRIMARY}]Error details copied to clipboard![/bold {Colors.TEXT_PRIMARY}]\n"
+                            )
+                        else:
+                            console.print(
+                                f"  [{Colors.WARNING}]{Icons.warn()} Clipboard not available.[/{Colors.WARNING}]\n"
+                            )
+                else:
                     console.print(
-                        f"  [{Colors.TEXT_TERTIARY}]No query to explain yet."
+                        f"  [{Colors.TEXT_TERTIARY}]Usage: /copy [sql|results|error][/{Colors.TEXT_TERTIARY}]\n"
+                    )
+                continue
+
+            elif cmd in ("/rerun", "/retry"):
+                if not last_nl_query:
+                    console.print(
+                        f"  [{Colors.TEXT_TERTIARY}]No previous query to rerun yet.[/{Colors.TEXT_TERTIARY}]\n"
+                    )
+                    continue
+                console.print(
+                    f"  [{Colors.AI_ACCENT}]{Icons.arrow()}[/{Colors.AI_ACCENT}] "
+                    f"[bold]Rerunning:[/bold] [{Colors.TEXT_PRIMARY}]\"{last_nl_query}\"[/{Colors.TEXT_PRIMARY}]\n"
+                )
+                user_input = last_nl_query
+
+            elif cmd == "/explain":
+                if not last_sql and not last_error:
+                    console.print(
+                        f"  [{Colors.TEXT_TERTIARY}]No query or error to explain yet."
                         f"[/{Colors.TEXT_TERTIARY}]\n"
                     )
-                else:
+                elif last_sql:
                     from teshq.cli.ui.ai_context import print_ai_explanation
                     explanation = (
                         f"Query: \"{last_nl_query}\"\n"
@@ -405,20 +597,43 @@ def interactive_chat(
                     if last_parameters:
                         explanation += f"\nParameters: {last_parameters}"
                     print_ai_explanation(explanation, title="Query Breakdown")
+                    console.print()
+                else:
+                    from teshq.cli.ui.ai_context import print_ai_explanation
+                    explanation = f"Query: \"{last_nl_query}\"\nError Encountered: {last_error}"
+                    print_ai_explanation(explanation, title="Error Explanation")
+                    console.print()
+                continue
+
+            elif cmd in ("/history", "/hist"):
+                if not session_history:
+                    console.print(
+                        f"  [{Colors.TEXT_TERTIARY}]No commands executed in this session yet.[/{Colors.TEXT_TERTIARY}]\n"
+                    )
+                else:
+                    console.print(
+                        f"  [bold {Colors.PRIMARY}]{Icons.time()} Session Command History:[/bold {Colors.PRIMARY}]"
+                    )
+                    for idx, h_cmd in enumerate(session_history, 1):
+                        console.print(f"    [dim]{idx}.[/dim] [{Colors.TEXT_PRIMARY}]{h_cmd}[/{Colors.TEXT_PRIMARY}]")
+                    console.print()
                 continue
 
             elif cmd == "/search":
                 query = parts[1] if len(parts) > 1 else ""
                 if not query:
                     console.print(
-                        f"  [{Colors.TEXT_TERTIARY}]Usage: /search <text>"
-                        f"[/{Colors.TEXT_TERTIARY}]\n"
+                        f"  [{Colors.TEXT_TERTIARY}]Usage: /search <text>[/{Colors.TEXT_TERTIARY}]\n"
                     )
                 else:
-                    console.print(
-                        f"  [{Colors.TEXT_MUTED}]Search for \"{query}\" in history "
-                        f"(coming soon)[/{Colors.TEXT_MUTED}]\n"
-                    )
+                    matches = [h for h in session_history if query.lower() in h.lower()]
+                    if matches:
+                        console.print(f"  [bold {Colors.PRIMARY}]Matches for \"{query}\":[/bold {Colors.PRIMARY}]")
+                        for m in matches:
+                            console.print(f"    • [{Colors.TEXT_PRIMARY}]{m}[/{Colors.TEXT_PRIMARY}]")
+                    else:
+                        console.print(f"  [{Colors.TEXT_MUTED}]No matches found in session history for \"{query}\".[/{Colors.TEXT_MUTED}]")
+                    console.print()
                 continue
 
             else:
@@ -520,6 +735,7 @@ def interactive_chat(
 
         except Exception as e:
             # Error block
+            last_error = str(e)
             console.print()
             block = CommandBlock(user_input)
             block.set_error(str(e))

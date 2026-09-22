@@ -291,23 +291,49 @@ def render_action_hints(
     """
     Render inline action hints below a command block.
 
-    Actions are displayed as bracketed text hints:
-      [Copy SQL] [Export CSV] [Explain] [Rerun]
+    Actions are displayed as interactive command shortcuts:
+      Actions: [/copy sql] Copy SQL · [/copy results] Copy Results · [/export csv] Export CSV · [/explain] Explain · [/rerun] Rerun
     """
-    if actions is None:
-        actions = ["Copy SQL", "Copy Results", "Export CSV", "Explain", "Rerun"]
-
     hints = Text("  ")
+    hints.append("Actions: ", style=f"bold {Colors.TEXT_MUTED}")
+
+    if actions is None:
+        action_pairs = [
+            ("/copy sql", "Copy SQL"),
+            ("/copy results", "Copy Results"),
+            ("/export csv", "Export CSV"),
+            ("/explain", "Explain"),
+            ("/rerun", "Rerun"),
+        ]
+        for i, (cmd, label) in enumerate(action_pairs):
+            if i > 0:
+                hints.append("  ·  ", style=f"{Colors.TEXT_MUTED}")
+            hints.append(f"[{cmd}]", style=f"bold {Colors.PRIMARY}")
+            hints.append(f" {label}", style=f"{Colors.TEXT_SECONDARY}")
+        return hints
+
     for i, action in enumerate(actions):
         if i > 0:
-            hints.append(" ", style="")
-        hints.append(f"[{action}]", style=f"{Colors.TEXT_MUTED}")
+            hints.append("  ·  ", style=f"{Colors.TEXT_MUTED}")
+        hints.append(f"[{action}]", style=f"bold {Colors.PRIMARY}")
     return hints
 
 
 def render_error_action_hints() -> Text:
     """Action hints for error blocks."""
-    return render_action_hints(["Copy Error", "Explain", "Retry", "Docs"])
+    hints = Text("  ")
+    hints.append("Actions: ", style=f"bold {Colors.TEXT_MUTED}")
+    action_pairs = [
+        ("/retry", "Retry"),
+        ("/explain", "Explain"),
+        ("/copy error", "Copy Error"),
+    ]
+    for i, (cmd, label) in enumerate(action_pairs):
+        if i > 0:
+            hints.append("  ·  ", style=f"{Colors.TEXT_MUTED}")
+        hints.append(f"[{cmd}]", style=f"bold {Colors.WARNING}")
+        hints.append(f" {label}", style=f"{Colors.TEXT_SECONDARY}")
+    return hints
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

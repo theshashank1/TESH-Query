@@ -227,3 +227,54 @@ class TestQueryCLIUX:
         assert "--save-csv" in result.stdout
         assert "--dry-run" in result.stdout
         assert "--limit" in result.stdout
+
+
+class TestChatCLIUX:
+    """Tests for teshq chat / repl history and screen clearing."""
+
+    def test_clear_functions_run_cleanly(self):
+        from teshq.cli.chat import clear_command_history, clear_terminal_screen
+
+        # Must execute without raising any exceptions across platforms
+        clear_command_history()
+        clear_terminal_screen()
+
+    def test_slash_commands_include_history_and_clear(self):
+        from teshq.cli.ui.palette import SLASH_COMMANDS
+
+        cmd_names = [cmd for cmd, _ in SLASH_COMMANDS]
+        assert "/history" in cmd_names
+        assert "/clear" in cmd_names
+        assert "/search <text>" in cmd_names
+        assert "/copy [sql|results]" in cmd_names
+        assert "/rerun" in cmd_names
+
+    def test_copy_to_clipboard_cross_platform(self):
+        from teshq.cli.chat import copy_to_clipboard
+
+        # Empty string returns False
+        assert copy_to_clipboard("") is False
+
+        # Valid text copy executes without exception
+        res = copy_to_clipboard("SELECT 1;")
+        assert isinstance(res, bool)
+
+    def test_action_hints_contain_shortcuts_and_labels(self):
+        from teshq.cli.ui.blocks import render_action_hints, render_error_action_hints
+
+        hints = render_action_hints()
+        rendered = str(hints)
+        assert "/copy sql" in rendered
+        assert "Copy SQL" in rendered
+        assert "/copy results" in rendered
+        assert "Copy Results" in rendered
+        assert "/export csv" in rendered
+        assert "Export CSV" in rendered
+        assert "/explain" in rendered
+        assert "/rerun" in rendered
+
+        err_hints = render_error_action_hints()
+        err_rendered = str(err_hints)
+        assert "/retry" in err_rendered
+        assert "/explain" in err_rendered
+        assert "/copy error" in err_rendered

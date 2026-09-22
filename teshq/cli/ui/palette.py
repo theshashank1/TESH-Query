@@ -22,11 +22,14 @@ SLASH_COMMANDS: List[Tuple[str, str]] = [
     ("/tables",          "Explore database schema tree"),
     ("/schema [name]",   "Inspect columns and foreign keys"),
     ("/sql",             "Show last generated SQL"),
+    ("/copy [sql|results]", "Copy SQL or results to clipboard"),
+    ("/rerun",           "Rerun last query"),
     ("/export <fmt>",    "Export results (csv, excel)"),
     ("/explain",         "Show execution breakdown"),
     ("/search <text>",   "Search command history"),
+    ("/history",         "Show session command history"),
     ("/model [name]",    "Show or switch AI provider"),
-    ("/clear",           "Clear screen"),
+    ("/clear",           "Clear screen & command history"),
     ("/help",            "Show command guide"),
 ]
 
