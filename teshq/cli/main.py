@@ -145,7 +145,7 @@ def _callback(
 app.add_typer(chat.app, name="chat", help="Launch interactive multi-turn SQL chat session.")
 app.add_typer(chat.app, name="repl", help="Alias for 'teshq chat'.")
 app.add_typer(db.app, name="db", help="Manage database connections and schema introspection.")
-app.add_typer(config.app, name="config", help="Configure database and API credentials.")
+app.add_typer(config.app, name="config", help="Configure database, AI models, and exports.")
 app.add_typer(query.app)  # already named "query" internally
 app.add_typer(local.app, name="local")
 app.add_typer(bench.app, name="bench", help="Run text-to-SQL benchmarks against backends.")
