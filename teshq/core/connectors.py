@@ -244,6 +244,197 @@ class CassandraConnector(DatabaseConnector):
         return ["cassandra-driver", "cqlalchemy"]
 
 
+class BigQueryConnector(DatabaseConnector):
+    """Google BigQuery connector."""
+    
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy.pool import NullPool
+        return {
+            "poolclass": NullPool,
+            "echo": config.get("echo", False),
+        }
+    
+    def test_connection_query(self) -> str:
+        return "SELECT 1"
+    
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": False,
+            "supports_indexes": False,
+            "supports_check_constraints": False,
+            "supports_sequences": False,
+            "information_schema_available": True,
+        }
+    
+    def normalize_url(self, url: str) -> str:
+        return url
+    
+    def get_required_packages(self) -> List[str]:
+        return ["sqlalchemy-bigquery", "google-cloud-bigquery"]
+
+
+class SnowflakeConnector(DatabaseConnector):
+    """Snowflake data warehouse connector."""
+    
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy.pool import NullPool
+        return {
+            "poolclass": NullPool,
+            "echo": config.get("echo", False),
+            "connect_args": {
+                "client_session_keep_alive": True,
+            }
+        }
+    
+    def test_connection_query(self) -> str:
+        return "SELECT CURRENT_VERSION()"
+    
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": True,
+            "supports_indexes": False,
+            "supports_check_constraints": False,
+            "supports_sequences": True,
+            "information_schema_available": True,
+        }
+    
+    def normalize_url(self, url: str) -> str:
+        return url
+    
+    def get_required_packages(self) -> List[str]:
+        return ["snowflake-sqlalchemy", "snowflake-connector-python"]
+
+
+class DuckDBConnector(DatabaseConnector):
+    """DuckDB embedded analytical database connector."""
+    
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy.pool import NullPool
+        return {
+            "poolclass": NullPool,
+            "echo": config.get("echo", False),
+        }
+    
+    def test_connection_query(self) -> str:
+        return "SELECT version()"
+    
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": True,
+            "supports_indexes": True,
+            "supports_check_constraints": True,
+            "supports_sequences": True,
+            "information_schema_available": True,
+        }
+    
+    def normalize_url(self, url: str) -> str:
+        return url
+    
+    def get_required_packages(self) -> List[str]:
+        return ["duckdb-engine", "duckdb"]
+
+
+class ClickHouseConnector(DatabaseConnector):
+    """ClickHouse analytical database connector."""
+    
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy.pool import QueuePool
+        return {
+            "poolclass": QueuePool,
+            "pool_size": config.get("pool_size", 5),
+            "pool_timeout": config.get("pool_timeout", 30),
+            "echo": config.get("echo", False),
+        }
+    
+    def test_connection_query(self) -> str:
+        return "SELECT version()"
+    
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": False,
+            "supports_indexes": False,
+            "supports_check_constraints": False,
+            "supports_sequences": False,
+            "information_schema_available": True,
+        }
+    
+    def normalize_url(self, url: str) -> str:
+        if url.startswith("clickhouse://"):
+            url = url.replace("clickhouse://", "clickhouse+native://", 1)
+        return url
+    
+    def get_required_packages(self) -> List[str]:
+        return ["clickhouse-connect", "clickhouse-sqlalchemy"]
+
+
+class RedshiftConnector(DatabaseConnector):
+    """Amazon Redshift connector."""
+    
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "poolclass": QueuePool,
+            "pool_size": config.get("pool_size", 10),
+            "max_overflow": config.get("max_overflow", 20),
+            "pool_timeout": config.get("pool_timeout", 30),
+            "pool_pre_ping": config.get("pool_pre_ping", True),
+            "echo": config.get("echo", False),
+            "connect_args": {
+                "connect_timeout": config.get("connect_timeout", 10),
+            }
+        }
+    
+    def test_connection_query(self) -> str:
+        return "SELECT version()"
+    
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": True,
+            "supports_indexes": False,
+            "supports_check_constraints": False,
+            "supports_sequences": False,
+            "information_schema_available": True,
+        }
+    
+    def normalize_url(self, url: str) -> str:
+        if url.startswith("redshift://"):
+            url = url.replace("redshift://", "redshift+psycopg2://", 1)
+        return url
+    
+    def get_required_packages(self) -> List[str]:
+        return ["sqlalchemy-redshift", "psycopg2-binary"]
+
+
+class DatabricksConnector(DatabaseConnector):
+    """Databricks SQL connector."""
+    
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy.pool import QueuePool
+        return {
+            "poolclass": QueuePool,
+            "pool_size": config.get("pool_size", 5),
+            "pool_pre_ping": config.get("pool_pre_ping", True),
+            "echo": config.get("echo", False),
+        }
+    
+    def test_connection_query(self) -> str:
+        return "SELECT 1"
+    
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": True,
+            "supports_indexes": False,
+            "supports_check_constraints": False,
+            "supports_sequences": False,
+            "information_schema_available": True,
+        }
+    
+    def normalize_url(self, url: str) -> str:
+        return url
+    
+    def get_required_packages(self) -> List[str]:
+        return ["databricks-sql-connector", "sqlalchemy-databricks"]
+
+
 class GenericSQLAlchemyConnector(DatabaseConnector):
     """Fallback connector for any SQLAlchemy-supported database.
 
@@ -292,15 +483,38 @@ class UnifiedDatabaseConnector:
     optimizations, and error handling.
     """
     
-    # Registry of supported database connectors
+    # Registry of supported database connectors (ordered by analytical relevance)
     _connectors = {
+        # Tier 1: Cloud Data Warehouses
+        "bigquery": BigQueryConnector(),
+        "snowflake": SnowflakeConnector(),
+        "databricks": DatabricksConnector(),
+        "redshift": RedshiftConnector(),
+        
+        # Tier 2: Local & Real-time OLAP
+        "duckdb": DuckDBConnector(),
+        "clickhouse": ClickHouseConnector(),
+        
+        # Tier 3: Operational RDBMS
         "postgresql": PostgreSQLConnector(),
         "postgres": PostgreSQLConnector(),  # Alias
         "mysql": MySQLConnector(),
-        "sqlite": SQLiteConnector(),
         "oracle": OracleConnector(),
+        
+        # Tier 4: Local development & NoSQL
+        "sqlite": SQLiteConnector(),
         "cassandra": CassandraConnector(),
     }
+    
+    @classmethod
+    def get_categorized_connectors(cls) -> Dict[str, List[str]]:
+        """Get supported databases grouped by category."""
+        return {
+            "Cloud Data Warehouses": ["bigquery", "snowflake", "databricks", "redshift"],
+            "Local & Real-Time OLAP": ["duckdb", "clickhouse"],
+            "Relational Databases": ["postgresql", "mysql", "oracle"],
+            "Local / NoSQL": ["sqlite", "cassandra"]
+        }
     
     @classmethod
     def get_supported_databases(cls) -> List[str]:

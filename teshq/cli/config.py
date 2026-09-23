@@ -221,23 +221,8 @@ def run_quick_wizard() -> dict:
     console.print("  [bold #6366F1]Step 1/2[/bold #6366F1] [#C8C8D4]Database Connection[/#C8C8D4]")
     console.print()
 
-    sqlite_files = [f for f in os.listdir(".") if f.endswith((".sqlite", ".db", ".sqlite3")) and os.path.isfile(f)]
-    default_db_type = "sqlite" if sqlite_files else "postgresql"
-
-    db_type = prompt("  Database type", choices=SUPPORTED_DBS, default=default_db_type).lower()
-    if db_type == "sqlite":
-        default_sqlite = sqlite_files[0] if sqlite_files else "sqlite.db"
-        db_name = prompt("  SQLite file path", default=default_sqlite)
-        config_to_save["DATABASE_URL"] = f"sqlite:///{db_name}"
-    else:
-        db_user = prompt("  Username")
-        db_password = getpass("  Password: ")
-        db_host = prompt("  Host", default="localhost")
-        default_port = 5432 if db_type == "postgresql" else 3306
-        db_port = prompt("  Port", default=default_port, expected_type=int, validate=lambda p: 1 <= p <= 65535)
-        db_name = prompt("  Database name")
-        safe_password = quote_plus(db_password)
-        config_to_save["DATABASE_URL"] = f"{db_type}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
+    db_url = _prompt_for_database_url(indent="  ")
+    config_to_save["DATABASE_URL"] = db_url
 
     console.print(f"  [#10B981]✓[/#10B981] Database configured")
     console.print()
@@ -327,6 +312,110 @@ def display_current_config():
             info(f"{key}: {source}")
 
 
+def _prompt_for_database_url(indent: str = "") -> str:
+    """Helper to prompt for database connection details interactively based on DB category."""
+    from rich.console import Console
+    console = Console()
+    
+    categories = UnifiedDatabaseConnector.get_categorized_connectors()
+    
+    console.print(f"{indent}[bold]Select Database Category:[/bold]")
+    cat_keys = list(categories.keys())
+    for i, cat in enumerate(cat_keys, 1):
+        console.print(f"{indent}  {i}. {cat}")
+    
+    cat_idx = prompt(f"{indent}Category (1-{len(cat_keys)})", default="1", expected_type=int)
+    cat_idx = max(1, min(cat_idx, len(cat_keys)))
+    selected_cat = cat_keys[cat_idx - 1]
+    db_choices = categories[selected_cat]
+    
+    db_type = prompt(f"{indent}Database type", choices=db_choices, default=db_choices[0]).lower()
+    
+    if db_type == "sqlite":
+        sqlite_files = [f for f in os.listdir(".") if f.endswith((".sqlite", ".db", ".sqlite3")) and os.path.isfile(f)]
+        default_sqlite = sqlite_files[0] if sqlite_files else "sqlite.db"
+        db_name = prompt(f"{indent}SQLite file path", default=default_sqlite)
+        return f"sqlite:///{db_name}"
+        
+    elif db_type == "duckdb":
+        duckdb_target = prompt(f"{indent}DuckDB file path (or :memory: / MotherDuck token)", default=":memory:")
+        if duckdb_target.startswith("md:"):
+            return f"duckdb:///{duckdb_target}"
+        return f"duckdb:///{duckdb_target}"
+        
+    elif db_type == "bigquery":
+        project_id = prompt(f"{indent}Google Cloud Project ID")
+        dataset = prompt(f"{indent}Dataset name (optional)", default="")
+        credentials_path = prompt(f"{indent}Service Account JSON path (leave empty to use default ADC)", default="")
+        
+        url = f"bigquery://{project_id}"
+        if dataset:
+            url += f"/{dataset}"
+        if credentials_path:
+            url += f"?credentials_path={quote_plus(credentials_path)}"
+        return url
+        
+    elif db_type == "snowflake":
+        account = prompt(f"{indent}Account Identifier (e.g., xy12345.us-east-1)")
+        user = prompt(f"{indent}Username")
+        password = getpass(f"{indent}Password: ")
+        database = prompt(f"{indent}Database")
+        schema = prompt(f"{indent}Schema (optional)", default="PUBLIC")
+        warehouse = prompt(f"{indent}Warehouse (optional)", default="")
+        role = prompt(f"{indent}Role (optional)", default="")
+        
+        safe_password = quote_plus(password)
+        url = f"snowflake://{user}:{safe_password}@{account}/{database}/{schema}"
+        params = []
+        if warehouse: params.append(f"warehouse={warehouse}")
+        if role: params.append(f"role={role}")
+        if params: url += "?" + "&".join(params)
+        return url
+        
+    elif db_type == "databricks":
+        host = prompt(f"{indent}Workspace Host (e.g., adb-123.azuredatabricks.net)")
+        http_path = prompt(f"{indent}HTTP Path")
+        token = getpass(f"{indent}Personal Access Token: ")
+        catalog = prompt(f"{indent}Catalog (optional)", default="hive_metastore")
+        schema = prompt(f"{indent}Schema (optional)", default="default")
+        
+        safe_token = quote_plus(token)
+        return f"databricks://token:{safe_token}@{host}?http_path={http_path}&catalog={catalog}&schema={schema}"
+        
+    elif db_type == "clickhouse":
+        host = prompt(f"{indent}Host", default="localhost")
+        port = prompt(f"{indent}Port (Native=9000, HTTP=8123)", default="9000")
+        user = prompt(f"{indent}Username", default="default")
+        password = getpass(f"{indent}Password: ")
+        database = prompt(f"{indent}Database", default="default")
+        safe_password = quote_plus(password)
+        return f"clickhouse+native://{user}:{safe_password}@{host}:{port}/{database}"
+
+    else:
+        # Standard Host/Port/User/Pass (PostgreSQL, MySQL, Oracle, Redshift, etc.)
+        info(f"Configuring {db_type.upper()} connection...")
+        db_user = prompt(f"{indent}Database username")
+        while True:
+            db_password = getpass(f"{indent}Database password: ")
+            if not db_password:
+                if not confirm(f"{indent}Empty password – is this correct?"):
+                    continue
+            break
+        db_host = prompt(f"{indent}Database host", default="localhost")
+        
+        default_port = {
+            "postgresql": 5432, "postgres": 5432, "mysql": 3306,
+            "oracle": 1521, "redshift": 5439, "mssql": 1433,
+        }.get(db_type, 5432)
+        
+        db_port = prompt(f"{indent}Database port", default=default_port, expected_type=int, validate=lambda p: 1 <= p <= 65535)
+        db_name = prompt(f"{indent}Database name")
+        
+        safe_password = quote_plus(db_password)
+        scheme = f"redshift+psycopg2" if db_type == "redshift" else db_type
+        return f"{scheme}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
+
+
 def configure_database_interactive() -> str:
     """
     Interactively configure the database connection.
@@ -335,29 +424,7 @@ def configure_database_interactive() -> str:
     info("Setting up database connection...")
     space()
 
-    sqlite_files = [f for f in os.listdir(".") if f.endswith((".sqlite", ".db", ".sqlite3")) and os.path.isfile(f)]
-    default_db_type = "sqlite" if sqlite_files else "postgresql"
-
-    db_type = prompt("Database type", choices=SUPPORTED_DBS, default=default_db_type).lower()
-    if db_type == "sqlite":
-        default_sqlite = sqlite_files[0] if sqlite_files else "sqlite.db"
-        db_name = prompt("SQLite database file path", default=default_sqlite)
-        return f"sqlite:///{db_name}"
-
-    info(f"Configuring {db_type.upper()} connection...")
-    db_user = prompt("Database username")
-    while True:
-        db_password = getpass("Database password: ")
-        if not db_password:
-            if not confirm("Empty password – is this correct?"):
-                continue
-        break
-    db_host = prompt("Database host", default="localhost")
-    default_port = 5432 if db_type == "postgresql" else 3306
-    db_port = prompt("Database port", default=default_port, expected_type=int, validate=lambda p: 1 <= p <= 65535)
-    db_name = prompt("Database name")
-    safe_password = quote_plus(db_password)
-    db_url = f"{db_type}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
+    db_url = _prompt_for_database_url()
 
     try:
         url_obj = make_url(db_url)

@@ -38,6 +38,8 @@ Generation rules:
 - Never emit DROP, TRUNCATE, or ALTER statements.
 - If the query is ambiguous, choose the safest, most read-only interpretation.
 - Do NOT add column aliases (AS ...) unless the user explicitly asks for renamed columns.
+- For OLAP databases (BigQuery, Snowflake, etc.), strongly prefer CTEs (WITH clauses) over nested subqueries for readability.
+- Utilize window functions (RANK(), ROW_NUMBER(), LEAD(), LAG()) for trends, rankings, and running totals when appropriate.
 {dialect_rules}
 Output only the structured SQLQuery — no markdown, no explanation."""
 

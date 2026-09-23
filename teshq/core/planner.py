@@ -24,9 +24,10 @@ _SYSTEM_PROMPT = (
     "Given a compressed database schema and a natural language query, identify:\n"
     "  - tables: all table names needed to answer the query\n"
     "  - filters: WHERE clause conditions (e.g. 'age > 25', 'status = active')\n"
-    "  - aggregations: GROUP BY / aggregate functions needed (e.g. 'COUNT orders', 'SUM revenue')\n"
+    "  - aggregations: GROUP BY / aggregate functions needed (e.g. 'COUNT orders', 'SUM revenue', 'RANK by sales')\n"
     "  - joins_needed: relationships to traverse (e.g. 'users.id = orders.user_id')\n"
     "Use the FK→ annotations in the schema to identify join paths. "
+    "Consider analytical patterns (window functions, running totals, trends) if the user asks for rankings, percentiles, or time-over-time metrics. "
     "Do NOT generate any SQL — return structured JSON only.\n\n"
     "Respond with ONLY valid JSON in this exact format:\n"
     '{"tables": [...], "filters": [...], "aggregations": [...], "joins_needed": [...]}'

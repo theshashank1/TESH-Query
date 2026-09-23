@@ -121,6 +121,45 @@ cassandra = [
     "cassandra-driver>=3.29",
 ]
 
+# ── Cloud Data Warehouses & Lakehouses ────────────────────────────────
+bigquery = [
+    "sqlalchemy-bigquery>=1.11.0",
+    "google-cloud-bigquery>=3.25.0",
+]
+
+snowflake = [
+    "snowflake-sqlalchemy>=1.6.0",
+    "snowflake-connector-python>=3.12.0",
+]
+
+databricks = [
+    "databricks-sql-connector>=3.0.0",
+    "sqlalchemy-databricks>=0.2.0",
+]
+
+redshift = [
+    "sqlalchemy-redshift>=0.8.0",
+]
+
+# ── Local & Real-time OLAP ────────────────────────────────────────────
+duckdb = [
+    "duckdb-engine>=0.13.0",
+    "duckdb>=1.1.0",
+]
+
+clickhouse = [
+    "clickhouse-connect>=0.7.0",
+    "clickhouse-sqlalchemy>=0.3.0",
+]
+
+# Convenience bundle for modern analytics
+analytics = [
+    "duckdb-engine>=0.13.0",
+    "duckdb>=1.1.0",
+    "sqlalchemy-bigquery>=1.11.0",
+    "snowflake-sqlalchemy>=1.6.0",
+]
+
 # Extras for data export / Excel output
 export = [
     "openpyxl>=3.1",
@@ -164,6 +203,12 @@ all-databases = [
     "mysql-connector-python>=8.4",
     "oracledb>=2.0",
     "cassandra-driver>=3.29",
+    "sqlalchemy-bigquery>=1.11.0",
+    "snowflake-sqlalchemy>=1.6.0",
+    "duckdb-engine>=0.13.0",
+    "clickhouse-connect>=0.7.0",
+    "sqlalchemy-redshift>=0.8.0",
+    "databricks-sql-connector>=3.0.0",
 ]
 
 # All optional features
@@ -172,6 +217,12 @@ all-features = [
     "mysql-connector-python>=8.4",
     "oracledb>=2.0",
     "cassandra-driver>=3.29",
+    "sqlalchemy-bigquery>=1.11.0",
+    "snowflake-sqlalchemy>=1.6.0",
+    "duckdb-engine>=0.13.0",
+    "clickhouse-connect>=0.7.0",
+    "sqlalchemy-redshift>=0.8.0",
+    "databricks-sql-connector>=3.0.0",
     "langsmith>=0.1",
 ]
 
