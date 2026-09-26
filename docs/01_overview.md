@@ -11,7 +11,7 @@ TESH-Query (TESHQ) is an AI-powered natural-language-to-SQL engine. You describe
 | **Multi-Database** | PostgreSQL, MySQL, MariaDB, MSSQL, Oracle, Cassandra, SQLite. |
 | **Self-Healing Retry** | If the generated SQL fails, the engine re-invokes the LLM with the error message and retries automatically. |
 | **Schema Retriever** | TF-IDF vector-similarity retrieval prunes large schemas (100+ tables) down to the most relevant subset before hitting the LLM. |
-| **Async SDK** | `TeshQuery.aquery()` and `TeshEngine.aquery()` for non-blocking usage in FastAPI, Celery, and other async frameworks. |
+| **Async SDK** | `TeshQuery.aquery()` and `TeshEngine.aquery()` for non-blocking usage in Celery, data pipelines, and async event loops. |
 | **Custom Exceptions** | Typed exception hierarchy (`TeshqConfigurationError`, `SQLGenerationError`, `LLMRateLimitError`, …) — never leaks raw stack traces. |
 | **Exponential Backoff** | Transient DB errors and LLM rate-limit (HTTP 429) responses are retried with jittered exponential backoff. |
 | **Typer CLI** | Rich, interactive command-line interface with progress bars, syntax highlighting, and table output. |

@@ -1,6 +1,6 @@
 # SDK Usage Guide
 
-The `TeshQuery` class provides a programmatic Python API for embedding TESH-Query in applications, scripts, and data pipelines.
+The `TeshQuery` class provides a programmatic Python API for embedding TESH-Query in internal data analysis, notebooks, and ETL pipelines.
 
 ## Synchronous Usage
 
@@ -18,6 +18,35 @@ client = TeshQuery(
 results = client.query("show me all users who registered last month")
 for row in results:
     print(row)
+```
+
+### High-Performance Data Formats (Polars & Apache Arrow)
+
+```python
+result = client.query_advanced("top 10 products by quarterly revenue")
+
+# Native Pandas DataFrame
+df = result.dataframe
+
+# High-performance Polars DataFrame (zero-copy)
+polars_df = result.polars
+
+# Apache Arrow Table (interoperable across PyData)
+arrow_table = result.arrow
+```
+
+### Stateful Conversational Sessions
+
+```python
+# Maintain conversational context across multi-turn queries
+session = client.create_session()
+
+res1 = session.ask("Show top 5 sales reps by deal volume")
+# Follow-up automatically threads previous context and SQL:
+res2 = session.ask("filter by west region only")
+
+# Export session state to JSON
+session_json = session.export_json()
 ```
 
 ### Generate SQL Without Executing
@@ -62,44 +91,33 @@ report = client.health_check()
 print(report)
 ```
 
-## Asynchronous Usage
+## Asynchronous Usage & Event Streaming
 
-`TeshQuery.aquery()` runs the full pipeline in a thread-pool executor, making it safe to call from an async context without blocking the event loop.
+`TeshQuery.aquery()` executes asynchronously without blocking the event loop, ideal for concurrent data jobs.
 
-### FastAPI Example
-
-```python
-from fastapi import FastAPI
-from teshq import TeshQuery
-
-app = FastAPI()
-client = TeshQuery(
-    db_url="postgresql://user:pass@localhost:5432/mydb",
-    gemini_api_key="your-api-key",
-)
-
-
-@app.get("/query")
-async def run_query(q: str):
-    results = await client.aquery(q)
-    return {"results": results}
-```
-
-### Plain asyncio
+### Async Pipeline Worker
 
 ```python
 import asyncio
 from teshq import TeshQuery
 
-async def main():
+async def run_pipeline(prompts: list[str]):
     client = TeshQuery(
-        db_url="sqlite:///app.db",
-        gemini_api_key="your-key",
+        db_url="postgresql://user:pass@localhost:5432/mydb",
+        gemini_api_key="your-api-key",
     )
-    results = await client.aquery("list all products")
-    print(results)
+    tasks = [client.aquery(p) for p in prompts]
+    return await asyncio.gather(*tasks)
 
-asyncio.run(main())
+asyncio.run(run_pipeline(["count users", "active subscriptions"]))
+```
+
+### Real-Time Event Streaming
+
+```python
+# Stream pipeline lifecycle events for observability
+for event in client.stream_query("calculate customer lifetime value"):
+    print(f"[{event.stage}] {event.message}")
 ```
 
 ## Azure OpenAI Provider

@@ -412,7 +412,12 @@ def _prompt_for_database_url(indent: str = "") -> str:
         db_name = prompt(f"{indent}Database name")
         
         safe_password = quote_plus(db_password)
-        scheme = f"redshift+psycopg2" if db_type == "redshift" else db_type
+        if db_type == "redshift":
+            scheme = "redshift+psycopg2"
+        elif db_type == "mssql":
+            scheme = "mssql+pymssql"
+        else:
+            scheme = db_type
         return f"{scheme}://{db_user}:{safe_password}@{db_host}:{db_port}/{db_name}"
 
 
