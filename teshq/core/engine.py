@@ -95,16 +95,37 @@ class TeshEngine:
         azure_endpoint: Optional[str] = None,
         azure_deployment: Optional[str] = None,
         azure_api_version: Optional[str] = None,
+        # Bring-Your-Own-Engine & Business Context
+        engine: Optional[Any] = None,
+        business_context: Optional[Any] = None,
     ):
         # Load provider config from settings (caller overrides win)
         cfg = get_llm_config()
 
-        self._db_url = db_url or get_database_url()
+        self._custom_engine = engine
+        if engine is not None and not db_url:
+            if hasattr(engine, "url"):
+                try:
+                    self._db_url = engine.url.render_as_string(hide_password=False)
+                except Exception:
+                    self._db_url = str(engine.url)
+            else:
+                self._db_url = str(engine)
+        else:
+            self._db_url = db_url or get_database_url()
+
         if not self._db_url:
             raise TeshqConfigurationError(
                 "Database URL is not configured",
-                detail="Set DATABASE_URL via 'teshq config --db' or pass db_url directly.",
+                detail="Set DATABASE_URL via 'teshq config --db' or pass db_url / engine directly.",
             )
+
+        # Register custom engine in connection manager so queries reuse it
+        if self._custom_engine is not None:
+            from teshq.core.connection import connection_manager
+            connection_manager._engines[f"default:{self._db_url}"] = self._custom_engine
+
+        self._business_context = business_context
 
         # Detect dialect early so it's available throughout the engine
         from teshq.core.dialect import detect_dialect
@@ -245,6 +266,9 @@ class TeshEngine:
         dry_run: bool = False,
         schema_graph: Optional[SchemaGraph] = None,
         on_progress: Optional[Callable[[int, str, Optional[str]], None]] = None,
+        cancellation_token: Optional[Any] = None,
+        event_callback: Optional[Callable[[Any], None]] = None,
+        context: Optional[str] = None,
     ) -> QueryResult:
         """
         Execute a natural language query end-to-end.
@@ -255,18 +279,54 @@ class TeshEngine:
             schema_graph: Optional pre-built SchemaGraph (for testing/caching).
             on_progress: Optional callback invoked with (step_idx, stage_name, detail)
                          to report live progress to UI.
+            cancellation_token: Optional CancellationToken to abort query execution.
+            event_callback: Optional callback receiving QueryEvent instances.
+            context: Optional domain or business context to steer SQL synthesis.
 
         Returns:
             A QueryResult with all relevant output.
         """
+        def _emit_event(evt_type: str, stage: str, message: str, data: Optional[Dict[str, Any]] = None) -> None:
+            if event_callback:
+                try:
+                    from teshq.events import QueryEvent, EventType
+                    evt_enum = EventType(evt_type) if evt_type in EventType._value2member_map_ else evt_type
+                    event_callback(QueryEvent(event_type=evt_enum, stage=stage, message=message, data=data))
+                except Exception:
+                    pass
+
         def _notify(step: int, name: str, detail: Optional[str] = None) -> None:
+            if cancellation_token:
+                cancellation_token.check_cancelled()
             if on_progress:
                 try:
                     on_progress(step, name, detail)
                 except Exception:
                     pass
+            stage_names = ["parsing", "schema", "table_selection", "sql_gen", "validation", "execution"]
+            stage_str = stage_names[step] if step < len(stage_names) else "general"
+            _emit_event("stage_started", stage=stage_str, message=name, data={"detail": detail})
+
+        # Check early cancellation
+        if cancellation_token:
+            cancellation_token.check_cancelled()
 
         _notify(0, "Parsing natural language", "analyzing request intent")
+
+        # Resolve effective query with business context
+        combined_context_parts = []
+        if getattr(self, "_business_context", None):
+            if isinstance(self._business_context, dict):
+                ctx_items = [f"{k}: {v}" for k, v in self._business_context.items()]
+                combined_context_parts.append("Business Rules / Glossary:\n" + "\n".join(ctx_items))
+            else:
+                combined_context_parts.append(f"Business Rules:\n{self._business_context}")
+        if context:
+            combined_context_parts.append(f"Query Context:\n{context}")
+
+        effective_query = nl_query
+        if combined_context_parts:
+            effective_query = "\n\n".join(combined_context_parts) + f"\n\nRequest: {nl_query}"
 
         plan_ms = 0
         sql_ms = 0
@@ -301,23 +361,19 @@ class TeshEngine:
             graph = schema_graph or self._get_schema_graph()
 
             # Retrieve the most relevant tables via TF-IDF cosine similarity.
-            # SchemaRetriever handles synonyms/plurals far better than keyword substring match.
             _notify(2, "Selecting relevant tables", "ranking schema entities")
             retriever = SchemaRetriever(graph)
             
             # Prune tables and format schema string based on active provider
             if self._provider == "local":
-                # Budget for local mode (2500 tokens max) to fit smaller context windows comfortably
                 budget_tokens = 2500
-                relevant_tables = retriever.retrieve(nl_query, top_k=10, budget_tokens=budget_tokens)
+                relevant_tables = retriever.retrieve(effective_query, top_k=10, budget_tokens=budget_tokens)
                 schema_str = graph.compressed_schema_within_budget(relevant_tables, budget_tokens)
             else:
-                relevant_tables = retriever.retrieve(nl_query, top_k=10)
+                relevant_tables = retriever.retrieve(effective_query, top_k=10)
                 schema_str = graph.compressed_schema(relevant_tables)
 
-                # Proportionally reduce if still over token threshold (cloud only)
                 if exceeds_threshold(schema_str, DEFAULT_TOKEN_THRESHOLD) and len(relevant_tables) > 1:
-                    # Keep 60% of tables (at least 1) rather than hard-capping at 3
                     keep = max(1, int(len(relevant_tables) * 0.6))
                     relevant_tables = relevant_tables[:keep]
                     schema_str = graph.compressed_schema(relevant_tables)
@@ -330,60 +386,74 @@ class TeshEngine:
             # — Stage 1: Query Planning —
             _notify(3, "Generating SQL", f"planning query with {provider_label}")
             t0 = time.time()
-            plan = client.generate_plan(nl_query, schema_str, callbacks=[tracker])
+            plan = client.generate_plan(effective_query, schema_str, callbacks=[tracker])
             plan_ms = int((time.time() - t0) * 1000)
+            _emit_event("plan_ready", stage="planning", message="Query plan generated", data={"plan": str(plan)})
+
+            # Check cancellation between stages
+            if cancellation_token:
+                cancellation_token.check_cancelled()
 
             # — Stage 2: SQL Generation —
             _notify(3, "Generating SQL", f"synthesizing SQL query ({provider_label})")
             t0 = time.time()
-            sql_result: SQLQuery = client.generate_sql(nl_query, schema_str, plan, callbacks=[tracker])
+            sql_result: SQLQuery = client.generate_sql(effective_query, schema_str, plan, callbacks=[tracker])
             sql_ms = int((time.time() - t0) * 1000)
 
             sql_text = sql_result.query
             parameters = sql_result.parameters or {}
+            _emit_event("sql_ready", stage="sql_gen", message="SQL synthesized", data={"sql": sql_text, "parameters": parameters})
 
-            # Guard against empty SQL from the LLM (structured output can silently return "")
+            # Guard against empty SQL from the LLM
             if not sql_text or not sql_text.strip():
                 raise SQLGenerationError(
                     "SQL generation failed",
                     detail="The LLM returned an empty query. Try rephrasing your request.",
                 )
 
-            # Store context so _execute_with_retry can regenerate if needed
-            self._last_nl_query = nl_query
+            self._last_nl_query = effective_query
             self._last_schema_str = schema_str
             self._last_plan = plan
 
             # Validate
             _notify(4, "Validating query", "verifying AST & safety rules")
             validate_sql(sql_text, dialect=str(self._dialect))
+            _emit_event("validated", stage="validation", message="SQL verified successfully")
 
             # Normalize
             sql_text = normalize_sql(sql_text)
+
+            # Check cancellation before execution
+            if cancellation_token:
+                cancellation_token.check_cancelled()
 
             # Execute (unless dry run)
             if not dry_run:
                 dialect_label = str(getattr(self, "_dialect", "database")).upper()
                 _notify(5, "Executing against database", f"running on {dialect_label}")
+                _emit_event("exec_started", stage="execution", message=f"Running against {dialect_label}", data={"sql": sql_text})
                 t0 = time.time()
                 rows, sql_text, parameters = self._execute_with_retry(sql_text, parameters)
                 exec_ms = int((time.time() - t0) * 1000)
                 _notify(5, "Executing against database", f"returned {len(rows)} row(s)")
+                _emit_event("rows_ready", stage="execution", message=f"Fetched {len(rows)} row(s)", data={"row_count": len(rows)})
             else:
                 _notify(5, "Executing against database", "dry run (skipped)")
+                _emit_event("finished", stage="execution", message="Dry run completed")
 
-        except ValidationError as e:
-            error = str(e)
-            error_type = type(e).__name__
-            success = False
-            logger.error("SQL validation failed", error=e)
-            raise
+            _emit_event("finished", stage="completed", message="Query executed successfully", data={"rows_count": len(rows), "sql": sql_text})
 
         except Exception as e:
             error = str(e)
             error_type = type(e).__name__
             success = False
-            logger.error("TeshEngine query failed", error=e)
+            from teshq.events import QueryCancelledError
+            if isinstance(e, QueryCancelledError):
+                _emit_event("cancelled", stage="cancelled", message=str(e))
+            else:
+                _emit_event("error", stage="error", message=str(e), data={"error_type": error_type})
+            if not isinstance(e, ValidationError):
+                logger.error("TeshEngine query failed", error=e)
             raise
 
         finally:
@@ -592,6 +662,9 @@ class TeshEngine:
         nl_query: str,
         dry_run: bool = False,
         schema_graph: Optional[SchemaGraph] = None,
+        cancellation_token: Optional[Any] = None,
+        event_callback: Optional[Callable[[Any], None]] = None,
+        context: Optional[str] = None,
     ) -> QueryResult:
         """Async counterpart of :meth:`query`.
 
@@ -603,5 +676,13 @@ class TeshEngine:
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
-            None, lambda: self.query(nl_query, dry_run=dry_run, schema_graph=schema_graph)
+            None,
+            lambda: self.query(
+                nl_query,
+                dry_run=dry_run,
+                schema_graph=schema_graph,
+                cancellation_token=cancellation_token,
+                event_callback=event_callback,
+                context=context,
+            ),
         )

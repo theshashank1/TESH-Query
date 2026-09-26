@@ -39,10 +39,12 @@ Example usage:
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, Iterator, List, Optional, Union
 
 if TYPE_CHECKING:
     import pandas as pd
+    from teshq.events import CancellationToken, QueryEvent
+    from teshq.session import TeshChatSession
 
 from .config.paths import SCHEMA_DIR
 from .core.engine import TeshEngine
@@ -65,6 +67,9 @@ class TeshQuery:
     def __init__(
         self,
         db_url: Optional[str] = None,
+        # Bring-Your-Own-Engine & Business Context
+        engine: Optional[Any] = None,
+        business_context: Optional[Union[Dict[str, str], str]] = None,
         # Google Gemini params
         gemini_api_key: Optional[str] = None,
         gemini_model: Optional[str] = None,
@@ -82,6 +87,8 @@ class TeshQuery:
 
         Args:
             db_url: Database connection URL.
+            engine: Optional pre-configured SQLAlchemy Engine instance (BYOE).
+            business_context: Optional business rules, formulas, or glossary dict.
             gemini_api_key: Google Gemini API key.
             gemini_model: Gemini model name (default: from config or 'gemini-2.0-flash-lite').
             provider: 'google' or 'azure'. Auto-detected from credentials if not set.
@@ -93,8 +100,20 @@ class TeshQuery:
         """
         config = get_config()
 
+        self._custom_engine = engine
+        self.business_context = business_context
+
         # Resolve database URL
-        self.db_url = db_url or config.get("DATABASE_URL") or None
+        if engine is not None and not db_url:
+            if hasattr(engine, "url"):
+                try:
+                    self.db_url = engine.url.render_as_string(hide_password=False)
+                except Exception:
+                    self.db_url = str(engine.url)
+            else:
+                self.db_url = str(engine)
+        else:
+            self.db_url = db_url or config.get("DATABASE_URL") or None
 
         # Resolve provider
         self._provider = (
@@ -117,9 +136,9 @@ class TeshQuery:
         self.auto_save_config = auto_save_config
 
         # Validate required config
-        if not self.db_url:
+        if not self.db_url and self._custom_engine is None:
             raise ValueError(
-                "Database URL is required. Provide it via db_url= or configure with: teshq config --db"
+                "Database URL is required (or provide engine=). Provide it via db_url=, engine=, or configure with: teshq config --db"
             )
 
         if self._provider == "azure":
@@ -170,6 +189,10 @@ class TeshQuery:
     def engine(self) -> TeshEngine:
         """Lazily create and return the TeshEngine instance."""
         if self._engine is None:
+            common_kwargs = {
+                "engine": self._custom_engine,
+                "business_context": self.business_context,
+            }
             if self._provider == "azure":
                 self._engine = TeshEngine(
                     db_url=self.db_url,
@@ -179,6 +202,7 @@ class TeshQuery:
                     azure_endpoint=self.azure_endpoint,
                     azure_deployment=self.azure_deployment,
                     azure_api_version=self.azure_api_version,
+                    **common_kwargs,
                 )
             else:
                 self._engine = TeshEngine(
@@ -186,6 +210,7 @@ class TeshQuery:
                     provider="google",
                     api_key=self.gemini_api_key,
                     model_name=self.gemini_model,
+                    **common_kwargs,
                 )
         return self._engine
 
@@ -271,6 +296,9 @@ class TeshQuery:
         output_format: str = "dataframe",
         output_path: Optional[str] = None,
         return_sql: bool = False,
+        cancellation_token: Optional[Any] = None,
+        event_callback: Optional[Callable[[Any], None]] = None,
+        context: Optional[str] = None,
         **kwargs,
     ) -> Any:
         """
@@ -278,13 +306,18 @@ class TeshQuery:
 
         Args:
             natural_language_query: Question in plain English.
-            output_format: "dataframe" (default), "dict", "csv", or "excel".
+            output_format: "dataframe" (default), "dict", "arrow", "polars", "csv", or "excel".
             output_path: File path to save if format is "csv" or "excel".
             return_sql: If True, include SQL in the response.
+            cancellation_token: Optional CancellationToken to abort query execution.
+            event_callback: Optional callback receiving QueryEvent instances.
+            context: Optional domain or business context string.
 
         Returns:
             - ``pd.DataFrame`` when ``output_format="dataframe"``.
             - ``List[Dict]`` when ``output_format="dict"``.
+            - ``pyarrow.Table`` when ``output_format="arrow"``.
+            - ``polars.DataFrame`` when ``output_format="polars"``.
             - CSV string or saved file path when ``output_format="csv"``.
             - Saved file path when ``output_format="excel"``.
         """
@@ -299,7 +332,13 @@ class TeshQuery:
             output_format=output_format,
         )
 
-        engine_result = self.engine.query(natural_language_query, dry_run=False)
+        engine_result = self.engine.query(
+            natural_language_query,
+            dry_run=False,
+            cancellation_token=cancellation_token,
+            event_callback=event_callback,
+            context=context,
+        )
         if not engine_result.success:
             raise RuntimeError(f"Query failed: {engine_result.error}")
 
@@ -310,15 +349,25 @@ class TeshQuery:
             natural_language_query=natural_language_query,
         )
 
-        df = result.dataframe
+        if output_format == "arrow":
+            if return_sql:
+                return {"sql": result.query, "parameters": result.parameters, "arrow": result.arrow}
+            return result.arrow
 
-        if output_format == "csv":
+        elif output_format == "polars":
+            if return_sql:
+                return {"sql": result.query, "parameters": result.parameters, "polars": result.polars}
+            return result.polars
+
+        elif output_format == "csv":
+            df = result.dataframe
             if output_path:
                 df.to_csv(output_path, index=False)
                 return output_path
             return df.to_csv(index=False)
         
         elif output_format == "excel":
+            df = result.dataframe
             if not output_path:
                 raise ValueError("output_path is required when output_format='excel'.")
             df.to_excel(output_path, index=False)
@@ -330,6 +379,7 @@ class TeshQuery:
             return result.results
             
         else: # dataframe
+            df = result.dataframe
             if return_sql:
                 return {"sql": result.query, "parameters": result.parameters, "dataframe": df}
             return df
@@ -337,42 +387,26 @@ class TeshQuery:
     def query_df(
         self,
         natural_language_query: str,
+        cancellation_token: Optional[Any] = None,
+        event_callback: Optional[Callable[[Any], None]] = None,
+        context: Optional[str] = None,
+        **kwargs,
     ) -> "pd.DataFrame":
         """
         Convert a natural language question directly into a pandas DataFrame.
-
-        This is the recommended entry point for data science, Jupyter notebooks,
-        and any Python workflow that needs to work with the results as a DataFrame.
-
-        Example::
-
-            import teshq
-
-            client = teshq.TeshQuery(
-                db_url="sqlite:///fmcg.sqlite",
-                gemini_api_key="...",
-            )
-
-            df = client.query_df("top 10 products by revenue last quarter")
-            print(df.head())
-            df.to_csv("report.csv", index=False)
-
-        Args:
-            natural_language_query: Question in plain English.
-
-        Returns:
-            ``pd.DataFrame`` containing the query results.
-            Returns an empty DataFrame if no rows matched.
-
-        Raises:
-            RuntimeError: If SQL generation or execution fails.
         """
         track_feature(
             "TeshQuery.query_df",
             query_length_bucket=min(len(natural_language_query) // 50 * 50, 500),
         )
 
-        engine_result = self.engine.query(natural_language_query, dry_run=False)
+        engine_result = self.engine.query(
+            natural_language_query,
+            dry_run=False,
+            cancellation_token=cancellation_token,
+            event_callback=event_callback,
+            context=context,
+        )
         if not engine_result.success:
             raise RuntimeError(f"Query failed: {engine_result.error}")
 
@@ -384,36 +418,66 @@ class TeshQuery:
         )
         return result.dataframe
 
+    def query_arrow(
+        self,
+        natural_language_query: str,
+        cancellation_token: Optional[Any] = None,
+        context: Optional[str] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Convert a natural language question directly into an Apache PyArrow Table.
+
+        Zero-copy data exchange format ideal for ML pipelines, Parquet serialization,
+        and distributed computing.
+        """
+        result = self.query_advanced(
+            natural_language_query,
+            cancellation_token=cancellation_token,
+            context=context,
+            **kwargs,
+        )
+        return result.arrow
+
+    def query_polars(
+        self,
+        natural_language_query: str,
+        cancellation_token: Optional[Any] = None,
+        context: Optional[str] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Convert a natural language question directly into a Polars DataFrame.
+
+        High-performance multi-threaded DataFrame format ideal for modern data engineering.
+        """
+        result = self.query_advanced(
+            natural_language_query,
+            cancellation_token=cancellation_token,
+            context=context,
+            **kwargs,
+        )
+        return result.polars
+
     def query_advanced(
         self,
         natural_language_query: str,
         schema: Optional[str] = None,
         schema_file: Optional[Union[str, Path]] = None,
+        cancellation_token: Optional[Any] = None,
+        event_callback: Optional[Callable[[Any], None]] = None,
+        context: Optional[str] = None,
     ) -> QueryResult:
         """
         Full pipeline returning the rich ``QueryResult`` object.
-
-        ``QueryResult`` exposes:
-
-        - ``.results`` — ``List[Dict[str, Any]]`` of normalized row dicts
-        - ``.dataframe`` — ``pd.DataFrame`` (lazily cached)
-        - ``.query`` — the generated SQL string
-        - ``.parameters`` — bound query parameters
-        - ``.to_dict(include_sql=True)`` — serialization helper
-        - ``.print_table()`` — pretty-print to terminal
-
-        Use this method when you need the SQL alongside the results, or want
-        both the DataFrame and the dict view without running the query twice.
-
-        Example::
-
-            result = client.query_advanced("monthly revenue by region")
-            print("SQL:", result.query)
-            df = result.dataframe          # pandas DataFrame
-            rows = result.results          # list of dicts
-
         """
-        engine_result = self.engine.query(natural_language_query, dry_run=False)
+        engine_result = self.engine.query(
+            natural_language_query,
+            dry_run=False,
+            cancellation_token=cancellation_token,
+            event_callback=event_callback,
+            context=context,
+        )
         if not engine_result.success:
             raise RuntimeError(f"Query failed: {engine_result.error}")
 
@@ -423,6 +487,134 @@ class TeshQuery:
             parameters=engine_result.parameters,
             natural_language_query=natural_language_query,
         )
+
+    def stream_query(
+        self,
+        natural_language_query: str,
+        cancellation_token: Optional[Any] = None,
+        context: Optional[str] = None,
+    ) -> Iterator["QueryEvent"]:
+        """
+        Execute a query while synchronously streaming fine-grained QueryEvent instances.
+
+        Enables client applications and streaming services to report live
+        state transitions (planning, SQL synthesis, validation, execution).
+        """
+        import queue
+        import threading
+        from teshq.events import EventType, QueryEvent
+
+        event_queue: queue.Queue[Optional[QueryEvent]] = queue.Queue()
+
+        def _on_event(evt: QueryEvent) -> None:
+            event_queue.put(evt)
+
+        def _worker() -> None:
+            try:
+                self.engine.query(
+                    natural_language_query,
+                    dry_run=False,
+                    cancellation_token=cancellation_token,
+                    event_callback=_on_event,
+                    context=context,
+                )
+            except Exception as exc:
+                event_queue.put(QueryEvent(event_type=EventType.ERROR, stage="error", message=str(exc)))
+            finally:
+                event_queue.put(None)
+
+        worker_thread = threading.Thread(target=_worker, daemon=True)
+        worker_thread.start()
+
+        while True:
+            evt = event_queue.get()
+            if evt is None:
+                break
+            yield evt
+
+    async def astream_query(
+        self,
+        natural_language_query: str,
+        cancellation_token: Optional[Any] = None,
+        context: Optional[str] = None,
+    ) -> AsyncIterator["QueryEvent"]:
+        """
+        Execute a query while asynchronously streaming fine-grained QueryEvent instances.
+
+        Enables asynchronous event consumers and streaming services to process live progress.
+        """
+        import asyncio
+        from teshq.events import EventType, QueryEvent
+
+        event_queue: asyncio.Queue[Optional[QueryEvent]] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _on_event(evt: QueryEvent) -> None:
+            loop.call_soon_threadsafe(event_queue.put_nowait, evt)
+
+        def _worker() -> None:
+            try:
+                self.engine.query(
+                    natural_language_query,
+                    dry_run=False,
+                    cancellation_token=cancellation_token,
+                    event_callback=_on_event,
+                    context=context,
+                )
+            except Exception as exc:
+                _on_event(QueryEvent(event_type=EventType.ERROR, stage="error", message=str(exc)))
+            finally:
+                loop.call_soon_threadsafe(event_queue.put_nowait, None)
+
+        loop.run_in_executor(None, _worker)
+
+        while True:
+            evt = await event_queue.get()
+            if evt is None:
+                break
+            yield evt
+
+    def create_session(self, session_id: Optional[str] = None) -> "TeshChatSession":
+        """
+        Create a new stateful multi-turn conversational session.
+        """
+        from teshq.session import TeshChatSession
+        return TeshChatSession(client=self, session_id=session_id)
+
+    def get_schema_tree(self) -> Dict[str, Any]:
+        """
+        Get a structured hierarchical schema tree of database tables and columns.
+
+        Returns:
+            A dictionary containing database name and a list of tables with column metadata.
+        """
+        schema_info = self.introspect_database()
+        db_name = "database"
+        if self.db_url:
+            db_name = self.db_url.split("/")[-1].split("?")[0] or "database"
+
+        tables_data = []
+        for table_name, table_meta in schema_info.get("tables", {}).items():
+            cols = []
+            for col in table_meta.get("columns", []):
+                cols.append({
+                    "name": col.get("name"),
+                    "type": str(col.get("type", "TEXT")),
+                    "is_pk": bool(col.get("primary_key", False)),
+                    "is_fk": bool(col.get("foreign_key", False)),
+                    "nullable": bool(col.get("nullable", True)),
+                })
+            tables_data.append({
+                "name": table_name,
+                "columns": cols,
+                "row_count": table_meta.get("row_count"),
+            })
+
+        return {
+            "database": db_name,
+            "dialect": str(getattr(self.engine, "_dialect", "generic")),
+            "tables": tables_data,
+        }
 
 
     def health_check(self) -> Dict[str, Any]:
@@ -439,6 +631,9 @@ class TeshQuery:
         natural_language_query: str,
         output_format: str = "dataframe",
         return_sql: bool = False,
+        cancellation_token: Optional[Any] = None,
+        event_callback: Optional[Callable[[Any], None]] = None,
+        context: Optional[str] = None,
         **kwargs,
     ) -> Any:
         """Async counterpart of :meth:`query`.
@@ -448,26 +643,38 @@ class TeshQuery:
 
         Args:
             natural_language_query: Question in plain English.
-            output_format: "dataframe" (default), "dict", "csv", or "excel".
+            output_format: "dataframe" (default), "dict", "arrow", "polars", "csv", or "excel".
             return_sql: If True, include SQL in the response.
+            cancellation_token: Optional CancellationToken to abort query execution.
+            event_callback: Optional callback receiving QueryEvent instances.
+            context: Optional domain or business context string.
 
         Returns:
             - ``pd.DataFrame`` when ``output_format="dataframe"``.
             - ``List[Dict]`` when ``output_format="dict"``.
+            - ``pyarrow.Table`` when ``output_format="arrow"``.
+            - ``polars.DataFrame`` when ``output_format="polars"``.
             - CSV string or saved file path when ``output_format="csv"``.
             - Saved file path when ``output_format="excel"``.
         """
         import asyncio
 
         loop = asyncio.get_running_loop()
+        query_kwargs = {
+            "output_format": output_format,
+            "return_sql": return_sql,
+            **kwargs,
+        }
+        if cancellation_token is not None:
+            query_kwargs["cancellation_token"] = cancellation_token
+        if event_callback is not None:
+            query_kwargs["event_callback"] = event_callback
+        if context is not None:
+            query_kwargs["context"] = context
+
         return await loop.run_in_executor(
             None,
-            lambda: self.query(
-                natural_language_query,
-                output_format=output_format,
-                return_sql=return_sql,
-                **kwargs,
-            ),
+            lambda: self.query(natural_language_query, **query_kwargs),
         )
 
 
