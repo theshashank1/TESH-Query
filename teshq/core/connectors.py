@@ -435,6 +435,43 @@ class DatabricksConnector(DatabaseConnector):
         return ["databricks-sql-connector", "sqlalchemy-databricks"]
 
 
+class MSSQLConnector(DatabaseConnector):
+    """Microsoft SQL Server connector (via pymssql)."""
+
+    def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "poolclass": QueuePool,
+            "pool_size": config.get("pool_size", 10),
+            "max_overflow": config.get("max_overflow", 20),
+            "pool_timeout": config.get("pool_timeout", 30),
+            "pool_pre_ping": config.get("pool_pre_ping", True),
+            "echo": config.get("echo", False),
+        }
+
+    def test_connection_query(self) -> str:
+        return "SELECT @@VERSION"
+
+    def get_introspection_config(self) -> Dict[str, Any]:
+        return {
+            "supports_foreign_keys": True,
+            "supports_indexes": True,
+            "supports_check_constraints": True,
+            "supports_sequences": True,
+            "information_schema_available": True,
+        }
+
+    def normalize_url(self, url: str) -> str:
+        """Ensure proper MSSQL URL format (default to pymssql if no driver specified)."""
+        if url.startswith("mssql://"):
+            url = url.replace("mssql://", "mssql+pymssql://", 1)
+        elif url.startswith("sqlserver://"):
+            url = url.replace("sqlserver://", "mssql+pymssql://", 1)
+        return url
+
+    def get_required_packages(self) -> List[str]:
+        return ["pymssql"]
+
+
 class GenericSQLAlchemyConnector(DatabaseConnector):
     """Fallback connector for any SQLAlchemy-supported database.
 
@@ -499,6 +536,8 @@ class UnifiedDatabaseConnector:
         "postgresql": PostgreSQLConnector(),
         "postgres": PostgreSQLConnector(),  # Alias
         "mysql": MySQLConnector(),
+        "mssql": MSSQLConnector(),
+        "sqlserver": MSSQLConnector(),      # Alias
         "oracle": OracleConnector(),
         
         # Tier 4: Local development & NoSQL
@@ -512,8 +551,8 @@ class UnifiedDatabaseConnector:
         return {
             "Cloud Data Warehouses": ["bigquery", "snowflake", "databricks", "redshift"],
             "Local & Real-Time OLAP": ["duckdb", "clickhouse"],
-            "Relational Databases": ["postgresql", "mysql", "oracle"],
-            "Local / NoSQL": ["sqlite", "cassandra"]
+            "Relational Databases": ["postgresql", "mysql", "mssql", "oracle", "sqlite"],
+            "NoSQL & Specialized": ["cassandra"],
         }
     
     @classmethod
@@ -544,6 +583,8 @@ class UnifiedDatabaseConnector:
         # Handle aliases
         if scheme == "postgres":
             scheme = "postgresql"
+        elif scheme == "sqlserver":
+            scheme = "mssql"
             
         return scheme
     

@@ -139,10 +139,15 @@ class OutputFormatter:
 
 
 
+import json
+import math
+from pathlib import Path
+
+
 class QueryResult:
     """
     Standardized query result container that provides consistent access
-    to query results across all interfaces.
+    to query results across all interfaces (CLI, API, Data Engineering, ML).
     """
     
     def __init__(
@@ -169,6 +174,8 @@ class QueryResult:
         # Normalize results once for consistency
         self._normalized_results = OutputFormatter.normalize_results(results)
         self._dataframe = None
+        self._arrow_table = None
+        self._polars_df = None
     
     @property
     def results(self) -> List[Dict[str, Any]]:
@@ -181,6 +188,52 @@ class QueryResult:
         if self._dataframe is None:
             self._dataframe = OutputFormatter.to_dataframe(self._normalized_results, normalize=False)
         return self._dataframe
+
+    @property
+    def arrow(self) -> Any:
+        """
+        Get results as a PyArrow Table (zero-copy data exchange for ML and analytics).
+
+        Raises:
+            ImportError: If pyarrow is not installed.
+        """
+        if self._arrow_table is None:
+            try:
+                import pyarrow as pa  # type: ignore
+            except ImportError:
+                raise ImportError(
+                    "PyArrow is required for .arrow. Install with: pip install 'teshq[data]'"
+                )
+            if not self._normalized_results:
+                self._arrow_table = pa.Table.from_batches([])
+            else:
+                self._arrow_table = pa.Table.from_pandas(self.dataframe)
+        return self._arrow_table
+
+    @property
+    def polars(self) -> Any:
+        """
+        Get results as a Polars DataFrame (blazing-fast multi-threaded analytics).
+
+        Raises:
+            ImportError: If polars is not installed.
+        """
+        if self._polars_df is None:
+            try:
+                import polars as pl  # type: ignore
+            except ImportError:
+                raise ImportError(
+                    "Polars is required for .polars. Install with: pip install 'teshq[data]'"
+                )
+            if not self._normalized_results:
+                self._polars_df = pl.DataFrame()
+            else:
+                try:
+                    # Prefer zero-copy arrow conversion if pyarrow is present
+                    self._polars_df = pl.from_arrow(self.arrow)
+                except Exception:
+                    self._polars_df = pl.from_dicts(self._normalized_results)
+        return self._polars_df
     
     @property
     def display_results(self) -> List[Dict[str, Any]]:
@@ -213,7 +266,121 @@ class QueryResult:
             summary=f"Found {len(self._normalized_results):,} record(s)"
         )
 
-    
+    def paginate(self, page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+        """
+        Paginate query results for streaming, batched retrieval, and chunked display.
+
+        Args:
+            page: 1-indexed page number.
+            page_size: Maximum rows per page.
+
+        Returns:
+            Dictionary with pagination metadata and current page slice.
+        """
+        total_rows = len(self._normalized_results)
+        page = max(1, page)
+        page_size = max(1, page_size)
+        total_pages = max(1, math.ceil(total_rows / page_size))
+
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_rows = self._normalized_results[start:end]
+
+        return {
+            "page": page,
+            "page_size": page_size,
+            "total_rows": total_rows,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+            "data": page_rows,
+        }
+
+    def to_payload(self, max_rows: int = 500) -> Dict[str, Any]:
+        """
+        Generate a structured payload containing typed column definitions,
+        sample rows, and automated visualization recommendation hints.
+        """
+        if not self._normalized_results:
+            return {
+                "columns": [],
+                "rows": [],
+                "total_rows": 0,
+                "chart_hints": {"type": "table"},
+                "sql": self.query,
+                "parameters": self.parameters,
+            }
+
+        first_row = self._normalized_results[0]
+        columns = []
+        numeric_cols = []
+        categorical_cols = []
+        datetime_cols = []
+
+        for col_name, val in first_row.items():
+            col_type = "string"
+            if isinstance(val, (int, float)):
+                col_type = "numeric"
+                numeric_cols.append(col_name)
+            elif isinstance(val, bool):
+                col_type = "boolean"
+                categorical_cols.append(col_name)
+            elif val is not None and any(kw in col_name.lower() for kw in ("date", "time", "created_at", "updated_at")):
+                col_type = "datetime"
+                datetime_cols.append(col_name)
+            else:
+                categorical_cols.append(col_name)
+
+            columns.append({"name": col_name, "type": col_type})
+
+        # Infer chart recommendation
+        if datetime_cols and numeric_cols:
+            chart_hint = {
+                "type": "line",
+                "x_axis": datetime_cols[0],
+                "y_axis": numeric_cols[0],
+                "title": f"{numeric_cols[0]} over {datetime_cols[0]}",
+            }
+        elif categorical_cols and numeric_cols:
+            chart_hint = {
+                "type": "bar",
+                "x_axis": categorical_cols[0],
+                "y_axis": numeric_cols[0],
+                "title": f"{numeric_cols[0]} by {categorical_cols[0]}",
+            }
+        elif len(numeric_cols) >= 2:
+            chart_hint = {
+                "type": "scatter",
+                "x_axis": numeric_cols[0],
+                "y_axis": numeric_cols[1],
+                "title": f"{numeric_cols[1]} vs {numeric_cols[0]}",
+            }
+        else:
+            chart_hint = {"type": "table"}
+
+        return {
+            "columns": columns,
+            "rows": self._normalized_results[:max_rows],
+            "total_rows": len(self._normalized_results),
+            "chart_hints": chart_hint,
+            "sql": self.query,
+            "parameters": self.parameters,
+        }
+
+    def to_parquet(self, path: Union[str, Path], **kwargs: Any) -> str:
+        """Export results to an Apache Parquet file."""
+        target = str(path)
+        self.dataframe.to_parquet(target, index=False, **kwargs)
+        return target
+
+    def to_jsonl(self, path: Union[str, Path]) -> str:
+        """Export results to a line-delimited JSON (JSONL) file."""
+        target = str(path)
+        with open(target, "w", encoding="utf-8") as f:
+            for row in self._normalized_results:
+                f.write(json.dumps(row, default=str) + "\n")
+        return target
+
     def to_dict(self, include_sql: bool = False) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Convert to dictionary format for API responses.
