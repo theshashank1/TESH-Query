@@ -136,3 +136,97 @@ class TestTeshEngineAsync:
 
         assert result.sql == "SELECT 1"
         assert result.rows == [{"v": 1}]
+
+
+# ---------------------------------------------------------------------------
+# SDK Extensions: BYOE, Business Context, Schema Tree, & Sessions
+# ---------------------------------------------------------------------------
+
+
+class TestTeshQueryExtensions:
+    """Test modern SDK features: BYOE, Business Context, Schema Tree, Sessions."""
+
+    def test_byoe_custom_engine(self):
+        """Verify that passing an existing Engine instance works without a db_url."""
+        mock_engine = MagicMock()
+        mock_engine.url.render_as_string.return_value = "postgresql://user:pass@host/db"
+
+        with patch("teshq.api.get_config", return_value={}):
+            from teshq.api import TeshQuery
+
+            client = TeshQuery(engine=mock_engine, gemini_api_key="test-key")
+            assert client.db_url == "postgresql://user:pass@host/db"
+            assert client._custom_engine == mock_engine
+
+    def test_business_context_forwarding(self):
+        """Verify business context is stored and passed to TeshEngine."""
+        with patch("teshq.api.get_config", return_value={}):
+            from teshq.api import TeshQuery
+
+            rules = {"churned": "inactive for 90 days"}
+            client = TeshQuery(
+                db_url="sqlite:///x.db",
+                gemini_api_key="test-key",
+                business_context=rules,
+            )
+            assert client.business_context == rules
+
+    def test_create_session_factory(self):
+        """Verify client.create_session returns a properly initialized TeshChatSession."""
+        with patch("teshq.api.get_config", return_value={}):
+            from teshq.api import TeshQuery
+            from teshq.session import TeshChatSession
+
+            client = TeshQuery(db_url="sqlite:///x.db", gemini_api_key="test-key")
+            session = client.create_session(session_id="custom-123")
+            assert isinstance(session, TeshChatSession)
+            assert session.session_id == "custom-123"
+            assert session.client == client
+
+    def test_get_schema_tree(self):
+        """Verify client.get_schema_tree produces a structured hierarchical dict."""
+        with patch("teshq.api.get_config", return_value={}):
+            from teshq.api import TeshQuery
+
+            client = TeshQuery(db_url="sqlite:///mydb.db", gemini_api_key="test-key")
+
+            mock_schema = {
+                "tables": {
+                    "users": {
+                        "columns": [
+                            {"name": "id", "type": "INTEGER", "primary_key": True, "nullable": False},
+                            {"name": "email", "type": "VARCHAR", "primary_key": False, "nullable": True},
+                        ],
+                        "row_count": 100,
+                    }
+                }
+            }
+
+            with patch.object(client, "introspect_database", return_value=mock_schema):
+                tree = client.get_schema_tree()
+
+            assert tree["database"] == "mydb.db"
+            assert len(tree["tables"]) == 1
+            assert tree["tables"][0]["name"] == "users"
+            assert tree["tables"][0]["row_count"] == 100
+            assert len(tree["tables"][0]["columns"]) == 2
+            assert tree["tables"][0]["columns"][0]["name"] == "id"
+            assert tree["tables"][0]["columns"][0]["is_pk"] is True
+
+    def test_mssql_connector_detection_and_normalization(self):
+        """Verify MSSQLConnector handles normalization and detection."""
+        from teshq.core.connectors import UnifiedDatabaseConnector, MSSQLConnector
+
+        # Normalization
+        conn = MSSQLConnector()
+        assert conn.normalize_url("mssql://user:pass@host:1433/db") == "mssql+pymssql://user:pass@host:1433/db"
+        assert conn.normalize_url("sqlserver://user:pass@host:1433/db") == "mssql+pymssql://user:pass@host:1433/db"
+
+        # Categorization & registration
+        assert "mssql" in UnifiedDatabaseConnector._connectors
+        assert "sqlserver" in UnifiedDatabaseConnector._connectors
+        cats = UnifiedDatabaseConnector.get_categorized_connectors()
+        assert "mssql" in cats["Relational Databases"]
+        assert "sqlite" in cats["Relational Databases"]
+        assert "cassandra" in cats["NoSQL & Specialized"]
+

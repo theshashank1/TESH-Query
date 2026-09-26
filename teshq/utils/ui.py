@@ -988,9 +988,9 @@ The simplified UI system includes several **performance enhancements**:
                 selected_database = select_option("Choose your preferred database system:", database_options, default_idx=0)
                 success(f"Database selected: {selected_database}")
 
-                frameworks = ["Django", "FastAPI", "Flask", "Streamlit", "Gradio"]
-                framework = select_option("Select your Python web framework:", frameworks, default_idx=1)
-                tip(f"Excellent choice! {framework} is perfect for modern development")
+                analytics_tools = ["Polars", "PyArrow", "DuckDB", "Pandas"]
+                analytics_engine = select_option("Select your preferred analytics engine:", analytics_tools, default_idx=0)
+                tip(f"Excellent choice! {analytics_engine} is optimized for high-performance analytics")
 
             # Advanced validation demonstrations
             with section("Advanced Validation & Configuration"):
@@ -1042,7 +1042,7 @@ The simplified UI system includes several **performance enhancements**:
                     "experience_level": f"{experience_level}/10",
                     "environment": environment,
                     "database": selected_database.split(" - ")[0],
-                    "framework": framework,
+                    "analytics_engine": analytics_engine,
                     "email": email,
                     "api_port": port,
                     "log_level": log_level,
@@ -1065,7 +1065,7 @@ The simplified UI system includes several **performance enhancements**:
                 print_query_results(
                     ["Metric", "Value", "Status"],
                     performance_metrics,
-                    f"System Performance - {framework} on {environment}",
+                    f"System Performance - {analytics_engine} on {environment}",
                     summary=f"Optimized for {name} at experience level {experience_level}",
                     execution_time=0.018,
                 )
@@ -1092,7 +1092,7 @@ The simplified UI system includes several **performance enhancements**:
 ### Your Final Configuration:
 - **Environment:** {environment}
 - **Database:** {selected_database.split(' - ')[0]}
-- **Framework:** {framework}
+- **Analytics Engine:** {analytics_engine}
 - **Theme:** {theme}
 - **Performance Level:** Expert
 
