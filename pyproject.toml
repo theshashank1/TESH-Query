@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: GNU AFFERO GENERAL PUBLIC LICENSE",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
 
@@ -173,6 +173,18 @@ langsmith = [
 # Local GGUF LLM support via llama-cpp-python
 local = [
     "llama-cpp-python>=0.3.0",
+]
+
+# High-performance Data Engineering & ML formats
+data = [
+    "pyarrow>=14.0",
+    "polars>=0.20",
+]
+
+ml = [
+    "pyarrow>=14.0",
+    "polars>=0.20",
+    "duckdb>=1.1.0",
 ]
 
 # Convenience "all" extra - installs drivers that DON'T require system dependencies

@@ -99,7 +99,7 @@ flowchart TD
 
 ## 🛠️ Built for Developers: Python SDK Showcase
 
-TESH-Query isn't just a CLI tool—it's a robust Python SDK designed for asynchronous web backends (FastAPI, Django) and data science notebooks (Jupyter, Streamlit).
+TESH-Query isn't just a CLI tool—it's a robust Python SDK designed for modern data engineering pipelines, analytics workflows, and interactive notebook environments.
 
 ### Seamless Synchronous Integration
 ```python
@@ -122,11 +122,10 @@ df = result.dataframe
 df.plot(kind='bar', x='region', y='revenue')
 ```
 
-### High-Performance Async Integration (FastAPI)
+### High-Performance Async Integration
 ```python
-@app.get("/api/v1/ask")
-async def ask_database(question: str):
-    # Non-blocking query execution for high-concurrency environments
+async def run_data_pipeline(question: str):
+    # Non-blocking query execution for high-throughput batch and stream processing
     result = await client.aquery(question)
     
     return {
