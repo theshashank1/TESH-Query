@@ -134,7 +134,6 @@ snowflake = [
 
 databricks = [
     "databricks-sql-connector>=3.0.0",
-    "sqlalchemy-databricks>=0.2.0",
 ]
 
 redshift = [
