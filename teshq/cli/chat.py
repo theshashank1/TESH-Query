@@ -307,10 +307,14 @@ def interactive_chat(
     elif cloud:
         provider_override = "google"
 
-    # Initialize Engine once for session speed
-    engine: Optional[TeshEngine] = None
+    from teshq.api import TeshQuery
+    from teshq.session import TeshChatSession
+
+    # Initialize Session once for speed
+    chat_session: Optional[TeshChatSession] = None
     try:
-        engine = TeshEngine(provider=provider_override)
+        client = TeshQuery(provider=provider_override)
+        chat_session = client.create_session()
     except Exception as e:
         console.print(
             f"  [{Colors.WARNING}]{Icons.warn()} Engine will initialize on first query"
@@ -411,13 +415,14 @@ def interactive_chat(
                 continue
 
             elif cmd in ("/tables", "/schema"):
-                if not engine:
+                if not chat_session:
                     try:
-                        engine = TeshEngine(provider=provider_override)
+                        client = TeshQuery(provider=provider_override)
+                        chat_session = client.create_session()
                     except Exception as e:
                         print_error_card(e, context="Schema Inspection")
                         continue
-                tree = _render_schema_tree(engine)
+                tree = _render_schema_tree(chat_session.client.engine)
                 console.print(tree)
                 console.print()
                 continue
@@ -492,7 +497,8 @@ def interactive_chat(
                 if len(parts) > 1:
                     new_provider = parts[1].lower()
                     try:
-                        engine = TeshEngine(provider=new_provider)
+                        client = TeshQuery(provider=new_provider)
+                        chat_session = client.create_session()
                         llm_name = new_provider.title()
                         console.print(
                             f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
@@ -646,49 +652,30 @@ def interactive_chat(
 
         # ── Natural Language Query Execution ──────────────────────────
         try:
-            if not engine:
-                engine = TeshEngine(provider=provider_override)
+            if not chat_session:
+                from teshq.api import TeshQuery
+                client = TeshQuery(provider=provider_override)
+                chat_session = client.create_session()
 
-            last_dialect = getattr(engine, "_dialect", "SQL") or "SQL"
-
-            # Conversational multi-turn enrichment
-            request_text = user_input
-            follow_up_triggers = (
-                "now ", "only ", "filter ", "sort ", "order by ",
-                "group by ", "limit ", "also ", "and ",
-            )
-            if last_nl_query and any(
-                user_input.lower().startswith(t) for t in follow_up_triggers
-            ):
-                request_text = (
-                    f"Context from previous query '{last_nl_query}' "
-                    f"with SQL: {last_sql}. Follow-up request: {user_input}"
-                )
+            last_dialect = getattr(chat_session.client.engine, "_dialect", "SQL") or "SQL"
 
             # ── 6-stage live cognitive progress ───────────────────────
             stage_tracker = StageTracker(QUERY_STAGES, console=console)
-            query_start = time.time()
             with stage_tracker:
-                engine_result = engine.query(
-                    request_text,
-                    dry_run=False,
-                    on_progress=stage_tracker.on_progress,
+                adv_result = chat_session.ask(
+                    user_input,
+                    output_format="advanced",
+                    event_callback=stage_tracker.on_progress,
                 )
-            query_time = time.time() - query_start
 
-            last_sql = engine_result.sql
-            last_parameters = engine_result.parameters
+            last_sql = adv_result.query
+            last_parameters = adv_result.parameters
             last_nl_query = user_input
 
             # Update session stats
             session_queries += 1
-            total_ms = (
-                engine_result.plan_latency_ms
-                + engine_result.sql_latency_ms
-                + engine_result.exec_latency_ms
-            )
+            total_ms = chat_session.last_turn.duration_ms if chat_session.last_turn else 0
             session_total_time += total_ms / 1000.0
-            session_total_tokens += engine_result.total_tokens
 
             # ── Build command block ───────────────────────────────────
             block = CommandBlock(user_input)
@@ -701,12 +688,7 @@ def interactive_chat(
             )
 
             # Results
-            result = QueryResult(
-                results=engine_result.rows,
-                query=last_sql,
-                parameters=last_parameters,
-                natural_language_query=user_input,
-            )
+            result = adv_result
             last_result = result
 
             if result and len(result) > 0:
@@ -726,8 +708,8 @@ def interactive_chat(
             # Metrics
             block.set_metrics(
                 total_ms=total_ms,
-                total_tokens=engine_result.total_tokens,
-                cost_usd=engine_result.cost_estimate_usd,
+                total_tokens=0,
+                cost_usd=0.0,
             )
 
             # Print the complete block
