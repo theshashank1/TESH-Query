@@ -2939,7 +2939,7 @@ wheels = [
 
 [[package]]
 name = "teshq"
-version = "2.0.0"
+version = "2.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "email-validator" },
@@ -3040,6 +3040,12 @@ postgres-binary = [
     { name = "psycopg2-binary" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.29" },
@@ -3105,6 +3111,12 @@ requires-dist = [
     { name = "typer", specifier = ">=0.9,<1.0" },
 ]
 provides-extras = ["dev", "postgres", "postgres-binary", "mysql", "mariadb", "mariadb-native", "mssql", "mssql-odbc", "oracle", "cassandra", "export", "langsmith", "all", "all-native", "all-databases", "all-features"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+]
 
 [[package]]
 name = "tiktoken"
