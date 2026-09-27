@@ -100,10 +100,10 @@ class TestBanner:
 
     def test_render_hero_banner(self):
         """Verify hero banner renders with title, version, and styling."""
-        banner = render_hero_banner(version="2.1.1")
+        banner = render_hero_banner(version="3.0.0.dev1")
         assert isinstance(banner, Panel)
         rendered = str(banner.renderable)
-        assert "TESH" in rendered or "2.1.1" in rendered
+        assert "TESH" in rendered or "3.0.0.dev1" in rendered
 
     def test_render_hud(self):
         """Verify inline HUD renders status."""

@@ -77,7 +77,7 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("teshq")
 except PackageNotFoundError:
-    __version__ = "2.1.1"
+    __version__ = "3.0.0.dev1"
 
 # Public API
 __all__ = [

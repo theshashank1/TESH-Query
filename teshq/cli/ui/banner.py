@@ -40,7 +40,7 @@ _WORDMARK = r"""
 """
 
 
-def _render_wordmark(version: str = "2.1.1") -> Text:
+def _render_wordmark(version: str = "3.0.0.dev1") -> Text:
     """Render the product identity in a single clean line."""
     mark = Text()
     mark.append("  tesh", style=f"bold {Colors.TEXT_PRIMARY}")
@@ -62,7 +62,7 @@ def _render_tagline(subtitle: str = "Natural Language → SQL → Insight") -> T
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def render_hero_banner(
-    version: str = "2.1.1",
+    version: str = "3.0.0.dev1",
     subtitle: str = "Natural Language → SQL → Insight",
 ) -> Panel:
     """
@@ -110,7 +110,7 @@ def render_hero_banner(
 
 
 def print_hero_banner(
-    version: str = "2.1.1",
+    version: str = "3.0.0.dev1",
     subtitle: str = "Natural Language → SQL → Insight",
 ) -> None:
     """Print the hero banner to console."""
