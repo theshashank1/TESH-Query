@@ -13,14 +13,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from teshq.cli.config import (
-    PANEL_AI,
-    PANEL_DB,
-    PANEL_QUICK,
-    PANEL_STORAGE,
-    app,
-    display_config_dashboard,
-)
+from teshq.cli.config import app
 
 runner = CliRunner()
 
@@ -83,8 +76,9 @@ class TestConfigDashboard:
             },
             {},
         )
-        # Should not raise exception
-        display_config_dashboard()
+        # Exercise the dashboard display via the CLI entry point
+        result = runner.invoke(app, ["--status"])
+        assert result.exit_code == 0
 
     def test_config_no_args_exits_cleanly(self):
         result = runner.invoke(app, [])
