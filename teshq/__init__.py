@@ -70,18 +70,12 @@ del _warnings
 from .api import TeshQuery, health_check, introspect, query
 
 # Import version information
-try:
-    from ._version import __version__
-except ImportError:
-    try:
-        from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, version
 
-        try:
-            __version__ = version("teshq")
-        except PackageNotFoundError:
-            __version__ = "0.0.0.dev0"
-    except ImportError:
-        __version__ = "0.0.0.dev0"
+try:
+    __version__ = version("teshq")
+except PackageNotFoundError:
+    __version__ = "2.1.1"
 
 # Public API
 __all__ = ["TeshQuery", "health_check", "introspect", "query", "__version__"]
