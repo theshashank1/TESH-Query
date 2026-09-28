@@ -1,4 +1,4 @@
-﻿name: PyPI Stable Release
+name: PyPI Stable Release
 
 # Triggered ONLY when a stable version tag is pushed (no .dev suffix).
 # Guard job enforces the tag must come from the main branch.
@@ -103,6 +103,8 @@ jobs:
       - name: Run unit tests
         env:
           DATABASE_URL: "sqlite:////tmp/test.db"
+          NO_COLOR: "1"
+          TERM: "dumb"
         run: pytest tests/unit/ -v --tb=short
 
       - name: Build distribution packages

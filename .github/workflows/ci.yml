@@ -70,6 +70,8 @@ jobs:
       - name: Run unit tests with coverage
         env:
           DATABASE_URL: "sqlite:////tmp/test.db"
+          NO_COLOR: "1"
+          TERM: "dumb"
         run: pytest tests/unit/ -v --tb=short --cov=teshq --cov-report=term-missing
 
   build:
