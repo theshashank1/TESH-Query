@@ -1,6 +1,17 @@
 """
 TESHQ Subscribe Command
 Allows users to subscribe to updates and announcements via CLI.
+
+Note: This is a CLI-only module. Use 'teshq subscribe' command.
+Not intended for direct Python import or programmatic use.
+
+Production-grade features:
+- Interactive and non-interactive modes
+- Pydantic input validation
+- Comprehensive error handling
+- Clean UX with Rich formatting
+- Configuration persistence on success
+- Keyboard interrupt handling
 """
 
 from typing import Optional
