@@ -99,6 +99,35 @@ def detect_dialect(db_url: Optional[str] = None) -> SQLDialect:
     if not db_url:
         return SQLDialect.GENERIC
 
+    # First attempt: use SQLAlchemy make_url for standard backend resolution
+    try:
+        from sqlalchemy.engine import make_url
+        backend = make_url(db_url).get_backend_name().lower()
+        if backend in ("postgres", "postgresql", "cockroachdb"):
+            return SQLDialect.POSTGRESQL
+        elif backend in ("mysql", "mariadb"):
+            return SQLDialect.MYSQL
+        elif backend in ("mssql", "sqlserver"):
+            return SQLDialect.MSSQL
+        elif backend == "sqlite":
+            return SQLDialect.SQLITE
+        elif backend == "oracle":
+            return SQLDialect.ORACLE
+        elif backend == "duckdb":
+            return SQLDialect.DUCKDB
+        elif backend == "clickhouse":
+            return SQLDialect.CLICKHOUSE
+        elif backend == "snowflake":
+            return SQLDialect.SNOWFLAKE
+        elif backend == "bigquery":
+            return SQLDialect.BIGQUERY
+        elif backend == "redshift":
+            return SQLDialect.REDSHIFT
+        elif backend == "databricks":
+            return SQLDialect.DATABRICKS
+    except Exception:
+        pass
+
     url_lower = db_url.lower().strip()
     for prefix, dialect in _URL_PREFIX_MAP:
         if url_lower.startswith(prefix):
@@ -125,9 +154,15 @@ def get_dialect_display_name(dialect: SQLDialect, db_url: Optional[str] = None) 
         return str(dialect)
 
     # Try to extract from a provided db_url
-    if db_url and "://" in db_url:
-        scheme = db_url.lower().split("://")[0].split("+")[0]
-        return f"{scheme.title()} SQL"
+    if db_url:
+        try:
+            from sqlalchemy.engine import make_url
+            backend = make_url(db_url).get_backend_name()
+            return f"{backend.title()} SQL"
+        except Exception:
+            if "://" in db_url:
+                scheme = db_url.lower().split("://")[0].split("+")[0]
+                return f"{scheme.title()} SQL"
 
     return str(dialect)
 
@@ -281,6 +316,13 @@ def get_dialect_rules(dialect: SQLDialect) -> str:
             "- Use IFNULL(x, y) instead of ISNULL.\n"
             "- No DATEDIFF, DATEADD functions.\n"
             "- Boolean values: use 1 and 0, not TRUE/FALSE.\n"
+        ),
+        SQLDialect.GENERIC: (
+            "\nStandard ANSI SQL rules (MUST follow):\n"
+            "- Use standard ANSI SQL syntax compatible with relational databases.\n"
+            "- Use LIMIT N or FETCH FIRST N ROWS ONLY for row limiting where applicable.\n"
+            "- Use COALESCE(x, y) for null replacement.\n"
+            "- Use standard ANSI date and string functions.\n"
         ),
     }
     return rules.get(dialect, "")

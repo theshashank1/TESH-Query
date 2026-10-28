@@ -14,11 +14,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from teshq.config.loader import get_database_url, get_gemini_config
+from teshq.config.loader import get_database_url
 from teshq.utils.logging import logger
-from teshq.core.retry import retry_api_call
 from teshq.core.validation import ConfigValidator
-import os
+
 
 _health_checks: Dict[str, Callable[[], Tuple["HealthStatus", str, Dict[str, Any]]]] = {}
 
@@ -139,6 +138,14 @@ def check_configuration() -> Tuple[HealthStatus, str, Dict[str, Any]]:
     from teshq.config.loader import get_llm_config
 
     database_url = get_database_url()
+    if not database_url:
+        try:
+            from teshq.core.connection import connection_manager
+            default_conn = connection_manager.get_named_connection(None)
+            database_url = default_conn.db_url
+        except Exception:
+            pass
+
     issues: List[str] = []
 
     if not database_url:
@@ -193,6 +200,14 @@ def check_database_connectivity() -> Tuple[HealthStatus, str, Dict[str, Any]]:
     """Checks the ability to connect to the database and execute a simple query."""
     database_url = get_database_url()
     if not database_url:
+        try:
+            from teshq.core.connection import connection_manager
+            default_conn = connection_manager.get_named_connection(None)
+            database_url = default_conn.db_url
+        except Exception:
+            pass
+
+    if not database_url:
         return HealthStatus.UNHEALTHY, "Database URL not configured", {"error": "No database URL"}
 
     try:
@@ -222,9 +237,9 @@ def check_database_connectivity() -> Tuple[HealthStatus, str, Dict[str, Any]]:
 
 
 @health_check("api_connectivity")
-@retry_api_call("health_check_api")
 def check_api_connectivity() -> Tuple[HealthStatus, str, Dict[str, Any]]:
-    """Checks LLM API connectivity by building and pinging the configured provider."""
+    """Checks LLM API connectivity with bounded timeout."""
+    import threading
     from teshq.config.loader import get_llm_config
 
     llm_cfg = get_llm_config()
@@ -233,21 +248,59 @@ def check_api_connectivity() -> Tuple[HealthStatus, str, Dict[str, Any]]:
 
     # Guard: no credentials for the active provider
     if not api_key:
-        return HealthStatus.DEGRADED, f"{provider.capitalize()} API key not configured; LLM features unavailable", {"api_configured": False}
+        msg = f"{provider.capitalize()} API key not configured; LLM features unavailable"
+        return HealthStatus.DEGRADED, msg, {"api_configured": False}
 
     try:
+        import logging
+        logging.getLogger("langchain_google_genai").setLevel(logging.CRITICAL)
+
         from teshq.core.llm_factory import build_llm_from_config
         from langchain_core.messages import HumanMessage
 
         llm = build_llm_from_config()
-        llm.invoke([HumanMessage(content="ping")])
-        details = {"api_configured": True, "provider": provider, "initialization_successful": True}
-        return HealthStatus.HEALTHY, f"API connectivity is healthy ({provider})", details
-    except ImportError as e:
-        return HealthStatus.DEGRADED, f"LLM dependency missing: {e}", {"api_configured": True, "provider": provider, "error": str(e)}
-    except Exception as e:
-        return HealthStatus.DEGRADED, f"API connectivity check failed: {e}", {"api_configured": True, "provider": provider, "error": str(e)}
 
+        result_holder = []
+        error_holder = []
+
+        def worker():
+            try:
+                llm.invoke([HumanMessage(content="ping")])
+                result_holder.append(True)
+            except Exception as exc:
+                error_holder.append(exc)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        t.join(timeout=4.5)
+
+        if result_holder:
+            details = {"api_configured": True, "provider": provider, "initialization_successful": True}
+            return HealthStatus.HEALTHY, f"API connectivity is healthy ({provider})", details
+        elif error_holder:
+            exc = error_holder[0]
+            exc_str = str(exc)
+            if "429" in exc_str or "ResourceExhausted" in exc_str or "quota" in exc_str.lower():
+                err_msg = "API quota exceeded (429: free tier limit reached). Check billing/plan."
+            elif "401" in exc_str or "403" in exc_str or "invalid" in exc_str.lower():
+                err_msg = f"API authentication failed: Invalid {provider.capitalize()} API key"
+            else:
+                err_msg = f"API connectivity check failed: {exc_str[:80]}"
+            return HealthStatus.DEGRADED, err_msg, {
+                "api_configured": True, "provider": provider, "error": exc_str
+            }
+        else:
+            return HealthStatus.DEGRADED, f"API connectivity timed out ({provider})", {
+                "api_configured": True, "provider": provider, "error": "Timeout"
+            }
+    except ImportError as e:
+        return HealthStatus.DEGRADED, f"LLM dependency missing: {e}", {
+            "api_configured": True, "provider": provider, "error": str(e)
+        }
+    except Exception as e:
+        return HealthStatus.DEGRADED, f"API connectivity check failed: {e}", {
+            "api_configured": True, "provider": provider, "error": str(e)
+        }
 
 
 if __name__ == "__main__":

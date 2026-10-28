@@ -117,7 +117,11 @@ def resolve_output_path(
         # Bare filename → route into .teshq/outputs/
         output_dir = get_default_output_dir()
         resolved = output_dir / p
-        return resolved.resolve(), str(resolved.relative_to(Path.cwd()))
+        try:
+            rel_display = str(resolved.relative_to(Path.cwd()))
+        except ValueError:
+            rel_display = str(resolved)
+        return resolved.resolve(), rel_display
 
     # No custom path → auto-generate slug + timestamp
     slug = generate_query_slug(query_text)
@@ -126,12 +130,16 @@ def resolve_output_path(
 
     output_dir = get_default_output_dir()
     resolved = output_dir / filename
-    return resolved.resolve(), str(resolved.relative_to(Path.cwd()))
+    try:
+        rel_display = str(resolved.relative_to(Path.cwd()))
+    except ValueError:
+        rel_display = str(resolved)
+    return resolved.resolve(), rel_display
 
 
 def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
     """
-    Saves a Pandas DataFrame to a CSV file.
+    Saves a Pandas DataFrame to a CSV file with restricted permissions (0o600).
 
     Args:
         df: The DataFrame to save.
@@ -146,6 +154,10 @@ def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
         df.to_csv(filename, index=index, **kwargs)
+        try:
+            os.chmod(filename, 0o600)
+        except Exception:
+            pass
 
         logger.success(
             "Data successfully saved to CSV",
@@ -160,7 +172,7 @@ def save_to_csv(df: pd.DataFrame, filename: str, index: bool = False, **kwargs):
 
 def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", index: bool = False, **kwargs):
     """
-    Saves a Pandas DataFrame to an Excel file.
+    Saves a Pandas DataFrame to an Excel file with restricted permissions (0o600).
 
     Args:
         df: The DataFrame to save.
@@ -183,6 +195,10 @@ def save_to_excel(df: pd.DataFrame, filename: str, sheet_name: str = "Sheet1", i
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
         df.to_excel(filename, sheet_name=sheet_name, index=index, **kwargs)
+        try:
+            os.chmod(filename, 0o600)
+        except Exception:
+            pass
 
         logger.success(
             "Data successfully saved to Excel",
@@ -200,7 +216,7 @@ def save_to_sqlite(
     df: pd.DataFrame, db_path: str, table_name: str, if_exists: str = "replace", index: bool = False, **kwargs
 ):
     """
-    Saves a Pandas DataFrame to a SQLite database.
+    Saves a Pandas DataFrame to a SQLite database with restricted permissions (0o600).
 
     Args:
         df: The DataFrame to save.
@@ -230,6 +246,11 @@ def save_to_sqlite(
                     "Use only letters, digits, and underscores, starting with a letter or underscore."
                 )
             df.to_sql(table_name, conn, if_exists=if_exists, index=index, **kwargs)
+
+        try:
+            os.chmod(db_path, 0o600)
+        except Exception:
+            pass
 
         logger.success(
             "Data successfully saved to SQLite database",

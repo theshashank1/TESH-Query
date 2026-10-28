@@ -28,6 +28,14 @@ _BLOCKED_STATEMENT_TYPES = frozenset(
         "TRUNCATE",
         "ALTER",
         "CREATE",
+        "ATTACH",
+        "DETACH",
+        "GRANT",
+        "REVOKE",
+        "EXEC",
+        "EXECUTE",
+        "COPY",
+        "SHUTDOWN",
     }
 )
 
@@ -40,6 +48,14 @@ _BLOCKED_KEYWORDS = frozenset(
         "ALTER",
         "CREATE",
         "REPLACE",
+        "ATTACH",
+        "DETACH",
+        "GRANT",
+        "REVOKE",
+        "EXEC",
+        "EXECUTE",
+        "COPY",
+        "SHUTDOWN",
     }
 )
 
@@ -68,11 +84,13 @@ def _get_first_keyword(stmt: Statement) -> str:
     from sqlparse import tokens as T
 
     for token in stmt.flatten():
+        val = (getattr(token, "normalized", None) or token.value or "").strip().upper()
+        if not val:
+            continue
         if token.ttype in (T.Keyword.DML, T.Keyword.DDL):
-            return token.normalized.upper()
-        # Some multi-word DDL (e.g. CREATE OR REPLACE) starts with Keyword
-        if token.ttype is T.Keyword and token.normalized.upper() in _BLOCKED_KEYWORDS:
-            return token.normalized.upper()
+            return val
+        if val in _BLOCKED_KEYWORDS:
+            return val
     return ""
 
 
@@ -164,4 +182,3 @@ def validate_sql(sql: str, dialect: Optional[str] = None) -> None:
             "Positional parameters (?, $1, %s) are not allowed. Use :param_name syntax.",
             field="sql",
         )
-

@@ -7,7 +7,8 @@ import typer
 from typing import Optional
 from teshq.cli.ui import print_header, print_footer, status, error, warning, tip, success
 from teshq.config.loader import get_settings
-from teshq.core.benchmark import BenchmarkRunner, BenchmarkResult
+from teshq.core.benchmark import BenchmarkRunner
+
 
 app = typer.Typer(help="Evaluate text-to-SQL accuracy, speed, and token cost.")
 
@@ -133,8 +134,9 @@ def compare_benchmarks(
     local_ready = False
     local_skip_reason = ""
     try:
-        import llama_cpp
+        import llama_cpp  # noqa: F401
         # Let InferenceRuntime perform auto-troubleshoot if model_path is empty/missing
+
         local_ready = True
     except ImportError:
         local_skip_reason = "llama-cpp-python is not installed. Run: pip install teshq[local]"

@@ -4,9 +4,9 @@ Unit tests for the local GGUF LLM backend in TESH-Query.
 Mocks the llama-cpp-python C-bindings dependency to run safely in any environment.
 """
 
-import os
 import sys
 import unittest
+
 from unittest.mock import MagicMock, patch
 
 import pytest

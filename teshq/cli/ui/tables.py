@@ -9,7 +9,8 @@ subtle zebra striping, and caption-position row count.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any, List
+
 
 from rich.panel import Panel
 from rich.table import Table

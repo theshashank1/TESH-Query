@@ -8,7 +8,6 @@ The file is created with 0o600 permissions (owner read/write only).
 """
 
 import os
-import stat
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -21,12 +20,12 @@ SECRET_KEYS = {"DATABASE_URL", "GEMINI_API_KEY", "AZURE_OPENAI_API_KEY"}
 def _read_env_file(path: Path) -> Dict[str, str]:
     """
     Parse a file of KEY=VALUE lines into a dictionary.
-    
-    Blank lines and lines starting with `#` are ignored. Lines without an `=` are skipped; keys and values have surrounding whitespace stripped. If the path does not exist or an I/O error occurs while reading, the function returns whatever was parsed up to that point (empty dict if nothing parsed).
-    
+
+    Blank lines and comments are ignored. Keys and values are stripped of whitespace.
+
     Parameters:
         path (Path): Path to the KEY=VALUE file to read.
-    
+
     Returns:
         Dict[str, str]: Mapping of keys to their corresponding values from the file.
     """
@@ -47,40 +46,57 @@ def _read_env_file(path: Path) -> Dict[str, str]:
     return result
 
 
+def _is_allowed_secret_key(key: str) -> bool:
+    """Validate if key name is allowed to be saved as a secret."""
+    import re
+    if not isinstance(key, str) or not re.match(r"^[A-Z_][A-Z0-9_]*$", key):
+        return False
+    if key in SECRET_KEYS or key.startswith("TESHQ_"):
+        return True
+    return any(
+        key.endswith(suffix)
+        for suffix in ("_API_KEY", "_SECRET", "_TOKEN", "_PASSWORD", "_URL")
+    )
+
+
 def _write_env_file(path: Path, data: Dict[str, str]) -> None:
     """
-    Write key/value pairs to a file in KEY=VALUE format and set the file to owner read/write only.
-    
-    Parameters:
-        path (Path): Filesystem path to write the KEY=VALUE file to.
-        data (Dict[str, str]): Mapping of keys to values to write; each pair is written as `KEY=VALUE` on its own line.
-    
-    Notes:
-        Ensures the TESHQ configuration directory exists before writing and sets the file permission to 0o600 (owner read/write).
+    Write key/value pairs to a file in KEY=VALUE format atomically with 0o600 permissions.
     """
     ensure_teshq_dir()
     content = "".join(f"{k}={v}\n" for k, v in data.items())
-    path.write_text(content)
-    # Restrict to owner read/write only
-    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    temp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    fd = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(temp_path, path)
 
 
 def load_secrets() -> Dict[str, str]:
     """
     Load managed secrets from the local secrets file and apply environment-variable overrides.
-    
+
     Environment variables with matching names take precedence over values read from the file.
-    
+
     Returns:
-        dict: Mapping of secret names to their values (environment variables override file values).
+        dict: Mapping of secret names to their values.
     """
     secrets = _read_env_file(SECRETS_FILE)
 
     # Environment variables override file values
-    for key in SECRET_KEYS:
+    checked_keys = set(secrets.keys()).union(SECRET_KEYS)
+    for key in checked_keys:
         env_val = os.environ.get(key)
         if env_val:
             secrets[key] = env_val
+
+    # Also inherit any TESHQ_ environment variables
+    for env_k, env_v in os.environ.items():
+        if env_k.startswith("TESHQ_") and env_v:
+            secrets[env_k] = env_v
 
     return secrets
 
@@ -88,12 +104,13 @@ def load_secrets() -> Dict[str, str]:
 def save_secrets(data: Dict[str, Optional[str]]) -> bool:
     """
     Persist the allowed secret keys to the local secrets file (~/.teshq/.teshq.env).
-    
-    Only keys present in SECRET_KEYS are written; keys not included in `data` are left unchanged. Passing `None` for a key removes it from the file.
-    
+
+    Allows SECRET_KEYS, TESHQ_* prefixed keys (e.g. named DB passwords), and standard secret suffixes.
+    Passing `None` for a key removes it from the file.
+
     Parameters:
         data (Dict[str, Optional[str]]): Mapping of secret key to value. Use `None` to remove a key.
-    
+
     Returns:
         True if the file was written successfully, False otherwise.
     """
@@ -101,7 +118,7 @@ def save_secrets(data: Dict[str, Optional[str]]) -> bool:
         existing = _read_env_file(SECRETS_FILE)
 
         for key, value in data.items():
-            if key not in SECRET_KEYS:
+            if not _is_allowed_secret_key(key):
                 continue
             if value is None:
                 existing.pop(key, None)
@@ -119,10 +136,10 @@ def save_secrets(data: Dict[str, Optional[str]]) -> bool:
 def get_secret(key: str) -> Optional[str]:
     """
     Retrieve the stored secret value for the given key.
-    
+
     Parameters:
         key (str): Name of the secret to fetch (e.g., one of the keys in SECRET_KEYS).
-    
+
     Returns:
         The secret value for `key`, or `None` if it is not set.
     """

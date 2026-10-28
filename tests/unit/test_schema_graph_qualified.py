@@ -8,8 +8,8 @@ Verifies that SchemaGraph correctly handles:
 - Level 2 compression without hardcoded business column assumptions
 """
 
-import pytest
-from teshq.core.schema_graph import SchemaGraph, JoinEdge
+from teshq.core.schema_graph import SchemaGraph
+
 
 
 def _make_schema_info(tables: dict, explicit_rels=None, dialect="SQLite"):

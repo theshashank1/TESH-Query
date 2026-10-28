@@ -1,15 +1,26 @@
 import os
 import time
-from typing import Optional
+
 import typer
 from dotenv import load_dotenv
 from sqlalchemy.engine import make_url
 
-from teshq.cli.ui import handle_error, print_header, status, tip
-from teshq.cli.ui.theme import Colors, Icons, ROUNDED_BOX, console
-from teshq.core.introspect import introspect_db
 from teshq.cli.logging import CLILogger
+from teshq.cli.ui import (
+    error,
+    handle_error,
+    info,
+    print_header,
+    print_results_table,
+    status,
+    success,
+    tip,
+    warning,
+)
+from teshq.cli.ui.theme import ROUNDED_BOX, Colors, Icons, console
 from teshq.config.loader import get_database_url as get_configured_database_url
+from teshq.core.connection import connection_manager
+from teshq.core.introspect import introspect_db
 
 app = typer.Typer(
     name="db",
@@ -27,6 +38,7 @@ PANEL_DIAGNOSTICS = "⚙️ Diagnostics"
 def display_db_dashboard() -> None:
     """Render a clean database connection and schema status HUD."""
     from rich.panel import Panel
+
     from teshq.core.schema_graph import SchemaGraph
 
     db_url = get_configured_database_url()
@@ -50,7 +62,10 @@ def display_db_dashboard() -> None:
                 host = url_obj.host or "localhost"
                 port_str = f":{url_obj.port}" if url_obj.port else ""
                 user_str = f"{url_obj.username}@" if url_obj.username else ""
-                masked = f"{backend}://{user_str}*****@{host}{port_str}/{db_name}" if url_obj.username else f"{backend}://{host}{port_str}/{db_name}"
+                if url_obj.username:
+                    masked = f"{backend}://{user_str}*****@{host}{port_str}/{db_name}"
+                else:
+                    masked = f"{backend}://{host}{port_str}/{db_name}"
                 db_status = f"[bold {Colors.SUCCESS}]● Connected[/bold {Colors.SUCCESS}]"
                 db_detail = f"[{Colors.TEXT_PRIMARY}]{masked}[/{Colors.TEXT_PRIMARY}]"
         except Exception:
@@ -71,15 +86,29 @@ def display_db_dashboard() -> None:
     except Exception:
         schema_info = f"[{Colors.WARNING}]No cached schema found (run 'teshq db introspect')[/{Colors.WARNING}]"
 
-    hud_text = f"""[{Colors.TEXT_TERTIARY}]Connection Status:[/{Colors.TEXT_TERTIARY}] {db_status}
-[{Colors.TEXT_TERTIARY}]Database URL:[/{Colors.TEXT_TERTIARY}]      {db_detail}
-[{Colors.TEXT_TERTIARY}]Introspected Schema:[/{Colors.TEXT_TERTIARY}] {schema_info}
+    named_conns = connection_manager.list_connections()
+    if named_conns:
+        named_info = f"[bold {Colors.SUCCESS}]{len(named_conns)} connection(s)[/bold {Colors.SUCCESS}] configured"
+    else:
+        named_info = f"[{Colors.TEXT_MUTED}]0 configured (use 'teshq db connection add')[/{Colors.TEXT_MUTED}]"
 
-[{Colors.TEXT_TERTIARY}]Available Commands:[/{Colors.TEXT_TERTIARY}]
-  [{Colors.PRIMARY}]teshq db explore[/{Colors.PRIMARY}]          [{Colors.TEXT_SECONDARY}]Display visual interactive schema tree[/{Colors.TEXT_SECONDARY}]
-  [{Colors.PRIMARY}]teshq db introspect[/{Colors.PRIMARY}]       [{Colors.TEXT_SECONDARY}]Re-run schema introspection & relationship inference[/{Colors.TEXT_SECONDARY}]
-  [{Colors.PRIMARY}]teshq db preview <table-name>[/{Colors.PRIMARY}] [{Colors.TEXT_SECONDARY}]Preview sample records from any table[/{Colors.TEXT_SECONDARY}]
-  [{Colors.PRIMARY}]teshq config --db[/{Colors.PRIMARY}]         [{Colors.TEXT_SECONDARY}]Configure or switch database connection URL[/{Colors.TEXT_SECONDARY}]"""
+    p = Colors.PRIMARY
+    sec = Colors.TEXT_SECONDARY
+    tert = Colors.TEXT_TERTIARY
+    cmd_conn = f"  [{p}]teshq db connection list[/{p}]   [{sec}]List configured named connections[/{sec}]"
+    cmd_exp = f"  [{p}]teshq db explore[/{p}]           [{sec}]Display visual interactive schema tree[/{sec}]"
+    cmd_int = f"  [{p}]teshq db introspect[/{p}]        [{sec}]Re-run schema introspection & relationships[/{sec}]"
+    cmd_prv = f"  [{p}]teshq db preview <table-name>[/{p}]  [{sec}]Preview sample records from any table[/{sec}]"
+    cmd_cfg = f"  [{p}]teshq config --db[/{p}]          [{sec}]Configure or switch database URL[/{sec}]"
+
+    hud_text = (
+        f"[{tert}]Connection Status:[/{tert}] {db_status}\n"
+        f"[{tert}]Database URL:[/{tert}]      {db_detail}\n"
+        f"[{tert}]Named Connections:[/{tert}] {named_info}\n"
+        f"[{tert}]Introspected Schema:[/{tert}] {schema_info}\n\n"
+        f"[{tert}]Available Commands:[/{tert}]\n"
+        f"{cmd_conn}\n{cmd_exp}\n{cmd_int}\n{cmd_prv}\n{cmd_cfg}"
+    )
 
     console.print(
         Panel(
@@ -105,6 +134,13 @@ def introspect(
         None,
         "--db-url",
         help="Full database URL (e.g. postgresql://user:pass@host:port/dbname).",
+        rich_help_panel=PANEL_DB,
+    ),
+    connection: str = typer.Option(
+        None,
+        "--connection",
+        "-c",
+        help="Named database connection to introspect.",
         rich_help_panel=PANEL_DB,
     ),
     detect_relationships: bool = typer.Option(
@@ -139,11 +175,16 @@ def introspect(
     tables_count = 0
 
     try:
+        if connection and not db_url:
+            named = connection_manager.get_named_connection(connection)
+            db_url = named.db_url
+
         print_header("Database Schema Introspection", level=2)
 
         if logging_active:
             cli_logger.log_command_start({
                 "db_url": "***" if db_url else None,
+                "connection": connection,
                 "detect_relationships": detect_relationships,
                 "verbose": verbose,
             })
@@ -203,29 +244,51 @@ def introspect(
 
 
 @app.command(name="explore", help="Display visual schema tree of tables, columns, and foreign keys.")
-def explore_schema() -> None:
+def explore_schema(
+    connection: str = typer.Option(
+        None,
+        "--connection",
+        "-c",
+        help="Target named database connection to explore.",
+    ),
+) -> None:
     """Explore introspected schema in an interactive visual tree."""
     from rich.tree import Tree
     from teshq.core.schema_graph import SchemaGraph
+    from teshq.config.paths import get_db_schema_path
 
     print_header("Database Schema Explorer", level=2)
 
     try:
-        graph = SchemaGraph.from_schema_file()
+        if connection:
+            conn_obj = connection_manager.get_named_connection(connection)
+            schema_path = get_db_schema_path(conn_obj.db_url).parent / "schema.json"
+            if not schema_path.exists():
+                from teshq.core.introspect import introspect_db
+                introspect_db(db_url=conn_obj.db_url)
+            graph = SchemaGraph.from_schema_file(str(schema_path))
+        else:
+            graph = SchemaGraph.from_schema_file()
         tables = graph.get_all_tables()
 
         if not tables:
             tip("No cached schema found. Run 'teshq db introspect' first to introspect your database.")
             raise typer.Exit(0)
 
-        root = Tree(f"[bold {Colors.PRIMARY}]{Icons.database()} Introspected Database Schema[/bold {Colors.PRIMARY}] [dim]({len(tables)} tables)[/dim]")
+        root = Tree(
+            f"[bold {Colors.PRIMARY}]{Icons.database()} Introspected Database Schema[/bold {Colors.PRIMARY}] "
+            f"[dim]({len(tables)} tables)[/dim]"
+        )
 
         for tbl in sorted(tables):
             cols = graph.get_columns_for_table(tbl)
             fks = graph.get_foreign_keys_for_table(tbl)
             fk_map = {fk.get("constrained_column"): fk.get("referred_table") for fk in fks}
 
-            tbl_node = root.add(f"[bold {Colors.TEXT_PRIMARY}]{Icons.table()} {tbl}[/bold {Colors.TEXT_PRIMARY}] [dim]({len(cols)} columns)[/dim]")
+            tbl_node = root.add(
+                f"[bold {Colors.TEXT_PRIMARY}]{Icons.table()} {tbl}[/bold {Colors.TEXT_PRIMARY}] "
+                f"[dim]({len(cols)} columns)[/dim]"
+            )
 
             for col in cols:
                 name = col.get("name", "")
@@ -239,7 +302,11 @@ def explore_schema() -> None:
                     badges.append(f"[bold {Colors.AI_ACCENT}]{Icons.link()} FK ➔ {fk_map[name]}[/bold {Colors.AI_ACCENT}]")
 
                 badge_str = f"  {' '.join(badges)}" if badges else ""
-                tbl_node.add(f"[dim {Colors.TEXT_TERTIARY}]{name}[/dim {Colors.TEXT_TERTIARY}] [dim]({ctype})[/dim]{badge_str}")
+                col_label = (
+                    f"[dim {Colors.TEXT_TERTIARY}]{name}[/dim {Colors.TEXT_TERTIARY}] "
+                    f"[dim]({ctype})[/dim]{badge_str}"
+                )
+                tbl_node.add(col_label)
 
         console.print(root)
         console.print()
@@ -264,17 +331,34 @@ def preview_table(
         help="Number of rows to preview.",
         rich_help_panel=PANEL_PREVIEW,
     ),
+    connection: str = typer.Option(
+        None,
+        "--connection",
+        "-c",
+        help="Target named database connection.",
+        rich_help_panel=PANEL_DB,
+    ),
 ) -> None:
     """Preview sample rows from a specific database table."""
-    from teshq.cli.ui import print_results_table
     from teshq.core.engine import TeshEngine
 
     try:
-        engine = TeshEngine()
+        from teshq.config.loader import get_database_url as get_db_url
+        engine = TeshEngine(connection_name=connection)
         query = f"SELECT * FROM {table_name} LIMIT {limit};"
 
         with status(f"Fetching sample data from {table_name}..."):
-            rows = engine.connection.execute_query(query)
+            target_url = None
+            if connection:
+                try:
+                    conn_obj = connection_manager.get_named_connection(connection)
+                    target_url = conn_obj.db_url
+                except Exception:
+                    pass
+            if not target_url:
+                target_url = engine.db_url or get_db_url()
+
+            rows = connection_manager.execute_query_with_timeout(target_url, query)
 
         if not rows:
             tip(f"Table '{table_name}' contains 0 rows.")
@@ -307,6 +391,108 @@ def preview_table(
 app.command(name="tree", help="Alias for 'teshq db explore'")(explore_schema)
 
 
+conn_app = typer.Typer(
+    name="connection",
+    help="Manage named multi-database connections.",
+    invoke_without_command=False,
+)
+
+
+@conn_app.command(name="add", help="Add or update a named database connection.")
+def add_connection_cmd(
+    name: str = typer.Argument(..., help="Unique identifier for this connection."),
+    db_url: str = typer.Argument(..., help="Database connection URL."),
+    default: bool = typer.Option(False, "--default", "-d", help="Set this connection as the default."),
+    description: str = typer.Option(None, "--description", "--desc", help="Optional description."),
+):
+    try:
+        connection_manager.add_connection(
+            name=name,
+            db_url=db_url,
+            set_as_default=default,
+            description=description,
+            overwrite=True,
+            persist=True,
+        )
+        success(f"Connection '{name}' registered successfully.")
+        if default:
+            info(f"Connection '{name}' set as active default.")
+    except Exception as e:
+        handle_error(e, "Add Connection")
+        raise typer.Exit(1)
+
+
+@conn_app.command(name="list", help="List all configured named connections.")
+def list_connections_cmd():
+    from rich.table import Table
+
+    conns = connection_manager.list_connections()
+    if not conns:
+        tip("No named connections configured yet. Run 'teshq db connection add <name> <db_url>' to add one.")
+        return
+
+    table = Table(
+        title="Configured Database Connections",
+        box=ROUNDED_BOX,
+        border_style=Colors.BORDER_DEFAULT,
+    )
+    table.add_column("Name", style=f"bold {Colors.PRIMARY}")
+    table.add_column("Dialect", style=Colors.TEXT_SECONDARY)
+    table.add_column("URL", style=Colors.TEXT_TERTIARY)
+    table.add_column("Default", justify="center")
+    table.add_column("Description", style=Colors.TEXT_MUTED)
+
+    for c in conns:
+        is_def = f"[bold {Colors.SUCCESS}]● Yes[/bold {Colors.SUCCESS}]" if c.get("is_default") else "[dim]No[/dim]"
+        desc = c.get("description") or "—"
+        masked = c.get("masked_url") or c.get("url") or c.get("db_url", "—")
+        dialect_name = c.get("dialect", "unknown")
+        if hasattr(dialect_name, "value"):
+            dialect_name = dialect_name.value
+        table.add_row(c["name"], str(dialect_name), masked, is_def, desc)
+
+    console.print(table)
+
+
+@conn_app.command(name="remove", help="Remove a named database connection.")
+def remove_connection_cmd(
+    name: str = typer.Argument(..., help="Name of connection to remove.")
+):
+    try:
+        connection_manager.remove_connection(name, persist=True)
+        success(f"Connection '{name}' removed successfully.")
+    except KeyError:
+        warning(f"Connection '{name}' was not found.")
+
+
+@conn_app.command(name="test", help="Test connectivity to a named database connection.")
+def test_connection_cmd(
+    name: str = typer.Argument(..., help="Name of connection to test.")
+):
+    with status(f"Testing connectivity to '{name}'..."):
+        ok, msg = connection_manager.test_named_connection(name)
+    if ok:
+        success(f"Connection '{name}' succeeded. ({msg})")
+    else:
+        error(f"Connection '{name}' failed: {msg}")
+        raise typer.Exit(1)
+
+
+@conn_app.command(name="default", help="Set the default named database connection.")
+def default_connection_cmd(
+    name: str = typer.Argument(..., help="Name of connection to set as default.")
+):
+    try:
+        connection_manager.set_default_connection(name, persist=True)
+        success(f"Default connection updated to '{name}'.")
+    except Exception as e:
+        handle_error(e, "Set Default Connection")
+        raise typer.Exit(1)
+
+
+app.add_typer(conn_app, name="connection", help="Manage named multi-database connections.")
+app.add_typer(conn_app, name="connections", help="Manage named multi-database connections (alias).")
+
+
 if __name__ == "__main__":
     app()
-

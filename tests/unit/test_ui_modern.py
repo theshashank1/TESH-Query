@@ -3,28 +3,31 @@ Unit tests for the "Obsidian Instrument" UI components of TESH-Query.
 """
 
 from decimal import Decimal
-import pytest
+
 from rich.panel import Panel
 from rich.text import Text
-from rich.tree import Tree
 
-from teshq.cli.ui.theme import Colors, Icons, Typography, Spacing, latency_color
-from teshq.cli.ui.banner import render_hero_banner, render_hud, print_suggested_prompts
-from teshq.cli.ui.cards import render_sql_card, render_metrics_panel, render_error_card
-from teshq.cli.ui.tables import render_results_table
-from teshq.cli.ui.blocks import (
-    CommandBlock, StageTracker, render_command_block, render_telemetry_strip,
-    render_action_hints, QUERY_STAGES, DRY_RUN_STAGES,
-)
-from teshq.cli.ui.status_bar import render_status_bar
-from teshq.cli.ui.palette import render_help_sheet, render_command_list, fuzzy_match
-from teshq.cli.ui.ai_context import render_ai_explanation, render_table_suggestion
 from teshq.cli.chat import _get_env_summary
-
+from teshq.cli.ui.ai_context import render_ai_explanation, render_table_suggestion
+from teshq.cli.ui.banner import render_hero_banner, render_hud
+from teshq.cli.ui.blocks import (
+    DRY_RUN_STAGES,
+    QUERY_STAGES,
+    CommandBlock,
+    StageTracker,
+    render_action_hints,
+    render_telemetry_strip,
+)
+from teshq.cli.ui.cards import render_error_card, render_metrics_panel, render_sql_card
+from teshq.cli.ui.palette import fuzzy_match, render_command_list, render_help_sheet
+from teshq.cli.ui.status_bar import render_status_bar
+from teshq.cli.ui.tables import render_results_table
+from teshq.cli.ui.theme import Colors, Icons, Spacing, Typography, latency_color
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  DESIGN SYSTEM TESTS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestDesignSystem:
     """Tests for the Obsidian Instrument design system."""
@@ -117,7 +120,7 @@ class TestBanner:
 
     def test_env_summary(self):
         """Verify environment summary safely detects state without raising."""
-        db_status, db_type, llm_name, table_count = _get_env_summary()
+        db_status, db_type, llm_name, _table_count = _get_env_summary()
         assert isinstance(db_status, str)
         assert isinstance(db_type, str)
         assert isinstance(llm_name, str)
@@ -258,6 +261,23 @@ class TestCommandBlocks:
         assert grid is not None
         tracker.finish()
         assert tracker.current_idx == len(QUERY_STAGES)
+
+    def test_stage_tracker_accepts_query_event(self):
+        """Verify StageTracker adapts QueryEvent objects from streaming callbacks."""
+        from rich.console import Console
+        from teshq.events import QueryEvent, EventType
+        c = Console(record=True)
+        tracker = StageTracker(QUERY_STAGES, console=c)
+        evt = QueryEvent(
+            event_type=EventType.STAGE_STARTED,
+            stage="table_selection",
+            message="Selecting relevant tables",
+            data={"detail": "filtered to 3 tables"},
+        )
+        tracker.on_progress(evt)
+        assert tracker.current_idx == 2
+        assert tracker.current_detail == "filtered to 3 tables"
+        tracker.finish()
 
     def test_stage_tracker_failure(self):
         """Verify StageTracker marks failed stage on exception."""

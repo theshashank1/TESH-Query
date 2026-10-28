@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
+
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from teshq.config.paths import CONFIG_FILE, SECRETS_FILE, ensure_teshq_dir
@@ -168,7 +169,11 @@ class Settings(BaseSettings):
         """Return True if the database and at least one LLM provider are configured."""
         db_ok = bool(self.database_url)
         google_ok = bool(self.gemini_api_key)
-        azure_ok = bool(self.azure_openai_api_key) and bool(self.azure_openai_endpoint) and bool(self.azure_openai_deployment)
+        azure_ok = (
+            bool(self.azure_openai_api_key)
+            and bool(self.azure_openai_endpoint)
+            and bool(self.azure_openai_deployment)
+        )
         local_ok = bool(self.local_model_path)
         return db_ok and (google_ok or azure_ok or local_ok)
 
@@ -261,11 +266,11 @@ def save_secret(key: str, value: str) -> bool:
 
     try:
         content = "\n".join(f"{k}={v}" for k, v in env_vars.items()) + "\n"
-        
+
         # Write atomically using a temporary file
         import os as _os
         import tempfile as _tempfile
-        
+
         # Create a temp file in the same directory to ensure it's on the same filesystem
         fd, temp_path = _tempfile.mkstemp(dir=str(SECRETS_FILE.parent), prefix=".teshq.env.tmp.", text=False)
         try:
@@ -275,7 +280,7 @@ def save_secret(key: str, value: str) -> bool:
             _os.fsync(fd)
         finally:
             _os.close(fd)
-            
+
         # Atomically replace the original file
         _os.replace(temp_path, str(SECRETS_FILE))
 
@@ -315,12 +320,13 @@ def save_setting(key: str, value: Any) -> bool:
     existing[key] = str(value) if isinstance(value, Path) else value
 
     try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+        temp_file = CONFIG_FILE.with_name(f".{CONFIG_FILE.name}.tmp.{os.getpid()}")
+        with open(temp_file, "w", encoding="utf-8") as fh:
             yaml.safe_dump(existing, fh, default_flow_style=False, sort_keys=True)
+        os.replace(temp_file, CONFIG_FILE)
         global _settings_cache
         _settings_cache = None  # invalidate cache
         return True
     except OSError as exc:
         print(f"Warning: could not save setting to {CONFIG_FILE}: {exc}")
         return False
-

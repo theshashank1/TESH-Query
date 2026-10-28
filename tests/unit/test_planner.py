@@ -10,8 +10,8 @@ import pytest
 
 from teshq.core.models import QueryPlan
 from teshq.core.planner import QueryPlanner
-from teshq.core.retriever import SchemaRetriever
 from teshq.core.schema_graph import JoinEdge, SchemaGraph
+
 
 
 # ---------------------------------------------------------------------------

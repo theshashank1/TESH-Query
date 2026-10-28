@@ -12,32 +12,16 @@ from __future__ import annotations
 from typing import List, Optional
 
 from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from teshq.cli.ui.theme import (
     Colors,
     Icons,
-    Spacing,
     ROUNDED_BOX,
     console,
-    status_dot,
 )
+
 from teshq.cli.ui.status_bar import render_status_bar
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  ASCII WORDMARK — Refined lettering for maximum terminal impact
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_WORDMARK = r"""
- ████████╗ ███████╗ ███████╗ ██╗  ██╗  ██████╗ 
- ╚══██╔══╝ ██╔════╝ ██╔════╝ ██║  ██║ ██╔═══██╗
-    ██║    █████╗   ███████╗ ███████║ ██║   ██║
-    ██║    ██╔══╝   ╚════██║ ██╔══██║ ██║▄▄ ██║
-    ██║    ███████╗ ███████║ ██║  ██║ ╚██████╔╝
-    ╚═╝    ╚══════╝ ╚══════╝ ╚═╝  ╚═╝  ╚══▀▀═╝ 
-"""
 
 
 def _render_wordmark(version: str = "3.0.0.dev1") -> Text:
@@ -66,46 +50,25 @@ def render_hero_banner(
     subtitle: str = "Natural Language → SQL → Insight",
 ) -> Panel:
     """
-    Build the branded hero banner with gradient wordmark and metadata strip.
-
-    The banner is the *identity moment* — the user should feel like they just
-    launched something important, powerful, and beautiful.
+    Build the branded hero banner with sleek precision typography.
+    Inspired by OpenCode / Antigravity minimal aesthetic.
     """
-    from teshq.cli.ui.theme import GRADIENT_AURORA
-
     banner = Text()
-
-    # ── Gradient Wordmark ──────────────────────────────────────────────────
-    lines = _WORDMARK.strip("\n").split("\n")
-    for i, line in enumerate(lines):
-        color = GRADIENT_AURORA[i % len(GRADIENT_AURORA)]
-        banner.append(f"  {line}\n", style=f"bold {color}")
-
-    # ── Breathing space ────────────────────────────────────────────────────
-    banner.append("\n")
-
-    # ── Tagline row ────────────────────────────────────────────────────────
-    banner.append(f"    {Icons.sparkle()} ", style=f"bold {Colors.ACCENT}")
-    banner.append(subtitle, style=f"bold {Colors.TEXT_PRIMARY}")
-    banner.append(f"  {Icons.wave()} ", style=f"{Colors.TEXT_MUTED}")
-    banner.append(f"v{version}", style=f"dim italic {Colors.TEXT_TERTIARY}")
-    banner.append("\n")
-
-    # ── Credit line ────────────────────────────────────────────────────────
-    banner.append(f"    by ", style=f"dim {Colors.TEXT_MUTED}")
-    banner.append("treeex", style=f"dim italic {Colors.PRIMARY_HOVER}")
-    banner.append(f"  {Icons.arrow_r()} ", style=f"dim {Colors.TEXT_MUTED}")
-    banner.append("github.com/theshashank1/TESH-Query", style=f"dim underline {Colors.TEXT_MUTED}")
+    banner.append(" ⟡  ", style=f"bold {Colors.PRIMARY_HOVER}")
+    banner.append("TESH", style=f"bold {Colors.TEXT_PRIMARY}")
+    banner.append("·", style=f"bold {Colors.PRIMARY}")
+    banner.append("Query", style=f"bold {Colors.TEXT_PRIMARY}")
+    banner.append(f"  v{version}", style=f"dim {Colors.TEXT_TERTIARY}")
+    banner.append(f"   {Icons.bullet()}   ", style=f"{Colors.TEXT_GHOST}")
+    banner.append("Autonomous Natural Language SQL Engine\n", style=f"{Colors.TEXT_SECONDARY}")
+    banner.append(f"    {subtitle}", style=f"dim {Colors.TEXT_TERTIARY}")
 
     return Panel(
         banner,
-        border_style=Colors.BORDER_DEFAULT,
+        border_style=Colors.BORDER_FOCUS,
         box=ROUNDED_BOX,
-        padding=(1, 3),
-        title=f"[bold {Colors.PRIMARY}]{Icons.bolt()} TESHQ[/bold {Colors.PRIMARY}]",
-        title_align="left",
-        subtitle=f"[dim {Colors.TEXT_MUTED}]Autonomous SQL Engine[/dim {Colors.TEXT_MUTED}]",
-        subtitle_align="right",
+        padding=(0, 2),
+        expand=False,
     )
 
 
@@ -176,17 +139,20 @@ def print_suggested_prompts(prompts: Optional[List[str]] = None) -> None:
     console.print(
         f"  [{Colors.TEXT_TERTIARY}]Ask anything in natural English:[/{Colors.TEXT_TERTIARY}]"
     )
-    console.print()
     for prompt in prompts:
         console.print(
-            f"    [{Colors.PRIMARY}]{Icons.prompt()}[/{Colors.PRIMARY}] "
-            f"[italic {Colors.TEXT_SECONDARY}]\"{prompt}\"[/italic {Colors.TEXT_SECONDARY}]"
+            f"    [{Colors.PRIMARY_HOVER}]◇[/{Colors.PRIMARY_HOVER}] "
+            f"[{Colors.TEXT_SECONDARY}]\"{prompt}\"[/{Colors.TEXT_SECONDARY}]"
         )
     console.print()
     console.print(
-        f"    [{Colors.TEXT_MUTED}]/help shortcuts {Icons.separator()} "
-        f"/tables schema {Icons.separator()} "
-        f"/search history[/{Colors.TEXT_MUTED}]"
+        f"  [{Colors.TEXT_MUTED}]Commands: "
+        f"[bold {Colors.PRIMARY}]/help[/bold {Colors.PRIMARY}] {Icons.separator()} "
+        f"[bold {Colors.PRIMARY}]/tables[/bold {Colors.PRIMARY}] {Icons.separator()} "
+        f"[bold {Colors.PRIMARY}]/sql[/bold {Colors.PRIMARY}] {Icons.separator()} "
+        f"[bold {Colors.PRIMARY}]/export[/bold {Colors.PRIMARY}] {Icons.separator()} "
+        f"[bold {Colors.PRIMARY}]/clear[/bold {Colors.PRIMARY}]"
+        f"[/{Colors.TEXT_MUTED}]"
     )
 
 

@@ -1,0 +1,80 @@
+{
+  "database_name": "ecommerce.sqlite",
+  "profile": "standard",
+  "total_tables": 45,
+  "total_rows": 1123500,
+  "file_size_bytes": 97943552,
+  "file_size_mb": 93.41,
+  "sha256": "a3a255ba3b731312e7f6b8743312e07d0b64fa21eb559627ec4cc44734a57609",
+  "table_inventory": {
+    "ad_clicks": 20000,
+    "ad_impressions": 100000,
+    "brands": 200,
+    "campaigns": 50,
+    "cart_items": 20146,
+    "carts": 10000,
+    "categories": 30,
+    "coupon_redemptions": 12591,
+    "coupons": 100,
+    "customer_addresses": 12038,
+    "customer_profiles": 10000,
+    "customer_segment_memberships": 10000,
+    "customer_segments": 5,
+    "customers": 10000,
+    "daily_sales_metrics": 730,
+    "exchange_rates": 900,
+    "inventory": 20000,
+    "inventory_movements": 100000,
+    "invoices": 50000,
+    "order_items": 174946,
+    "order_status_history": 96541,
+    "orders": 50000,
+    "payments": 50000,
+    "product_attribute_values": 10048,
+    "product_attributes": 5,
+    "product_reviews": 25000,
+    "product_variants": 10048,
+    "products": 5000,
+    "refunds": 3998,
+    "return_items": 6000,
+    "returns": 6000,
+    "seller_payouts": 6000,
+    "seller_products": 15000,
+    "seller_profiles": 500,
+    "sellers": 500,
+    "shipment_items": 42000,
+    "shipment_tracking_events": 168000,
+    "shipments": 42000,
+    "shipping_carriers": 4,
+    "subscription_events": 15000,
+    "subscriptions": 5000,
+    "suppliers": 50,
+    "support_agents": 50,
+    "support_tickets": 15000,
+    "warehouses": 20
+  },
+  "largest_tables": [
+    [
+      "order_items",
+      174946
+    ],
+    [
+      "shipment_tracking_events",
+      168000
+    ],
+    [
+      "ad_impressions",
+      100000
+    ],
+    [
+      "inventory_movements",
+      100000
+    ],
+    [
+      "order_status_history",
+      96541
+    ]
+  ],
+  "verified_invariants": 7,
+  "indexes_count": 38
+}

@@ -9,38 +9,33 @@ from __future__ import annotations
 
 import os
 import sys
-import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import typer
-from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
 from teshq.config.loader import get_database_url as get_db_url, get_settings
 from teshq.core.engine import TeshEngine
-from teshq.core.exceptions import TeshqConfigurationError
 from teshq.utils.output import QueryResult
 from teshq.utils.save import save_to_csv, save_to_excel, resolve_output_path
 from teshq.cli.ui.banner import print_hero_banner, print_hud, print_suggested_prompts
-from teshq.cli.ui.cards import print_error_card, print_metrics, print_sql_card
-from teshq.cli.ui.tables import print_results_table, render_results_table
+from teshq.cli.ui.cards import print_error_card, print_sql_card
+from teshq.cli.ui.tables import render_results_table
 from teshq.cli.ui.blocks import (
     CommandBlock,
     StageTracker,
     QUERY_STAGES,
-    render_stage_line,
 )
 from teshq.cli.ui.status_bar import print_status_bar
-from teshq.cli.ui.palette import print_help_sheet, render_help_sheet
-from teshq.cli.ui.theme import Colors, Icons, Spacing, ROUNDED_BOX, console, err_console
+from teshq.cli.ui.palette import print_help_sheet
+from teshq.cli.ui.theme import Colors, Icons, console
+
 
 app = typer.Typer(help="Interactive multi-turn SQL chat session.")
 
 
-def _get_env_summary() -> tuple[str, str, str, Optional[int]]:
+def _get_env_summary(connection: Optional[str] = None) -> tuple[str, str, str, Optional[int]]:
     """Gather quick environment status for the HUD without raising."""
     db_type = "Database"
     db_status = "Not Connected"
@@ -56,7 +51,21 @@ def _get_env_summary() -> tuple[str, str, str, Optional[int]]:
         else:
             llm_name = "Gemini 1.5 Pro"
 
-        db_url = get_db_url()
+        db_url = None
+        if connection:
+            from teshq.core.connection import connection_manager
+            conn_obj = connection_manager.get_named_connection(connection)
+            db_url = conn_obj.db_url
+        else:
+            db_url = get_db_url()
+            if not db_url:
+                try:
+                    from teshq.core.connection import connection_manager
+                    conn_obj = connection_manager.get_named_connection(None)
+                    db_url = conn_obj.db_url
+                except Exception:
+                    pass
+
         if db_url:
             if "postgres" in db_url:
                 db_type = "PostgreSQL"
@@ -277,6 +286,12 @@ def clear_command_history() -> None:
 @app.callback(invoke_without_command=True)
 def interactive_chat(
     ctx: typer.Context,
+    connection: Optional[str] = typer.Option(
+        None,
+        "--connection",
+        "-c",
+        help="Target named database connection to chat against.",
+    ),
     local: bool = typer.Option(False, "--local", help="Force local GGUF model."),
     cloud: bool = typer.Option(False, "--cloud", help="Force cloud model."),
 ) -> None:
@@ -286,14 +301,23 @@ def interactive_chat(
     clear_terminal_screen()
     print_hero_banner()
 
-    db_status, db_type, llm_name, table_count = _get_env_summary()
+    db_status, db_type, llm_name, table_count = _get_env_summary(connection=connection)
     print_hud(db_status=db_status, db_type=db_type, llm_model=llm_name, schema_tables_count=table_count)
 
     # Extract db name for status bar
     db_name = ""
     try:
-        db_url = get_db_url()
-        db_name = _extract_db_name(db_url)
+        if connection:
+            from teshq.core.connection import connection_manager
+            conn_obj = connection_manager.get_named_connection(connection)
+            db_name = conn_obj.name
+        else:
+            db_url = get_db_url()
+            if not db_url:
+                from teshq.core.connection import connection_manager
+                conn_obj = connection_manager.get_named_connection(None)
+                db_url = conn_obj.db_url
+            db_name = _extract_db_name(db_url)
     except Exception:
         pass
 
@@ -313,7 +337,11 @@ def interactive_chat(
     # Initialize Session once for speed
     chat_session: Optional[TeshChatSession] = None
     try:
-        client = TeshQuery(provider=provider_override)
+        target_db_url = None
+        if connection:
+            from teshq.core.connection import connection_manager
+            target_db_url = connection_manager.get_named_connection(connection).db_url
+        client = TeshQuery(db_url=target_db_url, provider=provider_override)
         chat_session = client.create_session()
     except Exception as e:
         console.print(
@@ -340,8 +368,12 @@ def interactive_chat(
     # ── Interactive Prompt Loop ───────────────────────────────────────
     while True:
         try:
-            # Minimal prompt: just the › character
-            prompt_str = f"[bold {Colors.PRIMARY}]{Icons.prompt()}[/bold {Colors.PRIMARY}] "
+            # Sleek Antigravity / OpenCode prompt
+            prompt_str = (
+                f"[bold {Colors.PRIMARY}]◇[/bold {Colors.PRIMARY}] "
+                f"[bold {Colors.TEXT_PRIMARY}]teshq[/bold {Colors.TEXT_PRIMARY}] "
+                f"[dim {Colors.TEXT_MUTED}]›[/dim {Colors.TEXT_MUTED}] "
+            )
             user_input = console.input(prompt_str).strip()
         except (KeyboardInterrupt, EOFError):
             console.print(_render_session_summary(
@@ -371,7 +403,27 @@ def interactive_chat(
         cmd_candidate = clean_input.lower()
 
         if not is_slash:
-            if cmd_candidate in ("copy sql", "copy"):
+            # Single-tap numbered action shortcuts 1-5
+            if cmd_candidate in ("1", "2", "3", "4", "5") and (last_sql or last_error or last_nl_query):
+                if last_error and not last_sql:
+                    if cmd_candidate == "1":
+                        clean_input = "/rerun"
+                    elif cmd_candidate == "2":
+                        clean_input = "/explain"
+                    elif cmd_candidate == "3":
+                        clean_input = "/copy error"
+                else:
+                    if cmd_candidate == "1":
+                        clean_input = "/copy sql"
+                    elif cmd_candidate == "2":
+                        clean_input = "/copy results"
+                    elif cmd_candidate == "3":
+                        clean_input = "/export csv"
+                    elif cmd_candidate == "4":
+                        clean_input = "/explain"
+                    elif cmd_candidate == "5":
+                        clean_input = "/rerun"
+            elif cmd_candidate in ("copy sql", "copy"):
                 clean_input = "/copy sql"
             elif cmd_candidate in ("copy results", "copy data"):
                 clean_input = "/copy results"
@@ -442,7 +494,7 @@ def interactive_chat(
                 continue
 
             elif cmd == "/export":
-                if not last_result or not last_result.dataframe is not None:
+                if not last_result or last_result.dataframe is None:
                     console.print(
                         f"  [{Colors.WARNING}]{Icons.warn()} No active results to export."
                         f"[/{Colors.WARNING}]\n"
@@ -548,11 +600,13 @@ def interactive_chat(
                         if copy_to_clipboard(csv_data):
                             console.print(
                                 f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
-                                f"[bold {Colors.TEXT_PRIMARY}]Results ({len(df):,} rows) copied to clipboard as CSV![/bold {Colors.TEXT_PRIMARY}]\n"
+                                f"[bold {Colors.TEXT_PRIMARY}]Results ({len(df):,} rows) "
+                                f"copied to clipboard as CSV![/bold {Colors.TEXT_PRIMARY}]\n"
                             )
                         else:
                             console.print(
-                                f"  [{Colors.WARNING}]{Icons.warn()} Clipboard not available in this environment.[/{Colors.WARNING}]\n"
+                                f"  [{Colors.WARNING}]{Icons.warn()} "
+                                f"Clipboard not available in this environment.[/{Colors.WARNING}]\n"
                             )
                 elif target in ("error", "err"):
                     if not last_error:
@@ -563,7 +617,8 @@ def interactive_chat(
                         if copy_to_clipboard(last_error):
                             console.print(
                                 f"  [{Colors.SUCCESS}]{Icons.check()}[/{Colors.SUCCESS}] "
-                                f"[bold {Colors.TEXT_PRIMARY}]Error details copied to clipboard![/bold {Colors.TEXT_PRIMARY}]\n"
+                                f"[bold {Colors.TEXT_PRIMARY}]Error details copied to clipboard!"
+                                f"[/bold {Colors.TEXT_PRIMARY}]\n"
                             )
                         else:
                             console.print(
@@ -638,7 +693,10 @@ def interactive_chat(
                         for m in matches:
                             console.print(f"    • [{Colors.TEXT_PRIMARY}]{m}[/{Colors.TEXT_PRIMARY}]")
                     else:
-                        console.print(f"  [{Colors.TEXT_MUTED}]No matches found in session history for \"{query}\".[/{Colors.TEXT_MUTED}]")
+                        console.print(
+                            f"  [{Colors.TEXT_MUTED}]No matches found in session history "
+                            f"for \"{query}\".[/{Colors.TEXT_MUTED}]"
+                        )
                     console.print()
                 continue
 
@@ -652,9 +710,14 @@ def interactive_chat(
 
         # ── Natural Language Query Execution ──────────────────────────
         try:
+            last_nl_query = user_input
             if not chat_session:
                 from teshq.api import TeshQuery
-                client = TeshQuery(provider=provider_override)
+                target_db_url = None
+                if connection:
+                    from teshq.core.connection import connection_manager
+                    target_db_url = connection_manager.get_named_connection(connection).db_url
+                client = TeshQuery(db_url=target_db_url, provider=provider_override)
                 chat_session = client.create_session()
 
             last_dialect = getattr(chat_session.client.engine, "_dialect", "SQL") or "SQL"
@@ -665,12 +728,13 @@ def interactive_chat(
                 adv_result = chat_session.ask(
                     user_input,
                     output_format="advanced",
+                    on_progress=stage_tracker.on_progress,
                     event_callback=stage_tracker.on_progress,
                 )
 
             last_sql = adv_result.query
             last_parameters = adv_result.parameters
-            last_nl_query = user_input
+            last_error = None
 
             # Update session stats
             session_queries += 1
@@ -702,7 +766,6 @@ def interactive_chat(
                     title="Results",
                     summary=f"Found {len(result):,} record(s)",
                 )
-                # Extract the inner table from the panel
                 block.set_results(results_panel, len(result))
 
             # Metrics
@@ -718,9 +781,10 @@ def interactive_chat(
         except Exception as e:
             # Error block
             last_error = str(e)
+            last_sql = None
+            last_result = None
             console.print()
             block = CommandBlock(user_input)
             block.set_error(str(e))
             block.print()
-            print_error_card(e, context="Query Processing")
             console.print()

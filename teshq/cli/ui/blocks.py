@@ -15,10 +15,8 @@ A command block contains:
 
 from __future__ import annotations
 
-import time
 from typing import Any, Dict, List, Optional
 
-from rich.columns import Columns
 from rich.console import Group
 from rich.live import Live
 from rich.panel import Panel
@@ -28,16 +26,13 @@ from rich.table import Table
 from rich.text import Text
 
 from teshq.cli.ui.theme import (
+    ROUNDED_BOX,
     Colors,
     Icons,
     Spacing,
-    Typography,
-    ROUNDED_BOX,
     console,
     latency_color,
-    status_dot,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  COGNITIVE STAGES — Progress Narrative
@@ -180,13 +175,32 @@ class StageTracker:
         self._live.start()
         return self
 
-    def on_progress(self, step_idx: int, stage_name: str = "", detail: Optional[str] = None) -> None:
-        if self.current_idx < step_idx and self.current_detail:
-            self.stage_details[self.current_idx] = self.current_detail
-        self.current_idx = step_idx
-        self.current_detail = detail or ""
-        if self._live:
-            self._live.update(self._render())
+    def on_progress(self, step_idx: Any, stage_name: str = "", detail: Optional[str] = None) -> None:
+        if hasattr(step_idx, "stage"):
+            stage_map = {
+                "parsing": 0,
+                "schema": 1,
+                "table_selection": 2,
+                "sql_gen": 3,
+                "validation": 4,
+                "execution": 5,
+            }
+            stage_key = getattr(step_idx, "stage", "")
+            idx = stage_map.get(stage_key, self.current_idx)
+            name = getattr(step_idx, "message", stage_name)
+            data = getattr(step_idx, "data", None) or {}
+            det = data.get("detail", detail)
+            step_idx = idx
+            stage_name = name
+            detail = det
+
+        if isinstance(step_idx, int):
+            if self.current_idx < step_idx and self.current_detail:
+                self.stage_details[self.current_idx] = self.current_detail
+            self.current_idx = step_idx
+            self.current_detail = detail or ""
+            if self._live:
+                self._live.update(self._render())
 
     def finish(self) -> None:
         if self.current_detail and self.current_idx not in self.stage_details:
@@ -391,8 +405,11 @@ class CommandBlock:
         self._parameters = parameters
         return self
 
-    def set_results(self, table: Table, row_count: int) -> "CommandBlock":
-        self._results_table = table
+    def set_results(self, table: Any, row_count: int) -> "CommandBlock":
+        if isinstance(table, Panel) and hasattr(table, "renderable") and isinstance(table.renderable, Table):
+            self._results_table = table.renderable
+        else:
+            self._results_table = table
         self._row_count = row_count
         return self
 
@@ -485,11 +502,16 @@ class CommandBlock:
         if self._success and self._sql:
             parts.append(Text(""))
             parts.append(render_action_hints())
+        elif self._error:
+            parts.append(Text(""))
+            parts.append(render_error_action_hints())
 
         # ── Compose block ─────────────────────────────────────────────
-        border_color = Colors.PRIMARY if self._success else Colors.ERROR
+        border_color = Colors.BORDER_DEFAULT if self._success else Colors.ERROR_DIM
         block_title = (
-            f"[{Colors.TEXT_GHOST}]#{self.number}[/{Colors.TEXT_GHOST}]"
+            f"[{Colors.PRIMARY}]⟡[/{Colors.PRIMARY}] [{Colors.TEXT_MUTED}]#{self.number}[/{Colors.TEXT_MUTED}]"
+            if self._success
+            else f"[{Colors.ERROR}]✗[/{Colors.ERROR}] [{Colors.TEXT_MUTED}]#{self.number}[/{Colors.TEXT_MUTED}]"
         )
 
         return Panel(

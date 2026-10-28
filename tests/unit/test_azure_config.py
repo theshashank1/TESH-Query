@@ -2,11 +2,10 @@
 Unit tests for Azure OpenAI configuration in Settings and get_llm_config().
 """
 
-import os
-from unittest.mock import patch
 from pathlib import Path
 
 import pytest
+
 
 from teshq.config.settings import Settings
 
@@ -102,9 +101,9 @@ class TestGetLlmConfig:
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("LLM_PROVIDER", "google")
 
-        from teshq.config.settings import _settings_cache
         import teshq.config.settings as settings_module
         settings_module._settings_cache = None  # force reload
+
 
         from teshq.config.loader import get_llm_config
         cfg = get_llm_config()

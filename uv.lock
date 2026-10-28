@@ -4050,6 +4050,19 @@ snowflake = [
     { name = "snowflake-sqlalchemy" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "autopep8" },
+    { name = "build" },
+    { name = "flake8" },
+    { name = "isort" },
+    { name = "mkdocs-material" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.29" },
@@ -4149,6 +4162,19 @@ requires-dist = [
     { name = "typer", specifier = ">=0.9,<1.0" },
 ]
 provides-extras = ["dev", "postgres", "postgres-binary", "mysql", "mariadb", "mariadb-native", "mssql", "mssql-odbc", "oracle", "cassandra", "bigquery", "snowflake", "databricks", "redshift", "duckdb", "clickhouse", "analytics", "export", "langsmith", "local", "data", "ml", "all", "all-native", "all-databases", "all-features"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "autopep8", specifier = ">=2.0" },
+    { name = "build" },
+    { name = "flake8", specifier = ">=6.0" },
+    { name = "isort", specifier = ">=5.12" },
+    { name = "mkdocs-material" },
+    { name = "pre-commit", specifier = ">=3.0" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0" },
+    { name = "pytest-cov", specifier = ">=4.0" },
+]
 
 [[package]]
 name = "thrift"

@@ -1,0 +1,80 @@
+{
+  "business_invariants": [
+    {
+      "name": "order_financial_reconciliation",
+      "description": "Order total must equal subtotal - discount + tax + shipping across all orders",
+      "query": "SELECT COUNT(*) AS violation_count FROM orders WHERE ABS(total_amount - (subtotal_amount - discount_amount + tax_amount + shipping_amount)) > 0.01;",
+      "expected_violation_count": 0
+    },
+    {
+      "name": "payment_reconciliation",
+      "description": "Successful payments must match or cover the order total amount",
+      "query": "SELECT COUNT(*) AS violation_count FROM orders o JOIN payments p ON o.order_id = p.order_id WHERE p.payment_status = 'successful' AND ABS(o.total_amount - p.amount) > 0.01;",
+      "expected_violation_count": 0
+    },
+    {
+      "name": "order_item_line_total_reconciliation",
+      "description": "Order item line total must equal quantity * unit_price",
+      "query": "SELECT COUNT(*) AS violation_count FROM order_items WHERE ABS(line_total - (quantity * unit_price)) > 0.01;",
+      "expected_violation_count": 0
+    },
+    {
+      "name": "refund_ceiling_reconciliation",
+      "description": "Total refund amount per order must not exceed order total amount",
+      "query": "SELECT COUNT(*) AS violation_count FROM (SELECT r.order_id, SUM(r.refund_amount) AS total_refunded, o.total_amount FROM refunds r JOIN orders o ON r.order_id = o.order_id WHERE r.refund_status = 'completed' GROUP BY r.order_id, o.total_amount HAVING total_refunded > o.total_amount + 0.01);",
+      "expected_violation_count": 0
+    },
+    {
+      "name": "chronological_sequence_invariant",
+      "description": "Shipment date must be on or after order creation date",
+      "query": "SELECT COUNT(*) AS violation_count FROM orders o JOIN shipments s ON o.order_id = s.order_id WHERE s.shipped_at < o.order_date;",
+      "expected_violation_count": 0
+    },
+    {
+      "name": "customer_address_integrity",
+      "description": "All customer addresses must reference valid existing customers",
+      "query": "SELECT COUNT(*) AS orphan_count FROM customer_addresses ca LEFT JOIN customers c ON ca.customer_id = c.customer_id WHERE c.customer_id IS NULL;",
+      "expected_violation_count": 0
+    },
+    {
+      "name": "product_review_range",
+      "description": "Review ratings must strictly be between 1 and 5",
+      "query": "SELECT COUNT(*) AS invalid_count FROM product_reviews WHERE rating < 1 OR rating > 5;",
+      "expected_violation_count": 0
+    }
+  ],
+  "profile_thresholds": {
+    "standard": {
+      "min_customers": 10000,
+      "min_products": 5000,
+      "min_variants": 10000,
+      "min_sellers": 500,
+      "min_orders": 50000,
+      "min_order_items": 150000,
+      "min_payments": 50000,
+      "min_reviews": 25000,
+      "min_inventory": 20000,
+      "min_shipments": 40000,
+      "min_tracking_events": 150000,
+      "min_impressions": 100000,
+      "min_clicks": 20000,
+      "min_movements": 100000
+    },
+    "large": {
+      "min_customers": 100000,
+      "min_products": 25000,
+      "min_variants": 50000,
+      "min_sellers": 2000,
+      "min_orders": 500000,
+      "min_order_items": 1500000,
+      "min_payments": 500000,
+      "min_reviews": 200000,
+      "min_inventory": 100000,
+      "min_shipments": 400000,
+      "min_tracking_events": 1200000,
+      "min_impressions": 800000,
+      "min_clicks": 150000,
+      "min_movements": 800000
+    }
+  }
+}

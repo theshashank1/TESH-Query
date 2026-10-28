@@ -5,11 +5,13 @@ Loads GGUF models directly into the Python process address space using llama-cpp
 No HTTP server, no subprocesses — just direct C/C++ library bindings.
 """
 
-import time
 import os
+import time
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any, Iterator, Union
+from typing import Any, Iterator, List, Optional
+
 from teshq.utils.logging import logger
+
 
 @dataclass
 class InferenceConfig:
@@ -20,6 +22,7 @@ class InferenceConfig:
     seed: int = 42
     verbose: bool = False
 
+
 @dataclass
 class GenerationResult:
     text: str
@@ -28,13 +31,15 @@ class GenerationResult:
     total_tokens: int
     latency_ms: float
 
+
 class InferenceRuntime:
     """
     Manages the lifecycle of a local llama.cpp model in-process.
-    
+
     This acts as a singleton-ish cache per process so that the model
     remains resident in memory for successive queries.
     """
+
     def __init__(self) -> None:
         self._llm = None
         self._config: Optional[InferenceConfig] = None
@@ -46,9 +51,9 @@ class InferenceRuntime:
         """
         if self._loaded and self._config == config:
             return  # Model already loaded with identical config
-            
+
         self.unload()
-        
+
         try:
             from llama_cpp import Llama
         except ImportError as e:
@@ -59,11 +64,14 @@ class InferenceRuntime:
             ) from e
 
         if not config.model_path or not os.path.exists(config.model_path):
-            logger.warning(f"Configured model path '{config.model_path}' not found or inaccessible. Attempting automatic troubleshooting...")
-            
+            logger.warning(
+                f"Configured model path '{config.model_path}' not found or inaccessible. "
+                "Attempting automatic troubleshooting..."
+            )
+
             from teshq.core.model_manager import ModelManager
             installed = ModelManager().get_installed_models()
-            
+
             if installed:
                 fallback_path = installed[0]["path"]
                 logger.warning(f"Auto-troubleshooting fallback: using available model at {fallback_path}")
@@ -76,7 +84,7 @@ class InferenceRuntime:
 
         logger.info(f"Loading local GGUF model from {config.model_path}...")
         start_time = time.time()
-        
+
         # Determine gpu layers & thread count dynamically if set to auto
         n_gpu = config.n_gpu_layers
         if n_gpu == -1:
@@ -84,7 +92,7 @@ class InferenceRuntime:
             hw = detect_hardware()
             n_gpu = hw.recommended_n_gpu_layers
             logger.info(f"Auto-detected GPU offload: using {n_gpu} layers ({hw.gpu_backend.upper()})")
-            
+
         n_threads = config.n_threads
         if n_threads == 0:
             from teshq.core.hardware import detect_hardware
@@ -125,19 +133,19 @@ class InferenceRuntime:
         """
         if not self._loaded or not self._llm:
             raise RuntimeError("InferenceRuntime is not loaded. Call load() first.")
-            
+
         start_time = time.time()
-        
+
         # Prepare parameters
         stop_words = stop or []
-        
+
         try:
             if system_prompt:
                 messages = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ]
-                
+
                 response = self._llm.create_chat_completion(
                     messages=messages,
                     max_tokens=max_tokens,
@@ -145,10 +153,13 @@ class InferenceRuntime:
                     grammar=grammar,
                     stop=stop_words,
                 )
-                
+
                 if not response.get("choices"):
-                    raise RuntimeError("Local model returned empty response (no choices). The prompt may be too long or the model may be incompatible.")
-                
+                    raise RuntimeError(
+                        "Local model returned empty response (no choices). "
+                        "The prompt may be too long or the model may be incompatible."
+                    )
+
                 choice = response["choices"][0]
                 text = choice.get("message", {}).get("content", "")
                 usage = response.get("usage", {})
@@ -164,10 +175,13 @@ class InferenceRuntime:
                     grammar=grammar,
                     stop=stop_words,
                 )
-                
+
                 if not response.get("choices"):
-                    raise RuntimeError("Local model returned empty response (no choices). The prompt may be too long or the model may be incompatible.")
-                
+                    raise RuntimeError(
+                        "Local model returned empty response (no choices). "
+                        "The prompt may be too long or the model may be incompatible."
+                    )
+
                 choice = response["choices"][0]
                 text = choice.get("text", "")
                 usage = response.get("usage", {})
@@ -184,7 +198,7 @@ class InferenceRuntime:
             logger.warning("Local model generated empty text output")
 
         latency = (time.time() - start_time) * 1000
-        
+
         return GenerationResult(
             text=text,
             prompt_tokens=prompt_tokens,
@@ -207,15 +221,15 @@ class InferenceRuntime:
         """
         if not self._loaded or not self._llm:
             raise RuntimeError("InferenceRuntime is not loaded. Call load() first.")
-            
+
         stop_words = stop or []
-        
+
         if system_prompt:
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ]
-            
+
             stream = self._llm.create_chat_completion(
                 messages=messages,
                 max_tokens=max_tokens,
@@ -224,7 +238,7 @@ class InferenceRuntime:
                 stop=stop_words,
                 stream=True
             )
-            
+
             for chunk in stream:
                 delta = chunk["choices"][0].get("delta", {})
                 if "content" in delta:
@@ -238,7 +252,7 @@ class InferenceRuntime:
                 stop=stop_words,
                 stream=True
             )
-            
+
             for chunk in stream:
                 yield chunk["choices"][0]["text"]
 

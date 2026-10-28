@@ -1,7 +1,7 @@
 """Unit tests for teshq.core.models (no I/O, no DB)."""
 
-import pytest
 from teshq.core.models import (
+
     ColumnInfo,
     QueryResult,
     SQLQuery,

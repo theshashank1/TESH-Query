@@ -1,0 +1,56 @@
+[
+  {
+    "id": "cross_db_monthly_revenue_vs_finance",
+    "name": "Ecommerce Sales vs Finance Recognized Revenue",
+    "description": "Compare monthly gross order revenue from the ecommerce database against recognized accounting revenue from the finance database.",
+    "sources": [
+      {
+        "connection": "ecommerce",
+        "sql": "SELECT strftime('%Y-%m', order_date) AS month, ROUND(SUM(total_amount), 2) AS ecommerce_gmv, COUNT(order_id) AS order_count FROM orders WHERE order_status = 'completed' GROUP BY month ORDER BY month;"
+      },
+      {
+        "connection": "finance",
+        "sql": "SELECT fiscal_month AS month, recognized_revenue AS finance_revenue, audit_status FROM ledger_monthly_revenue ORDER BY month;"
+      }
+    ],
+    "join_key": "month",
+    "join_type": "inner",
+    "expected_columns": ["month", "ecommerce_gmv", "order_count", "finance_revenue", "audit_status"]
+  },
+  {
+    "id": "cross_db_ad_spend_vs_product_revenue",
+    "name": "Marketing Ad Spend vs Product Gross Revenue",
+    "description": "Correlate marketing campaign expenditure from an external marketing analytics DB with ecommerce product sales.",
+    "sources": [
+      {
+        "connection": "marketing",
+        "sql": "SELECT campaign_id, campaign_name, ROUND(SUM(spend), 2) AS total_ad_spend FROM external_campaigns GROUP BY campaign_id, campaign_name;"
+      },
+      {
+        "connection": "ecommerce",
+        "sql": "SELECT c.campaign_id, ROUND(SUM(oi.line_total), 2) AS attributed_sales FROM campaigns c JOIN ad_impressions ai ON c.campaign_id = ai.campaign_id JOIN order_items oi ON ai.product_id = oi.product_id GROUP BY c.campaign_id;"
+      }
+    ],
+    "join_key": "campaign_id",
+    "join_type": "left",
+    "expected_columns": ["campaign_id", "campaign_name", "total_ad_spend", "attributed_sales"]
+  },
+  {
+    "id": "cross_db_seller_payout_reconciliation",
+    "name": "Marketplace Payouts vs Banking Settlement",
+    "description": "Reconcile internal seller payout records against external banking disbursement batches.",
+    "sources": [
+      {
+        "connection": "ecommerce",
+        "sql": "SELECT seller_id, payout_date, net_payout, payout_status FROM seller_payouts WHERE payout_status = 'completed';"
+      },
+      {
+        "connection": "banking",
+        "sql": "SELECT seller_id, settlement_date AS payout_date, settled_amount, wire_reference FROM wire_transfers WHERE transfer_status = 'cleared';"
+      }
+    ],
+    "join_key": "seller_id",
+    "join_type": "inner",
+    "expected_columns": ["seller_id", "payout_date", "net_payout", "settled_amount", "wire_reference"]
+  }
+]

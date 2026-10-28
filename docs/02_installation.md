@@ -1,99 +1,136 @@
-# Installation
+# Installation & Database Drivers Guide
 
-## Prerequisites
+TESH-Query requires **Python 3.10 or higher**. It is designed with a lightweight core package and modular installation extras so you only install the drivers and computational libraries required for your specific data stack.
 
-- Python 3.10 or newer
-- A supported database (PostgreSQL, MySQL, SQLite, etc.)
-- An API key for Google Gemini **or** Azure OpenAI
+---
 
-## Install with pip
+## 📦 Core Package Installation
+
+The core installation includes SQLite support and the Google Gemini provider out of the box:
 
 ```bash
+# Using standard pip
 pip install teshq
-```
 
-### Optional database drivers
-
-SQLite works out of the box. For other databases install the appropriate extra:
-
-```bash
-# PostgreSQL (pure-Python, recommended)
-pip install "teshq[postgres]"
-
-# PostgreSQL (binary wheel - Python 3.12 and below)
-pip install "teshq[postgres-binary]"
-
-# MySQL
-pip install "teshq[mysql]"
-
-# Microsoft SQL Server
-pip install "teshq[mssql]"
-
-# All drivers that don't need system libs
-pip install "teshq[all]"
-```
-
-### Development install
-
-```bash
-pip install "teshq[dev]"
-```
-
-## Install with UV (recommended for speed)
-
-```bash
+# Or using uv (recommended for ultra-fast resolution)
 uv pip install teshq
-# or with extras
-uv pip install "teshq[postgres,dev]"
 ```
 
-## Authentication Setup
-
-### Google Gemini (default provider)
-
-```bash
-# Interactive prompt
-teshq config --gemini
-
-# Or set the environment variable directly
-export GEMINI_API_KEY="your-api-key"
-```
-
-### Azure OpenAI
-
-```bash
-# Interactive prompt
-teshq config --azure
-
-# Or set environment variables
-export LLM_PROVIDER=azure
-export AZURE_OPENAI_API_KEY="your-key"
-export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
-export AZURE_OPENAI_DEPLOYMENT="gpt-4o"
-export AZURE_OPENAI_API_VERSION="2024-02-01"
-```
-
-### Database URL
-
-```bash
-teshq config --db
-
-# Or set directly
-export DATABASE_URL="postgresql://user:pass@localhost:5432/mydb"
-```
-
-## Verify Installation
+Verify your installation:
 
 ```bash
 teshq --version
-teshq health          # checks DB connectivity and LLM availability
+teshq health
 ```
 
-## Configuration File Locations
+---
 
-| File | Purpose |
-|---|---|
-| `~/.teshq/.env` | Secrets (API keys, DATABASE_URL) |
-| `~/.teshq/config.yaml` | Non-secret settings (model name, provider) |
+## 🔌 Installation Extras & Driver Bundles
 
-See [04_configuration.md](04_configuration.md) for the full priority chain.
+### 1. Database Drivers
+
+Install the exact database connector required for your environment:
+
+| Database | Extra Flag | Underlying Drivers |
+| :--- | :--- | :--- |
+| **PostgreSQL (Pure Python)** | `pip install "teshq[postgres]"` | `asyncpg` (Works on Python 3.10–3.14+) |
+| **PostgreSQL (Binary)** | `pip install "teshq[postgres-binary]"` | `psycopg2-binary` |
+| **MySQL / MariaDB** | `pip install "teshq[mysql]"` | `PyMySQL`, `mysql-connector-python` |
+| **Microsoft SQL Server** | `pip install "teshq[mssql]"` | `pymssql` |
+| **Oracle Database** | `pip install oracledb` | `oracledb` (Thin & Thick modes) |
+| **DuckDB (OLAP)** | `pip install duckdb-engine` | `duckdb`, `duckdb-engine` |
+| **ClickHouse (OLAP)** | `pip install clickhouse-connect` | `clickhouse-connect` |
+| **Snowflake** | `pip install snowflake-sqlalchemy` | `snowflake-connector-python` |
+| **Google BigQuery** | `pip install sqlalchemy-bigquery` | `google-cloud-bigquery` |
+| **Databricks Spark SQL** | `pip install databricks-sql-connector` | `databricks-sql-connector` |
+| **Amazon Redshift** | `pip install sqlalchemy-redshift` | `redshift-connector` |
+
+### 2. High-Performance Modern Analytics
+
+For zero-copy exports and high-speed in-memory vector operations:
+
+```bash
+# Polars and Apache Arrow integration
+pip install "teshq[data]"
+
+# Machine learning & local OLAP bundle (Polars + Arrow + DuckDB)
+pip install "teshq[ml]"
+```
+
+### 3. Comprehensive Driver Bundles
+
+```bash
+# All standard pure-Python drivers & tools
+pip install "teshq[all]"
+
+# Complete enterprise suite (Cloud Warehouses + OLAP + Relational)
+pip install "teshq[all-databases]"
+```
+
+---
+
+## ⚡ Offline Local Inference (`teshq[local]`)
+
+To run TESH-Query in air-gapped or 100% offline environments without sending data or prompts to external cloud APIs, install the local inference engine powered by `llama.cpp`:
+
+```bash
+pip install "teshq[local]"
+```
+
+### Hardware Acceleration Flags
+
+To maximize token generation speed using GPU acceleration, compile `llama-cpp-python` with native hardware flags:
+
+#### Apple Silicon (M1 / M2 / M3 / M4 - Metal)
+
+```bash
+CMAKE_ARGS="-DGGML_METAL=on" pip install --upgrade --force-reinstall --no-cache-dir llama-cpp-python
+```
+
+#### NVIDIA GPU (CUDA)
+
+```bash
+CMAKE_ARGS="-DGGML_CUDA=on" pip install --upgrade --force-reinstall --no-cache-dir llama-cpp-python
+```
+
+#### CPU Multi-Threading (OpenBLAS / AVX2)
+
+```bash
+CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" pip install --upgrade --force-reinstall --no-cache-dir llama-cpp-python
+```
+
+Verify your hardware acceleration status:
+
+```bash
+teshq local status
+```
+
+---
+
+## 🛠️ Development & Editable Installation
+
+To contribute to TESH-Query or run the internal test suite:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/theshashank1/TESH-Query.git
+cd TESH-Query
+
+# 2. Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. Install in editable mode with development dependencies
+pip install -e ".[dev]"
+
+# 4. Run the test suite (425+ unit & integration tests)
+pytest tests/unit/
+```
+
+---
+
+## 🧭 Next Steps
+
+- **[Universal Database Dialects Guide](04_database_dialects.md)** — Connection string formats, compound URLs, and dialect-specific setup.
+- **[Configuration & Secrets](10_configuration_and_secrets.md)** — Configure your database credentials and AI providers.
+- **[CLI Reference](07_cli_reference.md)** — Start querying from the command line.

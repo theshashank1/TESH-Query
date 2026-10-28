@@ -10,7 +10,8 @@ import time
 import os
 import yaml
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
+
 from collections import Counter
 
 from teshq.core.engine import TeshEngine
@@ -281,15 +282,16 @@ class BenchmarkRunner:
         total_prompt_tokens = sum(r.prompt_tokens for r in results)
         total_comp_tokens = sum(r.completion_tokens for r in results)
         
-        pct = lambda x: (x / total * 100) if total else 0.0
+        def pct(x):
+            return (x / total * 100) if total else 0.0
         
         lines = [
             "# TESH-Query Benchmark Report",
             "",
             "## Summary Metrics",
             "",
-            f"| Metric | Value |",
-            f"| :--- | :--- |",
+            "| Metric | Value |",
+            "| :--- | :--- |",
             f"| **Total Queries Tested** | {total} |",
             f"| **Exact SQL Matches** | {exact_matches} ({pct(exact_matches):.1f}%) |",
             f"| **Execution Matches** | {exec_matches} ({pct(exec_matches):.1f}%) |",
@@ -327,14 +329,14 @@ class BenchmarkRunner:
             for r in failed:
                 lines.append(f"### ID {r.item.id}: {r.item.question}")
                 lines.append("")
-                lines.append(f"**Reference SQL:**")
-                lines.append(f"```sql")
+                lines.append("**Reference SQL:**")
+                lines.append("```sql")
                 lines.append(r.item.reference_sql)
-                lines.append(f"```")
-                lines.append(f"**Generated SQL:**")
-                lines.append(f"```sql")
+                lines.append("```")
+                lines.append("**Generated SQL:**")
+                lines.append("```sql")
                 lines.append(r.generated_sql if r.generated_sql else "(no SQL generated)")
-                lines.append(f"```")
+                lines.append("```")
                 if r.execution_error:
                     lines.append(f"**Error:** `{r.execution_error}`")
                 lines.append("")

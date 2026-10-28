@@ -1,0 +1,322 @@
+[
+  {
+    "id": "BM-01",
+    "question": "Count total registered customers.",
+    "complexity": "simple",
+    "category": "Customers",
+    "expected_tables": ["customers"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Scalar COUNT(*) aggregation of registered customers",
+    "reference_sql": "SELECT COUNT(*) AS total_customers FROM customers WHERE account_status = 'active';"
+  },
+  {
+    "id": "BM-02",
+    "question": "Find the top 20 products by total sales revenue.",
+    "complexity": "medium",
+    "category": "Sales & Catalog",
+    "expected_tables": ["products", "order_items"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(order_items.line_total) grouped by product, ordered descending limit 20",
+    "reference_sql": "SELECT p.product_id, p.title, ROUND(SUM(oi.line_total), 2) AS total_revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.product_id, p.title ORDER BY total_revenue DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-03",
+    "question": "Calculate monthly gross merchandise value for the last year of orders.",
+    "complexity": "medium",
+    "category": "Financial Analytics",
+    "expected_tables": ["orders"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Monthly SUM(total_amount) grouped by strftime('%Y-%m', order_date)",
+    "reference_sql": "SELECT strftime('%Y-%m', order_date) AS order_month, ROUND(SUM(total_amount), 2) AS gross_merchandise_value, COUNT(order_id) AS total_orders FROM orders WHERE order_status IN ('completed', 'returned') GROUP BY order_month ORDER BY order_month;"
+  },
+  {
+    "id": "BM-04",
+    "question": "Find the top sellers by net revenue after deducting commissions and refunds.",
+    "complexity": "complex",
+    "category": "Marketplace",
+    "expected_tables": ["sellers", "seller_payouts"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Net seller payout aggregation after marketplace commission deduction",
+    "reference_sql": "SELECT s.seller_id, s.seller_name, ROUND(SUM(sp.gross_sales), 2) AS total_gross_sales, ROUND(SUM(sp.commission_deducted), 2) AS total_commissions, ROUND(SUM(sp.net_payout), 2) AS net_seller_payout FROM sellers s JOIN seller_payouts sp ON s.seller_id = sp.seller_id WHERE sp.payout_status = 'completed' GROUP BY s.seller_id, s.seller_name ORDER BY net_seller_payout DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-05",
+    "question": "Calculate average order value by customer segment.",
+    "complexity": "medium",
+    "category": "Customer Analytics",
+    "expected_tables": ["customer_segments", "customer_segment_memberships", "orders"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "AVG(orders.total_amount) grouped by segment name",
+    "reference_sql": "SELECT cs.segment_name, COUNT(DISTINCT o.order_id) AS total_orders, ROUND(AVG(o.total_amount), 2) AS average_order_value FROM customer_segments cs JOIN customer_segment_memberships csm ON cs.segment_id = csm.segment_id JOIN orders o ON csm.customer_id = o.customer_id GROUP BY cs.segment_name ORDER BY average_order_value DESC;"
+  },
+  {
+    "id": "BM-06",
+    "question": "Find products with high ratings (average >= 4.5) and low sales volume (less than 10 units).",
+    "complexity": "complex",
+    "category": "Catalog Performance",
+    "expected_tables": ["products", "product_reviews", "order_items"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "HAVING filter on AVG(rating) >= 4.5 and COALESCE(SUM(quantity), 0) < 10",
+    "reference_sql": "SELECT p.product_id, p.title, ROUND(AVG(pr.rating), 2) AS avg_rating, COUNT(DISTINCT pr.review_id) AS review_count, COALESCE(SUM(oi.quantity), 0) AS total_units_sold FROM products p JOIN product_reviews pr ON p.product_id = pr.product_id LEFT JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.product_id, p.title HAVING avg_rating >= 4.5 AND total_units_sold < 10 ORDER BY avg_rating DESC, total_units_sold ASC LIMIT 20;"
+  },
+  {
+    "id": "BM-07",
+    "question": "Identify customers with multiple returned orders.",
+    "complexity": "medium",
+    "category": "Returns",
+    "expected_tables": ["customers", "returns"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "COUNT(return_id) grouped by customer, filtered with HAVING return_count > 1",
+    "reference_sql": "SELECT c.customer_id, c.first_name, c.last_name, c.email, COUNT(r.return_id) AS returned_order_count FROM customers c JOIN returns r ON c.customer_id = r.customer_id GROUP BY c.customer_id, c.first_name, c.last_name, c.email HAVING returned_order_count > 1 ORDER BY returned_order_count DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-08",
+    "question": "Calculate the percentage of orders delivered late according to carrier estimates.",
+    "complexity": "medium",
+    "category": "Shipping & Logistics",
+    "expected_tables": ["shipments"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Conditional percentage: (COUNT(delivered_at > estimated_delivery) / COUNT(*)) * 100",
+    "reference_sql": "SELECT COUNT(*) AS total_shipments, SUM(CASE WHEN delivered_at > estimated_delivery THEN 1 ELSE 0 END) AS late_shipments, ROUND(100.0 * SUM(CASE WHEN delivered_at > estimated_delivery THEN 1 ELSE 0 END) / COUNT(*), 2) AS late_delivery_percentage FROM shipments WHERE shipment_status = 'delivered' AND delivered_at IS NOT NULL AND estimated_delivery IS NOT NULL;"
+  },
+  {
+    "id": "BM-09",
+    "question": "Find abandoned shopping carts containing valuable products.",
+    "complexity": "medium",
+    "category": "Checkout & Abandonment",
+    "expected_tables": ["carts", "cart_items", "products", "customers"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(products.base_price * cart_items.quantity) for abandoned carts",
+    "reference_sql": "SELECT c.cart_id, cu.customer_id, cu.email, COUNT(ci.cart_item_id) AS items_in_cart, ROUND(SUM(p.base_price * ci.quantity), 2) AS estimated_cart_value FROM carts c JOIN customers cu ON c.customer_id = cu.customer_id JOIN cart_items ci ON c.cart_id = ci.cart_id JOIN products p ON ci.product_id = p.product_id WHERE c.status = 'abandoned' GROUP BY c.cart_id, cu.customer_id, cu.email HAVING estimated_cart_value > 100.00 ORDER BY estimated_cart_value DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-10",
+    "question": "Compare marketplace seller performance across product categories.",
+    "complexity": "complex",
+    "category": "Marketplace",
+    "expected_tables": ["categories", "order_items", "products"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Total sales volume and revenue per category breakdown",
+    "reference_sql": "SELECT cat.category_name, COUNT(DISTINCT oi.seller_id) AS active_sellers, COUNT(oi.order_item_id) AS items_sold, ROUND(SUM(oi.line_total), 2) AS category_revenue FROM categories cat JOIN products p ON cat.category_id = p.category_id JOIN order_items oi ON p.product_id = oi.product_id GROUP BY cat.category_name ORDER BY category_revenue DESC;"
+  },
+  {
+    "id": "BM-11",
+    "question": "Calculate inventory turnover and reserved stock ratio across warehouses.",
+    "complexity": "medium",
+    "category": "Inventory Management",
+    "expected_tables": ["warehouses", "inventory"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(stock_quantity), SUM(reserved_quantity), and reserved percentage per warehouse",
+    "reference_sql": "SELECT w.warehouse_code, w.warehouse_name, SUM(i.stock_quantity) AS total_on_hand, SUM(i.reserved_quantity) AS total_reserved, ROUND(100.0 * SUM(i.reserved_quantity) / NULLIF(SUM(i.stock_quantity), 0), 2) AS reservation_rate_pct FROM warehouses w JOIN inventory i ON w.warehouse_id = i.warehouse_id GROUP BY w.warehouse_code, w.warehouse_name ORDER BY total_on_hand DESC;"
+  },
+  {
+    "id": "BM-12",
+    "question": "Find products with stock shortages (on hand below reorder point) and recent order demand.",
+    "complexity": "complex",
+    "category": "Supply Chain",
+    "expected_tables": ["products", "inventory", "order_items"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Inventory on hand < reorder_point joined with sum of units ordered",
+    "reference_sql": "SELECT p.product_id, p.title, SUM(i.stock_quantity) AS current_stock, MIN(i.reorder_point) AS reorder_threshold, SUM(oi.quantity) AS units_sold FROM products p JOIN inventory i ON p.product_id = i.product_id JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.product_id, p.title HAVING current_stock < reorder_threshold AND units_sold > 0 ORDER BY current_stock ASC LIMIT 20;"
+  },
+  {
+    "id": "BM-13",
+    "question": "Calculate coupon redemption rates and total discounts surrendered.",
+    "complexity": "medium",
+    "category": "Marketing & Promotions",
+    "expected_tables": ["coupons", "coupon_redemptions"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "COUNT(redemption_id) and SUM(discount_applied) per coupon code",
+    "reference_sql": "SELECT c.code, c.discount_type, c.discount_val, COUNT(cr.redemption_id) AS total_redemptions, ROUND(SUM(cr.discount_applied), 2) AS total_discount_granted FROM coupons c LEFT JOIN coupon_redemptions cr ON c.coupon_id = cr.coupon_id GROUP BY c.code, c.discount_type, c.discount_val ORDER BY total_redemptions DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-14",
+    "question": "Analyze conversion rates and cost per click by marketing campaign.",
+    "complexity": "complex",
+    "category": "Advertising",
+    "expected_tables": ["campaigns", "ad_impressions", "ad_clicks"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Click-through rate (clicks / impressions) and total click spend per campaign",
+    "reference_sql": "SELECT c.campaign_name, c.channel, COUNT(DISTINCT ai.impression_id) AS impressions, COUNT(DISTINCT ac.click_id) AS clicks, ROUND(100.0 * COUNT(DISTINCT ac.click_id) / NULLIF(COUNT(DISTINCT ai.impression_id), 0), 2) AS click_through_rate_pct, ROUND(SUM(ac.cost_per_click), 2) AS total_click_spend FROM campaigns c LEFT JOIN ad_impressions ai ON c.campaign_id = ai.campaign_id LEFT JOIN ad_clicks ac ON c.campaign_id = ac.campaign_id GROUP BY c.campaign_name, c.channel ORDER BY impressions DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-15",
+    "question": "Compare campaign advertising spend with attributed product revenue.",
+    "complexity": "complex",
+    "category": "Marketing ROI",
+    "expected_tables": ["campaigns", "ad_impressions", "order_items"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Campaign spend vs attributed product revenue with ROI calculation",
+    "reference_sql": "SELECT c.campaign_id, c.campaign_name, c.spend AS advertising_spend, ROUND(SUM(oi.line_total), 2) AS product_gross_revenue, ROUND((SUM(oi.line_total) - c.spend) / NULLIF(c.spend, 0), 2) AS estimated_roas FROM campaigns c JOIN ad_impressions ai ON c.campaign_id = ai.campaign_id JOIN order_items oi ON ai.product_id = oi.product_id GROUP BY c.campaign_id, c.campaign_name, c.spend ORDER BY estimated_roas DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-16",
+    "question": "Find customers with repeated failed payment attempts.",
+    "complexity": "medium",
+    "category": "Payments & Risk",
+    "expected_tables": ["customers", "orders", "payments"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "COUNT(payment_id) where status = 'failed' grouped by customer",
+    "reference_sql": "SELECT c.customer_id, c.email, COUNT(p.payment_id) AS failed_payment_attempts, ROUND(SUM(p.amount), 2) AS attempted_failed_volume FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN payments p ON o.order_id = p.order_id WHERE p.payment_status = 'failed' GROUP BY c.customer_id, c.email HAVING failed_payment_attempts >= 1 ORDER BY failed_payment_attempts DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-17",
+    "question": "Analyze return volumes and refund amounts by product category.",
+    "complexity": "complex",
+    "category": "Returns & Catalog",
+    "expected_tables": ["categories", "products", "order_items", "return_items"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "COUNT(return_item_id) and SUM(refund_item_amount) grouped by category",
+    "reference_sql": "SELECT cat.category_name, COUNT(ri.return_item_id) AS returned_items_count, ROUND(SUM(ri.refund_item_amount), 2) AS total_refunded_amount FROM categories cat JOIN products p ON cat.category_id = p.category_id JOIN order_items oi ON p.product_id = oi.product_id JOIN return_items ri ON oi.order_item_id = ri.order_item_id GROUP BY cat.category_name ORDER BY total_refunded_amount DESC;"
+  },
+  {
+    "id": "BM-18",
+    "question": "Compare average shipping costs and delivery duration across logistics carriers.",
+    "complexity": "medium",
+    "category": "Fulfillment & Carriers",
+    "expected_tables": ["shipping_carriers", "shipments"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "AVG(shipping_cost) and shipment count per carrier",
+    "reference_sql": "SELECT sc.carrier_name, sc.service_tier, COUNT(s.shipment_id) AS total_packages_shipped, ROUND(AVG(s.shipping_cost), 2) AS average_shipping_cost, ROUND(SUM(s.shipping_cost), 2) AS total_carrier_spend FROM shipping_carriers sc JOIN shipments s ON sc.carrier_id = s.carrier_id GROUP BY sc.carrier_name, sc.service_tier ORDER BY total_packages_shipped DESC;"
+  },
+  {
+    "id": "BM-19",
+    "question": "Calculate customer repeat-purchase rates.",
+    "complexity": "complex",
+    "category": "Customer Analytics",
+    "expected_tables": ["customers", "orders"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Proportion of customers with count(order_id) >= 2",
+    "reference_sql": "SELECT COUNT(DISTINCT customer_id) AS total_ordering_customers, SUM(CASE WHEN order_count >= 2 THEN 1 ELSE 0 END) AS repeat_buyers, ROUND(100.0 * SUM(CASE WHEN order_count >= 2 THEN 1 ELSE 0 END) / COUNT(DISTINCT customer_id), 2) AS repeat_buyer_percentage FROM (SELECT customer_id, COUNT(order_id) AS order_count FROM orders WHERE order_status = 'completed' GROUP BY customer_id);"
+  },
+  {
+    "id": "BM-20",
+    "question": "Analyze recurring subscription statuses and monthly recurring revenue (MRR).",
+    "complexity": "medium",
+    "category": "Subscriptions",
+    "expected_tables": ["subscriptions"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(price_per_cycle) grouped by subscription status",
+    "reference_sql": "SELECT status, COUNT(subscription_id) AS subscriber_count, ROUND(SUM(price_per_cycle), 2) AS total_monthly_run_rate FROM subscriptions GROUP BY status ORDER BY subscriber_count DESC;"
+  },
+  {
+    "id": "BM-21",
+    "question": "Analyze customer support ticket resolution times by problem category.",
+    "complexity": "medium",
+    "category": "Customer Support",
+    "expected_tables": ["support_tickets"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "AVG(resolution_time_hours) and COUNT(ticket_id) grouped by category",
+    "reference_sql": "SELECT category, priority, COUNT(ticket_id) AS ticket_volume, ROUND(AVG(resolution_time_hours), 2) AS avg_resolution_hours, MIN(resolution_time_hours) AS fastest_resolution, MAX(resolution_time_hours) AS slowest_resolution FROM support_tickets WHERE status = 'resolved' GROUP BY category, priority ORDER BY avg_resolution_hours DESC;"
+  },
+  {
+    "id": "BM-22",
+    "question": "Calculate marketplace seller commission deductions and net payout obligations.",
+    "complexity": "medium",
+    "category": "Marketplace Finance",
+    "expected_tables": ["seller_payouts"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Monthly SUM(gross_sales), SUM(commission_deducted), and SUM(net_payout)",
+    "reference_sql": "SELECT strftime('%Y-%m', payout_date) AS payout_month, COUNT(payout_id) AS total_disbursements, ROUND(SUM(gross_sales), 2) AS aggregate_gross_sales, ROUND(SUM(commission_deducted), 2) AS total_platform_commission, ROUND(SUM(net_payout), 2) AS total_seller_disbursed FROM seller_payouts WHERE payout_status = 'completed' GROUP BY payout_month ORDER BY payout_month;"
+  },
+  {
+    "id": "BM-23",
+    "question": "Identify orders with high refund-to-order ratio.",
+    "complexity": "complex",
+    "category": "Fraud & Risk",
+    "expected_tables": ["orders", "refunds"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(refund_amount) / total_amount per order",
+    "reference_sql": "SELECT o.order_id, o.order_number, o.total_amount, ROUND(SUM(r.refund_amount), 2) AS refunded_sum, ROUND(100.0 * SUM(r.refund_amount) / o.total_amount, 2) AS refund_ratio_pct FROM orders o JOIN refunds r ON o.order_id = r.order_id WHERE r.refund_status = 'completed' GROUP BY o.order_id, o.order_number, o.total_amount HAVING refund_ratio_pct >= 90.0 ORDER BY refunded_sum DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-24",
+    "question": "Calculate daily orders and net revenue trends from daily sales metrics.",
+    "complexity": "simple",
+    "category": "Executive Reporting",
+    "expected_tables": ["daily_sales_metrics"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Ordering of daily sales metrics with 7-day rolling aggregates",
+    "reference_sql": "SELECT metric_date, total_orders, gross_merchandise_value, total_refunds, net_sales, new_customers_count FROM daily_sales_metrics ORDER BY metric_date DESC LIMIT 30;"
+  },
+  {
+    "id": "BM-25",
+    "question": "Find top-selling product variants by revenue contribution.",
+    "complexity": "medium",
+    "category": "Product Variants",
+    "expected_tables": ["products", "product_variants", "order_items"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(order_items.line_total) grouped by variant",
+    "reference_sql": "SELECT p.title AS product_name, pv.variant_name, pv.variant_sku, COUNT(oi.order_item_id) AS order_occurrences, SUM(oi.quantity) AS units_sold, ROUND(SUM(oi.line_total), 2) AS variant_revenue FROM product_variants pv JOIN products p ON pv.product_id = p.product_id JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.title, pv.variant_name, pv.variant_sku ORDER BY variant_revenue DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-26",
+    "question": "Compare warehouse storage utilization against capacity.",
+    "complexity": "simple",
+    "category": "Warehousing",
+    "expected_tables": ["warehouses", "inventory"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(stock_quantity) / capacity_units per warehouse",
+    "reference_sql": "SELECT w.warehouse_code, w.warehouse_name, w.capacity_units, SUM(i.stock_quantity) AS current_inventory, ROUND(100.0 * SUM(i.stock_quantity) / w.capacity_units, 2) AS capacity_utilization_pct FROM warehouses w JOIN inventory i ON w.warehouse_id = i.warehouse_id GROUP BY w.warehouse_code, w.warehouse_name, w.capacity_units ORDER BY capacity_utilization_pct DESC;"
+  },
+  {
+    "id": "BM-27",
+    "question": "Identify brands with the highest customer review ratings (minimum 50 reviews).",
+    "complexity": "medium",
+    "category": "Brand Analytics",
+    "expected_tables": ["brands", "products", "product_reviews"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "AVG(rating) grouped by brand having count >= 50",
+    "reference_sql": "SELECT b.brand_name, b.country_of_origin, COUNT(pr.review_id) AS total_reviews, ROUND(AVG(pr.rating), 2) AS average_rating FROM brands b JOIN products p ON b.brand_id = p.brand_id JOIN product_reviews pr ON p.product_id = pr.product_id GROUP BY b.brand_name, b.country_of_origin HAVING total_reviews >= 50 ORDER BY average_rating DESC, total_reviews DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-28",
+    "question": "Analyze order status transitions and fulfillment completion rate.",
+    "complexity": "simple",
+    "category": "Fulfillment Operations",
+    "expected_tables": ["orders"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Order count and percentage grouped by order_status",
+    "reference_sql": "SELECT order_status, COUNT(order_id) AS total_orders, ROUND(100.0 * COUNT(order_id) / (SELECT COUNT(*) FROM orders), 2) AS status_percentage FROM orders GROUP BY order_status ORDER BY total_orders DESC;"
+  },
+  {
+    "id": "BM-29",
+    "question": "Calculate customer lifetime value (CLV) defined as total completed spend minus refunds.",
+    "complexity": "complex",
+    "category": "Customer Valuation",
+    "expected_tables": ["customers", "orders", "refunds"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "SUM(orders.total_amount) - COALESCE(SUM(refunds.refund_amount), 0) per customer",
+    "reference_sql": "SELECT c.customer_id, c.first_name, c.last_name, c.email, COUNT(DISTINCT o.order_id) AS completed_orders, ROUND(SUM(DISTINCT o.total_amount), 2) AS gross_spend, ROUND(COALESCE(SUM(r.refund_amount), 0), 2) AS total_refunded, ROUND(SUM(DISTINCT o.total_amount) - COALESCE(SUM(r.refund_amount), 0), 2) AS customer_lifetime_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id LEFT JOIN refunds r ON o.order_id = r.order_id WHERE o.order_status = 'completed' GROUP BY c.customer_id, c.first_name, c.last_name, c.email ORDER BY customer_lifetime_value DESC LIMIT 20;"
+  },
+  {
+    "id": "BM-30",
+    "question": "Execute multi-domain reconciliation combining customers, orders, order items, products, sellers, payments, and returns.",
+    "complexity": "complex",
+    "category": "Multi-Domain Unified Join",
+    "expected_tables": ["customers", "orders", "order_items", "products", "sellers", "payments", "returns"],
+    "requires_cross_db": false,
+    "aggregation_semantics": "Full relational join joining 7 core tables across customer, order, marketplace, and return domains",
+    "reference_sql": "SELECT o.order_number, c.email AS customer_email, p.title AS product_title, s.seller_name, oi.quantity, oi.unit_price, oi.line_total, pay.payment_status, ret.return_reason FROM orders o JOIN customers c ON o.customer_id = c.customer_id JOIN order_items oi ON o.order_id = oi.order_id JOIN products p ON oi.product_id = p.product_id JOIN sellers s ON oi.seller_id = s.seller_id JOIN payments pay ON o.order_id = pay.order_id LEFT JOIN returns ret ON o.order_id = ret.order_id WHERE o.order_status = 'completed' LIMIT 20;"
+  },
+  {
+    "id": "BM-31",
+    "question": "Cross-Database: Compare monthly ecommerce order revenue with corporate finance ledger recognized revenue.",
+    "complexity": "cross-database",
+    "category": "Federation & Cross-DB",
+    "expected_tables": ["ecommerce.orders", "finance.ledger_monthly_revenue"],
+    "requires_cross_db": true,
+    "aggregation_semantics": "Subqueries independently executed on ecommerce and finance connections, joined in memory on month key",
+    "reference_sql": "-- Subquery 1 (ecommerce): SELECT strftime('%Y-%m', order_date) AS month, ROUND(SUM(total_amount), 2) AS gmv FROM orders GROUP BY month; -- Subquery 2 (finance): SELECT fiscal_month AS month, recognized_revenue FROM ledger_monthly_revenue;"
+  },
+  {
+    "id": "BM-32",
+    "question": "Cross-Database: Reconcile external marketing campaign expenditure with internal product sales revenue.",
+    "complexity": "cross-database",
+    "category": "Federation & Cross-DB",
+    "expected_tables": ["marketing.external_campaigns", "ecommerce.order_items"],
+    "requires_cross_db": true,
+    "aggregation_semantics": "Subqueries independently executed on marketing and ecommerce connections, joined on campaign_id",
+    "reference_sql": "-- Subquery 1 (marketing): SELECT campaign_id, spend FROM external_campaigns; -- Subquery 2 (ecommerce): SELECT campaign_id, ROUND(SUM(line_total), 2) AS attributed_sales FROM order_items oi JOIN ad_impressions ai ON oi.product_id = ai.product_id GROUP BY campaign_id;"
+  }
+]

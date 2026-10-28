@@ -1,6 +1,15 @@
 """
 TESHQ Subscription API Client
-Handles communication with the TESHQ subscription API endpoint.
+Handles communication with the TESHQ subscription API endpoints.
+
+Production-grade features:
+- Connection pooling & automated retries
+- Pydantic input validation
+- Context manager support for resource cleanup
+- Comprehensive error handling with status mapping
+- Structured logging
+- Request/response size limits
+- Rate limiting awareness
 """
 
 import json
@@ -28,6 +37,21 @@ class SubscriptionStatus(str, Enum):
     INVALID_INPUT = "INVALID_INPUT"
     DISPOSABLE_EMAIL = "DISPOSABLE_EMAIL"
     PERMANENTLY_DELETED = "PERMANENTLY_DELETED"
+    CLIENT_ERROR = "CLIENT_ERROR"
+    SERVER_ERROR = "SERVER_ERROR"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    NOT_FOUND = "NOT_FOUND"
+    UNAUTHORIZED = "UNAUTHORIZED"
+
+
+class UnsubscribeStatus(str, Enum):
+    """Enumeration of possible unsubscribe statuses"""
+
+    SUCCESS = "SUCCESS"
+    EMAIL_NOT_FOUND = "EMAIL_NOT_FOUND"
+    ALREADY_UNSUBSCRIBED = "ALREADY_UNSUBSCRIBED"
+    RATE_LIMITED = "RATE_LIMITED"
+    INVALID_INPUT = "INVALID_INPUT"
     CLIENT_ERROR = "CLIENT_ERROR"
     SERVER_ERROR = "SERVER_ERROR"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
@@ -73,6 +97,28 @@ class SubscriptionRequest(BaseModel):
     }
 
 
+class UnsubscribeRequest(BaseModel):
+    """Request model for unsubscription"""
+
+    email: EmailStr = Field(..., description="User's email address to unsubscribe")
+    cli_version: Optional[str] = Field(None, description="CLI version")
+    os_type: Optional[OSType] = Field(None, description="Operating system type")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        """Normalize email to lowercase and trim whitespace"""
+        return v.strip().lower()
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {"email": "shashank@example.com"}
+            ]
+        }
+    }
+
+
 class SubscriptionResponse(BaseModel):
     """Response model for successful subscription"""
 
@@ -81,6 +127,18 @@ class SubscriptionResponse(BaseModel):
     subscriber_id: Optional[str] = Field(
         default=None,
         validation_alias=AliasChoices("subscriber_id", "subscriberId", "id"),
+    )
+
+
+class UnsubscribeResponse(BaseModel):
+    """Response model for successful unsubscription"""
+
+    status: Optional[str] = None
+    message: Optional[str] = None
+    email: Optional[str] = None
+    unsubscribed_at: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("unsubscribed_at", "unsubscribedAt", "timestamp"),
     )
 
 
@@ -102,15 +160,30 @@ class SubscriptionResult(BaseModel):
     model_config = {"use_enum_values": True}
 
 
+class UnsubscribeResult(BaseModel):
+    """Result of an unsubscription attempt"""
+
+    status: UnsubscribeStatus
+    message: str
+    email: Optional[str] = None
+    unsubscribed_at: Optional[str] = None
+    details: Optional[dict] = None
+
+    model_config = {"use_enum_values": True}
+
+
 class SubscriberClient:
     """
     Client for interacting with the TESHQ subscription API.
 
-    Features:
+    Production-grade features:
     - Connection pooling & automated retries for transient HTTP errors
     - Input validation via Pydantic
     - Context manager support for deterministic resource cleanup
     - Configuration fallback priority: constructor -> ~/.teshq/config.yaml -> defaults
+    - Structured logging with correlation IDs
+    - Request/response validation
+    - Rate limiting awareness
     """
 
     DEFAULT_API_BASE_URL = "https://teshq-public-api.onrender.com"
@@ -133,11 +206,14 @@ class SubscriberClient:
         """
         try:
             from teshq.config.loader import get_config
+
             config = get_config()
         except ImportError:
             config = {}
 
-        self.api_base_url = (api_base_url or config.get("TESHQ_API_BASE_URL") or self.DEFAULT_API_BASE_URL).rstrip("/")
+        self.api_base_url = (
+            api_base_url or config.get("TESHQ_API_BASE_URL") or self.DEFAULT_API_BASE_URL
+        ).rstrip("/")
 
         if timeout is not None:
             self.timeout = timeout
@@ -150,6 +226,7 @@ class SubscriberClient:
             self.timeout = self.DEFAULT_TIMEOUT
 
         self.subscribe_endpoint = f"{self.api_base_url}/v1/subscribe"
+        self.unsubscribe_endpoint = f"{self.api_base_url}/v1/unsubscribe"
         self.cli_version = cli_version
         self.os_type = self._detect_os()
         self._session: Optional[requests.Session] = None
@@ -162,6 +239,7 @@ class SubscriberClient:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - ensures session is closed"""
         self.close()
+        return False  # Don't suppress exceptions
 
     def close(self):
         """Close the HTTP session and release resources"""
@@ -310,7 +388,89 @@ class SubscriberClient:
                 message=f"An unexpected error occurred: {str(e)}",
             )
 
-    def _handle_success_response(self, response: requests.Response, is_created: bool = False) -> SubscriptionResult:
+    def unsubscribe(self, email: str) -> UnsubscribeResult:
+        """
+        Unsubscribe a user from TESHQ updates.
+
+        Args:
+            email: User's email address to unsubscribe
+
+        Returns:
+            UnsubscribeResult with status and details
+        """
+        try:
+            request = UnsubscribeRequest(
+                email=email,
+                cli_version=self.cli_version,
+                os_type=self.os_type,
+            )
+        except Exception as e:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.INVALID_INPUT,
+                message=f"Invalid input: {str(e)}",
+                details={"validation_error": str(e)},
+            )
+
+        payload = {
+            "email": request.email,
+        }
+
+        if not self._check_payload_size(payload):
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.INVALID_INPUT,
+                message="Request payload exceeds maximum size of 2 KB",
+                details={"payload_size_error": "Payload too large"},
+            )
+
+        try:
+            response = self.session.post(
+                self.unsubscribe_endpoint,
+                json=payload,
+                timeout=self.timeout,
+            )
+
+            if response.status_code == 200:
+                return self._handle_unsubscribe_success_response(response)
+            elif response.status_code == 404:
+                return UnsubscribeResult(
+                    status=UnsubscribeStatus.EMAIL_NOT_FOUND,
+                    message="Email address not found in our subscription list.",
+                )
+            elif response.status_code == 503:
+                return UnsubscribeResult(
+                    status=UnsubscribeStatus.SERVICE_UNAVAILABLE,
+                    message="Unsubscribe service is temporarily unavailable. Please try again later.",
+                )
+            else:
+                return self._handle_unsubscribe_error_response(response)
+
+        except requests.exceptions.Timeout:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.CLIENT_ERROR,
+                message="Request timed out. The unsubscribe service may be temporarily unreachable.",
+            )
+
+        except requests.exceptions.ConnectionError:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.CLIENT_ERROR,
+                message="Could not connect to the unsubscribe service. Please check your internet connection.",
+            )
+
+        except requests.exceptions.RequestException as e:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.CLIENT_ERROR,
+                message=f"Network error occurred: {str(e)[:100]}",
+            )
+
+        except Exception as e:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.SERVER_ERROR,
+                message=f"An unexpected error occurred: {str(e)}",
+            )
+
+    def _handle_success_response(
+        self, response: requests.Response, is_created: bool = False
+    ) -> SubscriptionResult:
         """Handle successful API responses (200, 201)"""
         try:
             data = response.json() if response.content else {}
@@ -370,6 +530,64 @@ class SubscriberClient:
                 message=f"HTTP {response.status_code}: {response.text[:100]}",
             )
 
+    def _handle_unsubscribe_success_response(
+        self, response: requests.Response
+    ) -> UnsubscribeResult:
+        """Handle successful unsubscribe API responses (200)"""
+        try:
+            data = response.json() if response.content else {}
+            unsubscribe_response = UnsubscribeResponse(**data)
+
+            raw_status = (unsubscribe_response.status or "").upper()
+            if raw_status in ("ALREADY_UNSUBSCRIBED", "ALREADY_UNSUBSCRIBED"):
+                status = UnsubscribeStatus.ALREADY_UNSUBSCRIBED
+                default_msg = "You are already unsubscribed from our updates."
+            else:
+                status = UnsubscribeStatus.SUCCESS
+                default_msg = "Successfully unsubscribed from TESHQ updates."
+
+            return UnsubscribeResult(
+                status=status,
+                message=unsubscribe_response.message or default_msg,
+                email=unsubscribe_response.email,
+                unsubscribed_at=unsubscribe_response.unsubscribed_at,
+            )
+        except Exception as e:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.SERVER_ERROR,
+                message=f"Failed to parse response: {str(e)}",
+                details={"parse_error": str(e)},
+            )
+
+    def _handle_unsubscribe_error_response(
+        self, response: requests.Response
+    ) -> UnsubscribeResult:
+        """Handle error unsubscribe API responses with appropriate status code mapping"""
+        try:
+            data = response.json()
+            error_response = ErrorResponse(**data)
+            error_msg = error_response.error
+
+            status_map = {
+                400: UnsubscribeStatus.INVALID_INPUT,
+                404: UnsubscribeStatus.EMAIL_NOT_FOUND,
+                429: UnsubscribeStatus.RATE_LIMITED,
+                503: UnsubscribeStatus.SERVICE_UNAVAILABLE,
+            }
+
+            status = status_map.get(response.status_code, UnsubscribeStatus.SERVER_ERROR)
+
+            return UnsubscribeResult(
+                status=status,
+                message=error_msg,
+                details=error_response.details,
+            )
+        except Exception:
+            return UnsubscribeResult(
+                status=UnsubscribeStatus.SERVER_ERROR,
+                message=f"HTTP {response.status_code}: {response.text[:100]}",
+            )
+
     def _determine_400_status(self, error_msg: str) -> SubscriptionStatus:
         """Determine specific status for 400 errors based on error message"""
         error_lower = error_msg.lower()
@@ -382,3 +600,9 @@ def subscribe_user(name: str, email: str, cli_version: str = "1.0.0") -> Subscri
     """Convenience helper to subscribe a user"""
     with SubscriberClient(cli_version=cli_version) as client:
         return client.subscribe(name=name, email=email)
+
+
+def unsubscribe_user(email: str, cli_version: str = "1.0.0") -> UnsubscribeResult:
+    """Convenience helper to unsubscribe a user"""
+    with SubscriberClient(cli_version=cli_version) as client:
+        return client.unsubscribe(email=email)

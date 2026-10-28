@@ -7,13 +7,12 @@ and run smoke tests against local GGUF weights.
 
 import json
 import os
-import time
-from typing import Optional
+
 import typer
 from rich.panel import Panel
 
-from teshq.cli.ui import error, handle_error, print_header, status, success, tip, warning
-from teshq.cli.ui.theme import Colors, Icons, ROUNDED_BOX, console
+from teshq.cli.ui import error, handle_error, print_header, status, tip
+from teshq.cli.ui.theme import ROUNDED_BOX, Colors, Icons, console
 from teshq.config.loader import get_settings
 from teshq.core.hardware import detect_hardware
 from teshq.core.inference import InferenceConfig, InferenceRuntime
@@ -51,8 +50,9 @@ def local_status(
     try:
         # 1. Check if llama-cpp-python is installed
         try:
-            import llama_cpp
+            import llama_cpp  # noqa: F401
             llama_installed = True
+
         except ImportError:
             llama_installed = False
 
@@ -95,7 +95,10 @@ def local_status(
         if llama_installed:
             backend_badge = f"[bold {Colors.SUCCESS}]{Icons.check()} Installed & Available[/bold {Colors.SUCCESS}]"
         else:
-            backend_badge = f"[bold {Colors.WARNING}]{Icons.warn()} Not Installed (run: pip install teshq[local])[/bold {Colors.WARNING}]"
+            backend_badge = (
+                f"[bold {Colors.WARNING}]{Icons.warn()} Not Installed "
+                f"(run: pip install teshq\\[local])[/bold {Colors.WARNING}]"
+            )
 
         # Model Status
         if model_exists:
@@ -120,12 +123,17 @@ def local_status(
             else "CPU Only (No dedicated GPU detected)"
         )
 
+        ram_line = (
+            f"  • Memory:          [bold {Colors.TEXT_PRIMARY}]{hw.ram_total_gb:.1f} GB Total[/bold {Colors.TEXT_PRIMARY}] "
+            f"[dim]({hw.ram_available_gb:.1f} GB available)[/dim]"
+        )
+
         status_text = f"""[{Colors.TEXT_TERTIARY}]Engine (llama-cpp):[/{Colors.TEXT_TERTIARY}] {backend_badge}
 [{Colors.TEXT_TERTIARY}]Active Local Model:[/{Colors.TEXT_TERTIARY}] {model_badge}
 
 [{Colors.TEXT_TERTIARY}]Host Hardware:[/{Colors.TEXT_TERTIARY}]
   • CPU:             [bold {Colors.TEXT_PRIMARY}]{hw.cpu_cores} Cores[/bold {Colors.TEXT_PRIMARY}]
-  • Memory:          [bold {Colors.TEXT_PRIMARY}]{hw.ram_total_gb:.1f} GB Total[/bold {Colors.TEXT_PRIMARY}] [dim]({hw.ram_available_gb:.1f} GB available)[/dim]
+{ram_line}
   • Acceleration:    [bold {Colors.AI_ACCENT}]{gpu_desc}[/bold {Colors.AI_ACCENT}]
 
 [{Colors.TEXT_TERTIARY}]Hardware Recommendations:[/{Colors.TEXT_TERTIARY}]
@@ -146,13 +154,15 @@ def local_status(
 
         if not llama_installed:
             tip("To enable local GGUF models on this system:")
-            console.print(f"  [bold {Colors.PRIMARY}]pip install teshq[local][/bold {Colors.PRIMARY}]\n")
+            console.print(f"  [bold {Colors.PRIMARY}]pip install teshq\\[local][/bold {Colors.PRIMARY}]\n")
         elif not model_exists and installed_models:
             first_m = installed_models[0]
             tip(f"To configure your downloaded {first_m['filename']} model:")
-            console.print(
-                f"  [bold {Colors.PRIMARY}]teshq config --llm-provider local --local-model-path \"{first_m['path']}\"[/bold {Colors.PRIMARY}]\n"
+            cfg_cmd = (
+                f"teshq config --llm-provider local "
+                f"--local-model-path \"{first_m['path']}\""
             )
+            console.print(f"  [bold {Colors.PRIMARY}]{cfg_cmd}[/bold {Colors.PRIMARY}]\n")
 
     except typer.Exit:
         raise
@@ -187,9 +197,10 @@ def local_test(
     print_header("Local Backend Smoke Test", level=2)
 
     try:
-        import llama_cpp
+        import llama_cpp  # noqa: F401
     except ImportError:
-        error("llama-cpp-python is not installed. Run: pip install teshq[local]")
+
+        error("llama-cpp-python is not installed. Run: pip install teshq\\[local]")
         raise typer.Exit(1)
 
     s = get_settings()

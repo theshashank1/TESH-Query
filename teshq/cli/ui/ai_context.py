@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
+
 
 from teshq.cli.ui.theme import (
     Colors,

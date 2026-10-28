@@ -14,8 +14,8 @@ Design tenets:
   6.  Progressive disclosure — summaries first, details on demand
 """
 
-import os
 import sys
+
 from typing import List
 from rich import box
 from rich.console import Console

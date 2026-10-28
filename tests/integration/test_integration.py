@@ -6,19 +6,16 @@ No external DB allowed — SQLite only.
 """
 
 import sqlite3
-import tempfile
-from pathlib import Path
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from teshq.core.models import QueryPlan, SQLQuery
 from teshq.core.query import execute_sql_query
 from teshq.core.schema_graph import SchemaGraph
 from teshq.core.schema_pruner import prune_schema
 from teshq.core.sql_normalizer import normalize_sql
 from teshq.core.sql_validator import validate_sql
+
 
 
 # ---------------------------------------------------------------------------

@@ -5,34 +5,37 @@ This module provides standardized output formatting and data processing
 to ensure consistency between different interfaces.
 """
 
+import json
+import math
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
 import pandas as pd
-from tabulate import tabulate
 
 
 class OutputFormatter:
     """Handles consistent output formatting across all interfaces."""
-    
+
     @staticmethod
     def normalize_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Normalize query results to ensure consistency across all outputs.
-        
+
         This method:
         - Converts Decimal values to float for JSON serialization
         - Handles None/NULL values consistently
         - Ensures all values are properly serializable
-        
+
         Args:
             results: Raw query results from database
-            
+
         Returns:
             Normalized results suitable for any output format
         """
         if not results:
             return []
-            
+
         normalized = []
         for row in results:
             normalized_row = {}
@@ -46,48 +49,48 @@ class OutputFormatter:
                 else:
                     normalized_row[key] = value
             normalized.append(normalized_row)
-        
+
         return normalized
-    
+
     @staticmethod
     def to_dataframe(results: List[Dict[str, Any]], normalize: bool = True) -> pd.DataFrame:
         """
         Convert query results to pandas DataFrame.
-        
+
         Args:
             results: Query results
             normalize: Whether to normalize the data first
-            
+
         Returns:
             pandas DataFrame
         """
         if normalize:
             results = OutputFormatter.normalize_results(results)
-        
+
         if not results:
             return pd.DataFrame()
-            
+
         return pd.DataFrame(results)
-    
+
     @staticmethod
     def format_for_display(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Format results specifically for terminal/UI display.
-        
+
         This handles special display formatting like:
         - Decimal formatting for money/numbers
         - NULL value display
         - String length truncation if needed
-        
+
         Args:
             results: Query results
-            
+
         Returns:
             Display-formatted results
         """
         if not results:
             return []
-            
+
         display_results = []
         for row in results:
             display_row = {}
@@ -101,19 +104,19 @@ class OutputFormatter:
                 else:
                     display_row[key] = value
             display_results.append(display_row)
-        
+
         return display_results
-    
+
     @staticmethod
     def print_results_table(
-        results: List[Dict[str, Any]], 
+        results: List[Dict[str, Any]],
         title: str = "Results",
         show_count: bool = True,
         tablefmt: str = "grid"
     ) -> None:
         """
         Print results in a formatted table using Modern UI.
-        
+
         Args:
             results: Query results
             title: Table title
@@ -121,45 +124,39 @@ class OutputFormatter:
             tablefmt: Table format (ignored, kept for compatibility)
         """
         from teshq.cli.ui import warning, print_results_table
-        
+
         if not results:
             count_msg = " (0 records)" if show_count else ""
             warning(f"{title}{count_msg}: No data found.")
             return
-        
+
         # Format for display
         display_results = OutputFormatter.format_for_display(results)
-        
+
         headers = list(display_results[0].keys())
         rows = [[row[h] for h in headers] for row in display_results]
-        
+
         summary = f"{len(results)} record{'s' if len(results) != 1 else ''}" if show_count else ""
         print_results_table(headers=headers, rows=rows, title=title, summary=summary)
 
 
-
-
-import json
-import math
-from pathlib import Path
-
-
 class QueryResult:
+
     """
     Standardized query result container that provides consistent access
     to query results across all interfaces (CLI, API, Data Engineering, ML).
     """
-    
+
     def __init__(
-        self, 
-        results: List[Dict[str, Any]], 
-        query: str, 
+        self,
+        results: List[Dict[str, Any]],
+        query: str,
         parameters: Optional[Dict[str, Any]] = None,
         natural_language_query: Optional[str] = None
     ):
         """
         Initialize query result container.
-        
+
         Args:
             results: Raw query results from database
             query: SQL query that was executed
@@ -170,18 +167,18 @@ class QueryResult:
         self.query = query
         self.parameters = parameters or {}
         self.natural_language_query = natural_language_query
-        
+
         # Normalize results once for consistency
         self._normalized_results = OutputFormatter.normalize_results(results)
         self._dataframe = None
         self._arrow_table = None
         self._polars_df = None
-    
+
     @property
     def results(self) -> List[Dict[str, Any]]:
         """Get normalized results suitable for API/JSON output."""
         return self._normalized_results
-    
+
     @property
     def dataframe(self) -> pd.DataFrame:
         """Get results as pandas DataFrame (cached)."""
@@ -234,34 +231,34 @@ class QueryResult:
                 except Exception:
                     self._polars_df = pl.from_dicts(self._normalized_results)
         return self._polars_df
-    
+
     @property
     def display_results(self) -> List[Dict[str, Any]]:
         """Get results formatted for display."""
         return OutputFormatter.format_for_display(self.raw_results)
-    
+
     def print_table(self, title: str = "Results", show_count: bool = True) -> None:
         """Print results in a formatted table."""
         OutputFormatter.print_results_table(self._normalized_results, title, show_count)
-    
+
     def print_query_table(self) -> None:
         """Print query results nicely using modern UI."""
         from teshq.cli.ui import warning, print_results_table, print_header
-        
+
         if self.natural_language_query:
             print_header(f"Query: \"{self.natural_language_query}\"", level=2)
-            
+
         if not self._normalized_results:
             warning("No data found for this query.")
             return
-        
+
         display_results = self.display_results
         headers = list(display_results[0].keys())
         rows = [[row[h] for h in headers] for row in display_results]
-        
+
         print_results_table(
-            headers=headers, 
-            rows=rows, 
+            headers=headers,
+            rows=rows,
             title="Results",
             summary=f"Found {len(self._normalized_results):,} record(s)"
         )
@@ -384,10 +381,10 @@ class QueryResult:
     def to_dict(self, include_sql: bool = False) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Convert to dictionary format for API responses.
-        
+
         Args:
             include_sql: Whether to include SQL query information
-            
+
         Returns:
             Results as list of dicts, or complete info dict if include_sql=True
         """
@@ -400,11 +397,11 @@ class QueryResult:
             }
         else:
             return self.results
-    
+
     def __len__(self) -> int:
         """Return number of result rows."""
         return len(self._normalized_results)
-    
+
     def __bool__(self) -> bool:
         """Return True if there are results."""
         return bool(self._normalized_results)

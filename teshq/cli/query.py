@@ -3,31 +3,35 @@ import warnings
 from pathlib import Path
 
 import pandas as pd
+import typer
+from sqlalchemy.exc import SQLAlchemyError
+
+from teshq.cli.logging import CLILogger
+from teshq.cli.ui import (
+    Colors, error, handle_error, info, print_metrics,
+    print_sql_card, status, success, tip, warning,
+)
+from teshq.config.loader import get_database_url as get_db_url
+from teshq.config.paths import get_schema_path
+from teshq.core.engine import TeshEngine
+from teshq.core.exceptions import TeshqConfigurationError
+from teshq.core.validation import CLIValidator, ValidationError
+from teshq.telemetry.events import track_command, track_error, track_feature
+from teshq.utils.output import QueryResult
+from teshq.utils.save import resolve_output_path, save_to_csv, save_to_excel, save_to_sqlite
 
 # Suppress annoying Pydantic/LangChain warnings that interfere with the rich console UI
 warnings.filterwarnings("ignore", category=UserWarning)
 
-import typer
-from sqlalchemy.exc import SQLAlchemyError
-
-from teshq.config.paths import get_schema_path
-from teshq.core.engine import TeshEngine
-from teshq.cli.logging import CLILogger
-from teshq.config.loader import get_database_url as get_db_url
-from teshq.utils.output import QueryResult
-from teshq.utils.save import save_to_csv, save_to_excel, save_to_sqlite, resolve_output_path
-from teshq.telemetry.events import track_command, track_error, track_feature
-from teshq.cli.ui import Colors, error, handle_error, info, print_divider, print_metrics, print_sql_card, status, success, tip, warning
-from teshq.core.exceptions import TeshqConfigurationError
-from teshq.core.validation import CLIValidator, ValidationError
-
 app = typer.Typer()
+
 
 # Schema path constants - resolved lazily at runtime by TeshEngine
 # (kept for --schema-preview feature only)
 def _get_schema_path(filename: str):
     """Lazily resolve schema path to avoid import-time failures."""
     return get_schema_path(filename)
+
 
 def save_results(
     df: pd.DataFrame,
@@ -136,6 +140,11 @@ def process_nl_query(
         help="Force cloud model inference (Gemini or Azure OpenAI)",
         rich_help_panel=PANEL_ROUTING,
     ),
+    connection: str = typer.Option(
+        None, "--connection", "-c", metavar="NAME",
+        help="Target named database connection to execute against",
+        rich_help_panel=PANEL_EXECUTION,
+    ),
     verbose: bool = typer.Option(
         None, "--verbose",
         help="Write detailed logs to ~/.teshq/logs/",
@@ -214,7 +223,7 @@ def process_nl_query(
         raise typer.Exit(code=0)
 
     start_time = time.time()
-    
+
     try:
         # Log command start
         if logging_active:
@@ -227,7 +236,7 @@ def process_nl_query(
                 "cloud": cloud,
                 "verbose": verbose
             })
-        
+
         # Validate natural language query
         is_valid, validation_message = CLIValidator.validate_natural_language_query(natural_language_request)
         if not is_valid:
@@ -259,9 +268,9 @@ def process_nl_query(
                     )
                     raise typer.Exit(1)
 
-        with status("Initializing TESH Engine...", "Engine ready"):
+        with status("Initializing TESH Engine..."):
             db_url_val = get_db_url()
-            engine = TeshEngine(db_url=db_url_val, provider=provider_override)
+            engine = TeshEngine(db_url=db_url_val, provider=provider_override, connection_name=connection)
 
         dialect_name = getattr(engine, "_dialect", "SQL") or "SQL"
 
@@ -269,43 +278,71 @@ def process_nl_query(
         if confirm_run and not dry_run:
             with status("Synthesizing SQL query...") as s:
                 def _prog_dry(idx, name, detail=None):
-                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]" + (f" [dim italic]({detail})[/dim italic]" if detail else "")
-                    if hasattr(s, "update"): s.update(msg)
-                engine_result = engine.query(natural_language_request, dry_run=True, on_progress=_prog_dry)
+                    detail_str = f" [dim italic]({detail})[/dim italic]" if detail else ""
+                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]{detail_str}"
+                    if hasattr(s, "update"):
+                        s.update(msg)
+                engine_result = engine.query(
+                    natural_language_request,
+                    connection=connection,
+                    dry_run=True,
+                    on_progress=_prog_dry,
+                )
             sql_query, parameters = engine_result.sql, engine_result.parameters
-            print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")
-            
+            print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="SQL")
+
             from rich.prompt import Confirm
             try:
-                should_run = Confirm.ask(f"[bold {Colors.WARNING}]Execute this query against your database?[/bold {Colors.WARNING}]", default=True)
+                confirm_prompt = (
+                    f"[bold {Colors.WARNING}]Execute this query against your database?[/bold {Colors.WARNING}]"
+                )
+                should_run = Confirm.ask(confirm_prompt, default=True)
             except KeyboardInterrupt:
                 warning("\nExecution cancelled.")
                 raise typer.Exit(code=0)
             if not should_run:
                 warning("Execution cancelled by user.")
                 raise typer.Exit(code=0)
-            
+
             with status("Executing query against database...") as s:
                 def _prog_exec(idx, name, detail=None):
-                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]" + (f" [dim italic]({detail})[/dim italic]" if detail else "")
-                    if hasattr(s, "update"): s.update(msg)
-                engine_result = engine.query(natural_language_request, dry_run=False, on_progress=_prog_exec)
+                    detail_str = f" [dim italic]({detail})[/dim italic]" if detail else ""
+                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]{detail_str}"
+                    if hasattr(s, "update"):
+                        s.update(msg)
+                engine_result = engine.query(
+                    natural_language_request,
+                    connection=connection,
+                    dry_run=False,
+                    on_progress=_prog_exec,
+                )
         else:
-            db_display = db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database"
+            db_display = connection or (db_url_val.split("@")[-1] if db_url_val and "@" in db_url_val else "database")
             status_msg = "Synthesizing SQL (dry-run)..." if dry_run else f"Processing query on {db_display}..."
             with status(status_msg) as s:
                 def _prog(idx, name, detail=None):
-                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]" + (f" [dim italic]({detail})[/dim italic]" if detail else "")
-                    if hasattr(s, "update"): s.update(msg)
-                engine_result = engine.query(natural_language_request, dry_run=dry_run, on_progress=_prog)
+                    detail_str = f" [dim italic]({detail})[/dim italic]" if detail else ""
+                    msg = f"[{Colors.PRIMARY}]{name}[/{Colors.PRIMARY}]{detail_str}"
+                    if hasattr(s, "update"):
+                        s.update(msg)
+                engine_result = engine.query(
+                    natural_language_request,
+                    connection=connection,
+                    dry_run=dry_run,
+                    on_progress=_prog,
+                )
 
             sql_query, parameters = engine_result.sql, engine_result.parameters
-            print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="Generated SQL Query")
+            print_sql_card(sql_query, dialect=dialect_name, parameters=parameters, title="SQL")
 
         if dry_run:
             success("SQL generated. Dry-run complete — query was NOT executed.")
             if explain and engine_result.plan:
-                info(f"📊 Explain:\n  Tables: {engine_result.plan.tables}\n  Filters: {engine_result.plan.filters}\n  SQL: {sql_query}\n  Parameters: {parameters}")
+                plan_info = (
+                    f"📊 Explain:\n  Tables: {engine_result.plan.tables}\n"
+                    f"  Filters: {engine_result.plan.filters}\n  SQL: {sql_query}\n  Parameters: {parameters}"
+                )
+                info(plan_info)
             raise typer.Exit(code=0)
 
         # Wrap Engine result in the UI QueryResult formatter
@@ -318,7 +355,7 @@ def process_nl_query(
 
         if explain:
             info(f"📊 Explain:\n  SQL: {sql_query}\n  Parameters: {parameters}")
-        
+
         # Use the unified output system for consistent display
         result.print_query_table()
 
@@ -369,8 +406,6 @@ def process_nl_query(
                     except Exception:
                         cli_logger.log_file_operation(f"Save {fmt_key.upper()}", display, False)
 
-        success("🎉 Query processed and result displayed.")
-        
         # Log successful completion
         if logging_active:
             duration = time.time() - start_time
@@ -416,11 +451,14 @@ def process_nl_query(
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type="ImportError")
-        
+
         handle_error(
             e,
             "Missing Dependencies",
-            suggest_action="To use the local GGUF backend, you must install the optional dependencies. Run: pip install teshq[local]"
+            suggest_action=(
+                "To use the local GGUF backend, you must install the optional dependencies. "
+                "Run: pip install teshq[local]"
+            ),
         )
         raise typer.Exit(1)
     except TeshqConfigurationError as e:
@@ -428,11 +466,11 @@ def process_nl_query(
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type="TeshqConfigurationError")
-            
+
         handle_error(
             e,
             "Configuration Error",
-            suggest_action="Ensure your DATABASE_URL and other required settings are properly configured."
+            suggest_action="Ensure your DATABASE_URL and other required settings are properly configured.",
         )
         raise typer.Exit(1)
     except typer.Exit:
@@ -445,7 +483,12 @@ def process_nl_query(
         if logging_active:
             duration = time.time() - start_time
             cli_logger.log_command_end(False, duration, error=str(e), error_type=type(e).__name__)
-        handle_error(e, "Query processing error", show_traceback=True, suggest_action="Please check your input and try again.")
+        handle_error(
+            e,
+            "Query processing error",
+            show_traceback=True,
+            suggest_action="Please check your input and try again.",
+        )
         raise typer.Exit(1)
     finally:
         # Cleanup logger

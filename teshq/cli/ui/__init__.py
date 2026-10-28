@@ -15,14 +15,12 @@ Single import surface for the "Obsidian Instrument" design system:
 
 from __future__ import annotations
 
-import sys
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List, Optional
+from typing import Generator, Optional
 
-from rich.panel import Panel
 from rich.rule import Rule
 from rich.status import Status
-from rich.text import Text
+
 
 from teshq.cli.ui.banner import (
     print_cognitive_step,
@@ -240,3 +238,82 @@ def handle_error(
 
 # Backward-compatible aliases
 print_sql = print_sql_card
+
+__all__ = [
+    # Banner
+    "print_cognitive_step",
+    "print_hero_banner",
+    "print_hud",
+    "print_suggested_prompts",
+    "render_hero_banner",
+    "render_hud",
+    # Cards
+    "print_error_card",
+    "print_metrics",
+    "print_sql_card",
+    "print_success_card",
+    "render_error_card",
+    "render_metrics_panel",
+    "render_sql_card",
+    # Tables
+    "print_results_table",
+    "render_results_table",
+    # Blocks
+    "CommandBlock",
+    "StageTracker",
+    "render_command_block",
+    "render_telemetry_strip",
+    "print_telemetry_strip",
+    "render_action_hints",
+    "render_stage_line",
+    "print_stages_progress",
+    "QUERY_STAGES",
+    "DRY_RUN_STAGES",
+    "INTROSPECT_STAGES",
+    # Status bar
+    "render_status_bar",
+    "print_status_bar",
+    # Palette
+    "render_command_list",
+    "render_help_sheet",
+    "print_help_sheet",
+    "fuzzy_match",
+    "SLASH_COMMANDS",
+    # AI Context
+    "render_ai_explanation",
+    "print_ai_explanation",
+    "render_table_suggestion",
+    "render_error_context_hint",
+    # Theme
+    "Colors",
+    "Icons",
+    "Typography",
+    "Spacing",
+    "ROUNDED_BOX",
+    "SIMPLE_BOX",
+    "HEAVY_BOX",
+    "GRADIENT_AURORA",
+    "GRADIENT_NEON",
+    "GRADIENT_OCEAN",
+    "GRADIENT_SUNSET",
+    "console",
+    "err_console",
+    "badge",
+    "dim_label",
+    "status_dot",
+    "progress_bar",
+    "gradient_text",
+    "latency_color",
+    # Helpers
+    "print_header",
+    "print_footer",
+    "print_divider",
+    "status",
+    "error",
+    "warning",
+    "tip",
+    "success",
+    "info",
+    "handle_error",
+    "print_sql",
+]

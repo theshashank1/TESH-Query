@@ -6,24 +6,17 @@ Tests the new helpers in teshq.utils.save:
   - resolve_output_path()
   - get_default_output_dir()
 """
-import os
 import re
-import tempfile
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from teshq.utils.save import (
     generate_query_slug,
     get_default_output_dir,
     resolve_output_path,
     save_to_csv,
-    save_to_excel,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  generate_query_slug
@@ -200,3 +193,23 @@ class TestSaveToOutputDir:
         save_to_csv(df, str(resolved))
         assert resolved.exists()
         assert "my_export.csv" in str(resolved)
+
+    def test_saved_csv_has_restricted_permissions(self, tmp_path, monkeypatch):
+        import os
+        monkeypatch.chdir(tmp_path)
+        df = pd.DataFrame({"col": [1, 2, 3]})
+        resolved, _ = resolve_output_path(query_text="secure export", ext="csv")
+        save_to_csv(df, str(resolved))
+        assert resolved.exists()
+        # On POSIX systems, check owner-only read/write
+        if os.name == "posix":
+            mode = resolved.stat().st_mode & 0o777
+            assert mode == 0o600
+
+    def test_save_to_sqlite_table_name_validation(self, tmp_path):
+        import pytest
+        from teshq.utils.save import save_to_sqlite
+        df = pd.DataFrame({"id": [1]})
+        db_path = str(tmp_path / "out.sqlite")
+        with pytest.raises(ValueError, match="Unsafe table name"):
+            save_to_sqlite(df, db_path=db_path, table_name="users; DROP TABLE users; --")
