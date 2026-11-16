@@ -18,7 +18,8 @@ Functions:
 import os
 from typing import Any, Dict, Optional, Tuple
 
-from teshq.config.secrets import SECRET_KEYS, save_secrets
+from teshq.config.secrets import SECRET_KEYS
+
 from teshq.config.settings import save_secret, save_setting, get_settings
 
 # Settings constants (kept for backward compat)

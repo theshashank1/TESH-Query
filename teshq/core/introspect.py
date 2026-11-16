@@ -1,15 +1,27 @@
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple, cast  # Added cast
+import re
+from typing import Any, Dict, List, Optional, Tuple, cast
 
-from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
-from sqlalchemy.engine import Connection  # Added import for Connection type hint
+from sqlalchemy import MetaData, Table, create_engine, func, inspect, select, text
+from sqlalchemy.engine import Connection
 
 from teshq.config.paths import SCHEMA_DIR, ensure_teshq_dir
 from teshq.config.loader import get_database_url as get_db_url
 from teshq.utils.logging import logger
 
-# from sqlalchemy.engine.reflection import Inspector
+_SENSITIVE_COLUMN_PATTERN = re.compile(
+    r"(?i)(password|passwd|pwd|hash|salt|secret|token|auth|api[_-]?key|private[_-]?key|"
+    r"ssn|social[_-]?security|credit[_-]?card|card[_-]?num|cvv|pin)"
+)
+
+
+def _split_qualified(name: str) -> Tuple[Optional[str], str]:
+    """Split 'schema.table' → (schema, table) or (None, table)."""
+    if "." in name:
+        parts = name.split(".", 1)
+        return parts[0], parts[1]
+    return None, name
 
 
 def introspect_db(
@@ -23,7 +35,7 @@ def introspect_db(
 ) -> Dict[str, Any]:
     """
     Introspect a database and produce a structured schema description suitable for LLM query generation.
-    
+
     Parameters:
         db_url (Optional[str]): Database connection URL; if None, get_db_url() will be used.
         detect_relationships (bool): Detect implicit relationships by naming conventions when True.
@@ -33,10 +45,11 @@ def introspect_db(
         schema_name (Optional[str]): Specific database schema to introspect (e.g. 'public', 'dbo', 'hr').
             If None, the default schema is used. For multi-schema databases (PostgreSQL, SQL Server, Oracle),
             tables from non-default schemas are stored with schema-qualified names (e.g. 'hr.employees').
-    
+
     Returns:
-        Dict[str, Any]: Schema information containing keys such as "tables" (per-table column, PK, FK, index, sample, row count, description), "relationships" (explicit and implicit lists), "data_model_summary" (textual summary), and "dialect" (detected SQL dialect string).
-    
+        Dict[str, Any]: Schema information containing tables (column, PK, FK, index, sample,
+        row count), relationships (explicit and implicit), data_model_summary, and dialect.
+
     Raises:
         ValueError: If no database URL is provided and get_db_url() returns none.
         ConnectionError: If connecting to the database or reflecting metadata fails.
@@ -65,13 +78,23 @@ def introspect_db(
     try:
         # Reflect can fail if DB is not accessible or permissions are wrong
         with engine.connect() as connection:  # Ensure connection is possible before reflecting
-            if schema_name:
-                metadata.reflect(bind=connection, schema=schema_name)
-            else:
-                metadata.reflect(bind=connection)
+            try:
+                if schema_name:
+                    metadata.reflect(bind=connection, schema=schema_name)
+                else:
+                    metadata.reflect(bind=connection)
+            except Exception as reflect_err:
+                logger.warning(
+                    f"Bulk metadata reflection incomplete or unsupported by dialect: {reflect_err}. "
+                    "Proceeding with inspector-based table and view reflection."
+                )
     except Exception as e:
         # It's often better to let specific SQLAlchemy errors propagate
         # or wrap them in a custom exception.
+        try:
+            engine.dispose()
+        except Exception:
+            pass
         raise ConnectionError(f"Failed to connect to database or reflect metadata: {e}") from e
 
     inspector = inspect(engine)
@@ -106,31 +129,39 @@ def introspect_db(
     # Determine the default schema for the database
     default_schema = inspector.default_schema_name
 
-    # Get all tables across schemas
+    # Get all tables and views across schemas
     all_tables: List[str] = []
     try:
         for s in schemas_to_introspect:
-            raw_tables = sorted(inspector.get_table_names(schema=s))
-            for t in raw_tables:
+            try:
+                raw_tables = sorted(inspector.get_table_names(schema=s))
+            except Exception as e:
+                logger.warning(f"Could not retrieve table names for schema '{s}': {e}")
+                raw_tables = []
+
+            try:
+                raw_views = sorted(inspector.get_view_names(schema=s))
+            except Exception:
+                raw_views = []
+
+            combined_names = raw_tables + [v for v in raw_views if v not in raw_tables]
+            for t in combined_names:
                 # Use schema-qualified name for non-default schemas
                 if s and s != default_schema:
                     qualified = f"{s}.{t}"
                 else:
                     qualified = t
-                all_tables.append(qualified)
+                if qualified not in all_tables:
+                    all_tables.append(qualified)
     except Exception as e:
+        try:
+            engine.dispose()
+        except Exception:
+            pass
         raise RuntimeError(f"Failed to retrieve table names: {e}") from e
-
 
     # Track column names across tables for implicit relationship detection
     primary_keys_registry: Dict[str, List[str]] = {}
-
-    def _split_qualified(name: str) -> Tuple[Optional[str], str]:
-        """Split 'schema.table' → (schema, table) or (None, table)."""
-        if "." in name:
-            parts = name.split(".", 1)
-            return parts[0], parts[1]
-        return None, name
 
     # First pass: collect basic table and column information
     for table_name in all_tables:
@@ -271,6 +302,11 @@ def introspect_db(
             mode=schema_mode,
         )
 
+    try:
+        engine.dispose()
+    except Exception:
+        pass
+
     return schema_info
 
 
@@ -362,21 +398,34 @@ def collect_stats_and_samples(
         sample_size: Number of rows to sample
     """
     for table_name in all_tables:
-        # Ensure table object is available from reflected metadata
-        if table_name not in metadata.tables:
-            logger.warning(f"Table '{table_name}' not found in metadata for stats/sampling. Skipping.")
+        table_obj = None
+        if table_name in metadata.tables:
+            table_obj = cast(Table, metadata.tables[table_name])
+        else:
+            try:
+                tbl_schema, tbl_raw = _split_qualified(table_name)
+                table_obj = Table(tbl_raw, metadata, autoload_with=connection, schema=tbl_schema)
+            except Exception:
+                table_obj = None
+
+        current_table_info = schema_info["tables"].get(table_name, {})
+        if not current_table_info:
             continue
-        table_obj = cast(Table, metadata.tables[table_name])  # Cast to Table type
-        current_table_info = schema_info["tables"][table_name]
+
+        if table_obj is None:
+            # Fallback for views or dialects where Table autoload fails: query row count directly
+            try:
+                res = connection.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+                cnt = res.scalar()
+                current_table_info["row_count"] = cnt if cnt is not None else 0
+            except Exception:
+                current_table_info["row_count"] = "Unknown"
+            continue
 
         # Get row count
-        # Row count can return an integer or potentially None if the query fails or the table is empty.
-        # We handle the None case by defaulting to 0, but the type hint should allow for None initially.
         try:
-            # Using .label("row_count") for clarity if result was a Row object
             row_count_query = select(func.count().label("total_rows")).select_from(table_obj)
             result = connection.execute(row_count_query)
-            # scalar_one_or_none is safer if query might return no rows (though count(*) shouldn't)
             row_count_val = result.scalar_one_or_none()
             current_table_info["row_count"] = row_count_val if row_count_val is not None else 0
         except Exception as e:
@@ -398,11 +447,14 @@ def collect_stats_and_samples(
                     for col_key, value in row._asdict().items():
                         col_name_str = str(col_key)  # Ensure key is string
                         if value is not None:
-                            try:
-                                json.dumps(value)  # Test JSON serializability
-                                sample_row[col_name_str] = value
-                            except (TypeError, OverflowError):
-                                sample_row[col_name_str] = str(value)  # Fallback to string
+                            if _SENSITIVE_COLUMN_PATTERN.search(col_name_str):
+                                sample_row[col_name_str] = "********"
+                            else:
+                                try:
+                                    json.dumps(value)  # Test JSON serializability
+                                    sample_row[col_name_str] = value
+                                except (TypeError, OverflowError):
+                                    sample_row[col_name_str] = str(value)  # Fallback to string
                         else:
                             sample_row[col_name_str] = None
                     sample_rows.append(sample_row)
@@ -705,8 +757,14 @@ def save_schema_to_files(
     # Always write the structured JSON (used for programmatic access)
     try:
         json_output = json.dumps(schema_info, indent=2, ensure_ascii=False)
-        with open(json_path, "w", encoding="utf-8") as f:
+        temp_json = f"{json_path}.tmp.{os.getpid()}"
+        with open(temp_json, "w", encoding="utf-8") as f:
             f.write(json_output)
+        try:
+            os.chmod(temp_json, 0o600)
+        except Exception:
+            pass
+        os.replace(temp_json, json_path)
     except IOError as e:
         print(f"Error writing JSON file: {e}")
         json_path = None  # type: ignore
@@ -714,8 +772,14 @@ def save_schema_to_files(
     # Always write the minimal schema (used by default for LLM queries)
     try:
         minimal_text = format_schema_minimal(schema_info)
-        with open(text_path, "w", encoding="utf-8") as f:
+        temp_text = f"{text_path}.tmp.{os.getpid()}"
+        with open(temp_text, "w", encoding="utf-8") as f:
             f.write(minimal_text)
+        try:
+            os.chmod(temp_text, 0o600)
+        except Exception:
+            pass
+        os.replace(temp_text, text_path)
     except IOError as e:
         print(f"Error writing minimal schema file: {e}")
         text_path = None  # type: ignore
@@ -725,8 +789,14 @@ def save_schema_to_files(
         full_text_path = os.path.join(output_dir, "schema_full.txt")
         try:
             outputs = format_schema_outputs(schema_info, pretty_json=False)
-            with open(full_text_path, "w", encoding="utf-8") as f:
+            temp_full = f"{full_text_path}.tmp.{os.getpid()}"
+            with open(temp_full, "w", encoding="utf-8") as f:
                 f.write(outputs["text_output"])
+            try:
+                os.chmod(temp_full, 0o600)
+            except Exception:
+                pass
+            os.replace(temp_full, full_text_path)
         except IOError as e:
             print(f"Error writing full schema file: {e}")
 

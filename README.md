@@ -10,7 +10,7 @@
 [![CI/CD](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml/badge.svg)](https://github.com/theshashank1/TESH-Query/actions/workflows/deploy_teshq.yaml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-[Quick Start](#quick-start) • [Interactive Terminal](#interactive-terminal-teshq-chat) • [Local Offline Mode](#100-offline--air-gapped-mode-local-gguf) • [CLI Reference](#cli-reference) • [Python SDK](#python-sdk) • [Architecture](#the-harness-architecture)
+[Quick Start](#quick-start) • [Interactive Terminal](#interactive-terminal-teshq-chat) • [Documentation Hub](docs/README.md) • [Universal Dialects](docs/04_database_dialects.md) • [CLI Reference](#cli-reference) • [Python SDK](#python-sdk) • [Architecture](#the-harness-architecture)
 
 </div>
 
@@ -38,14 +38,37 @@ Whether through the **interactive terminal (`teshq chat`)**, **scriptable CLI**,
 
 ## Key Features
 
-- **Precision Interactive Terminal (`teshq chat`)** — Ambient status HUD, 6-stage cognitive progress tracker, and slash commands (`/tables`, `/copy`, `/model`, `/export`, `/explain`).
-- **100% Offline & Air-Gapped Mode** — Run locally with GGUF models via `llama.cpp` and hardware acceleration (CUDA, Metal, CPU). Enforces **GBNF context-free grammar** to physically constrain LLM tokens to valid SQL.
-- **AST Security Firewall** — Parses the Abstract Syntax Tree before execution. Hard-blocks destructive operations (`DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `REPLACE`, and unconstrained `DELETE`/`UPDATE`).
-- **TF-IDF Schema Vector Pruner** — Uses in-memory TF-IDF cosine similarity to index and extract only the 3–5 relevant tables from 100+ table databases, preventing context window overflow and slashing token costs.
-- **Closed-Loop Self-Healing** — Intercepts database dialect errors, re-prompts the model with compiler feedback, and repairs SQL automatically with exponential backoff.
-- **Zero-Copy Modern Analytics SDK** — First-class outputs for **Polars** (`result.polars`), **Apache Arrow** (`result.arrow`), and **Pandas** (`result.dataframe`), plus Parquet and JSONL exports.
-- **Stateful Multi-Turn Sessions** — Context-aware follow-up queries (`"now filter by west region"`) that automatically thread previous SQL context.
-- **11+ Database Dialects** — Native connectors for Cloud Data Warehouses (Snowflake, BigQuery, Databricks, Redshift), Real-Time OLAP (DuckDB, ClickHouse), Relational (PostgreSQL, MySQL, MSSQL, Oracle, SQLite), and NoSQL (Cassandra).
+- **Precision Interactive Terminal (`teshq chat`)** — Ambient status HUD, 6-stage cognitive progress tracker, and slash commands (`/tables`, `/copy`, `/model`, `/export`, `/explain`). [Read CLI Guide →](docs/07_cli_reference.md)
+- **100% Offline & Air-Gapped Mode** — Run locally with GGUF models via `llama.cpp` and hardware acceleration (CUDA, Metal, CPU). Enforces **GBNF context-free grammar** to physically constrain LLM tokens to valid SQL. [Read Offline Guide →](docs/09_offline_local_inference.md)
+- **AST Security Firewall** — Parses the Abstract Syntax Tree before execution. Hard-blocks destructive operations (`DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `REPLACE`, and unconstrained `DELETE`/`UPDATE`). [Read Security Guide →](docs/06_security_firewall.md)
+- **TF-IDF Schema Vector Pruner** — Uses in-memory TF-IDF cosine similarity to index and extract only the 3–5 relevant tables from 100+ table databases, preventing context window overflow and slashing token costs. [Read Architecture Guide →](docs/03_architecture.md)
+- **Closed-Loop Self-Healing** — Intercepts database dialect errors, re-prompts the model with compiler feedback, and repairs SQL automatically with exponential backoff. [Read Resilience Guide →](docs/11_self_healing_and_resilience.md)
+- **Zero-Copy Modern Analytics SDK** — First-class outputs for **Polars** (`result.polars`), **Apache Arrow** (`result.arrow`), and **Pandas** (`result.dataframe`), plus Parquet and JSONL exports. [Read SDK Guide →](docs/08_python_sdk.md)
+- **Multi-Database Management & Federation** — Manage $N$ isolated database connections and execute parallel cross-database federated queries with vectorized in-memory joins. [Read Federation Guide →](docs/05_multi_database_federation.md)
+- **Universal SQLAlchemy Database Support** — Native connectors for all databases supported by SQLAlchemy: Cloud Warehouses (Snowflake, BigQuery, Databricks, Redshift), Real-Time OLAP (DuckDB, ClickHouse), Relational (PostgreSQL, MySQL, MSSQL, Oracle, SQLite), and Distributed SQL (CockroachDB, Trino, Presto). [Read Dialects Guide →](docs/04_database_dialects.md)
+
+---
+
+## 📚 Documentation Hub
+
+TESH-Query includes comprehensive, production-grade documentation organized in [`/docs`](docs/README.md):
+
+| Document | Topic & Scope | Link |
+| :--- | :--- | :--- |
+| **System Overview** | Core mission, architecture pillars, and capabilities | [docs/01_overview.md](docs/01_overview.md) |
+| **Installation & Drivers** | Driver extras, pure-Python asyncpg, and CUDA/Metal setup | [docs/02_installation.md](docs/02_installation.md) |
+| **Harness Architecture** | 6-stage cognitive pipeline, SchemaGraph, and TF-IDF pruner | [docs/03_architecture.md](docs/03_architecture.md) |
+| **Universal Dialects** | All SQLAlchemy databases, compound URLs, views, and pooling | [docs/04_database_dialects.md](docs/04_database_dialects.md) |
+| **Multi-DB Federation** | Named connections, thread pools, and vectorized DataFrame joins | [docs/05_multi_database_federation.md](docs/05_multi_database_federation.md) |
+| **AST Security Firewall** | Token AST parsing, read-only guarantees, and parameter binding | [docs/06_security_firewall.md](docs/06_security_firewall.md) |
+| **CLI Reference** | `teshq chat` REPL, HUD, slash commands, and query flags | [docs/07_cli_reference.md](docs/07_cli_reference.md) |
+| **Python SDK** | Zero-copy Polars, Arrow, multi-turn sessions, and BYOE engines | [docs/08_python_sdk.md](docs/08_python_sdk.md) |
+| **Offline Mode (Local GGUF)** | Zero-network inference, GBNF grammars, and model manager | [docs/09_offline_local_inference.md](docs/09_offline_local_inference.md) |
+| **Configuration & Secrets** | Layered resolution priority chain, credential masking, and .env | [docs/10_configuration_and_secrets.md](docs/10_configuration_and_secrets.md) |
+| **Self-Healing & Resilience** | Closed-loop syntax recovery, jittered backoff, and exceptions | [docs/11_self_healing_and_resilience.md](docs/11_self_healing_and_resilience.md) |
+| **Testing & Benchmarks** | Amazon-scale synthetic fixture (45 tables, 1.12M rows) | [docs/12_testing_and_benchmarks.md](docs/12_testing_and_benchmarks.md) |
+| **Production Deployment** | Docker containers, FastAPI microservices, and K8s probes | [docs/13_production_deployment.md](docs/13_production_deployment.md) |
+| **Troubleshooting & FAQ** | Connectivity diagnostics, SSL setup, and error resolutions | [docs/14_troubleshooting.md](docs/14_troubleshooting.md) |
 
 ---
 
@@ -85,6 +108,8 @@ A raw LLM cannot safely query a production database. TESH-Query operates as a co
  re-feed into LLM,                    ▼
  self-heal & retry            DataFrame / Arrow / Polars
 ```
+
+> 📖 **Architecture Deep Dive:** For complete details on graph indexing, TF-IDF cosine similarity, token budgeting, and closed-loop self-healing, see [docs/03_architecture.md](docs/03_architecture.md).
 
 ---
 
@@ -179,6 +204,8 @@ teshq chat
 | `/history` | View recent prompts executed during this session |
 | `exit` or `quit` | Exit session with runtime statistics (queries, latency, tokens) |
 
+> 📖 **Interactive Terminal Guide:** Learn more about ambient HUDs, custom themes, and keyboard bindings in [docs/07_cli_reference.md](docs/07_cli_reference.md).
+
 ---
 
 ## 100% Offline & Air-Gapped Mode (Local GGUF)
@@ -215,6 +242,8 @@ teshq model download qwen3b-coder
 
 Local models are physically constrained at the token sampling level by [sql_grammar.gbnf](teshq/core/sql_grammar.gbnf). The model cannot emit arbitrary text or hallucinations; it is mathematically forced to generate syntactically valid SQL statements.
 
+> 📖 **Air-Gapped & GBNF Guide:** See [docs/09_offline_local_inference.md](docs/09_offline_local_inference.md) for custom GBNF grammars, GPU acceleration setup, and model quantization options.
+
 ---
 
 ## CLI Reference
@@ -231,6 +260,7 @@ teshq query [OPTIONS] [REQUEST]
 
 | Flag | Description |
 | :--- | :--- |
+| `-c, --connection <NAME>` | Target a registered named database connection |
 | `--dry-run` | Generate and validate SQL, but **do not execute** it |
 | `-i, --confirm` | Interactively inspect and confirm generated SQL before running |
 | `--explain` | Print execution plan, selected tables, SQL, and timing breakdown |
@@ -247,6 +277,9 @@ teshq query [OPTIONS] [REQUEST]
 **Examples:**
 
 ```bash
+# Query a specific named connection
+teshq query -c ecommerce "What are the top 10 products by revenue?"
+
 # Dry run: check generated SQL without executing
 teshq query "Which customers have overdue invoices?" --dry-run
 
@@ -263,6 +296,11 @@ teshq query "Update inventory counts for inactive items" -i
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
+| `teshq db connection add` | `teshq db connection add <name> <url>` | Register a named database connection with credentials |
+| `teshq db connection list` | `teshq db connection list` | List all registered connections with masked credentials |
+| `teshq db connection test` | `teshq db connection test <name>` | Verify health and connectivity of a named connection |
+| `teshq db connection remove`| `teshq db connection remove <name>` | Unregister connection and safely dispose its engine pool |
+| `teshq db connection default`| `teshq db connection default <name>` | Set the active default database connection |
 | `teshq config` | `teshq config --wizard` | Interactive configuration wizard (DB + AI in 30 seconds) |
 | `teshq config validate`| `teshq config validate` | Validate database connectivity, pooling, and production readiness |
 | `teshq db explore` | `teshq db explore` | Interactive visual schema explorer |
@@ -272,11 +310,15 @@ teshq query "Update inventory counts for inactive items" -i
 | `teshq bench run` | `teshq bench run` | Run Text-to-SQL benchmark suite measuring accuracy and cost |
 | `teshq analytics` | `teshq analytics --days 7` | View token consumption and estimated query costs |
 
+> 📖 **Complete CLI Reference:** For exhaustive command specifications, exit codes, and automated flags, see [docs/07_cli_reference.md](docs/07_cli_reference.md).
+
 ---
 
 ## Python SDK
 
 TESH-Query provides a high-performance, asynchronous Python SDK for data analysts, data engineers, and machine learning pipelines.
+
+> 📖 **Python SDK Guide:** For Polars/Arrow zero-copy usage, streaming, pagination, and multi-turn sessions, see [docs/08_python_sdk.md](docs/08_python_sdk.md).
 
 ### 1. Basic & Analytical Querying
 
@@ -380,11 +422,70 @@ payload = result.to_payload()
 print(payload["chart_hints"])  # e.g., {'type': 'bar', 'x_axis': 'department', 'y_axis': 'headcount'}
 ```
 
+### 6. Named Multi-Database Connections & Routing
+
+Manage $N$ isolated database connections simultaneously with independent connection pools, schema caches, and credential masking:
+
+```python
+import teshq
+
+client = teshq.TeshQuery(gemini_api_key="your-gemini-api-key")
+
+# Register named connections
+client.add_connection(name="ecommerce", db_url="sqlite:///testing/databases/ecommerce.sqlite")
+client.add_connection(name="analytics", db_url="postgresql://user:${DB_PASSWORD}@warehouse:5432/analytics")
+
+# List all configured connections (credentials automatically masked)
+for conn in client.list_connections():
+    print(f"[{conn.name}] {conn.dialect} -> {conn.masked_url} (Default: {conn.is_default})")
+
+# Query specific databases by name
+ecom_df = client.query("What are the top 10 products by revenue?", connection="ecommerce")
+fin_df = client.query("Total recognized revenue by fiscal quarter", connection="analytics")
+
+# Test connectivity and dispose connection pool
+is_healthy, msg = client.test_named_connection("ecommerce")
+client.remove_connection("analytics")  # Safely disposes SQLAlchemy engine and connection pool
+```
+
+### 7. Cross-Database Natural Language Federation
+
+Orchestrate complex cross-source queries across independent databases without distributed database joins:
+
+```python
+from teshq.core.federation import CrossDatabasePlan, SubquerySpec
+
+# Execute a structured cross-database query plan
+result = client.query_cross_db(
+    "Compare monthly ecommerce GMV against finance ledger revenue",
+    subqueries=[
+        SubquerySpec(
+            connection_name="ecommerce",
+            sql="SELECT strftime('%Y-%m', order_date) AS month, SUM(total_amount) AS ecom_gmv FROM orders GROUP BY month;",
+            alias="ecom"
+        ),
+        SubquerySpec(
+            connection_name="analytics",
+            sql="SELECT fiscal_month AS month, recognized_revenue AS fin_rev FROM ledger_monthly_revenue;",
+            alias="fin"
+        )
+    ],
+    join_key="month",
+    join_type="inner"
+)
+
+# Access combined records, Pandas DataFrame, and source attribution metadata
+print(result.dataframe.head())
+print("Source attribution:", result.source_attribution)
+```
+
+> 📖 **Multi-DB Federation Guide:** For thread-pool parallelism, source attribution, and join algorithms, see [docs/05_multi_database_federation.md](docs/05_multi_database_federation.md).
+
 ---
 
 ## Supported Databases & Dialects
 
-TESH-Query speaks your database's exact SQL dialect:
+TESH-Query supports **all databases supported by SQLAlchemy** — automatically detecting dialect features, selecting optimal pooling, and handling syntax specifics:
 
 | Category | Database | Driver / Extra | Dialect Features Supported |
 | :--- | :--- | :--- | :--- |
@@ -399,7 +500,12 @@ TESH-Query speaks your database's exact SQL dialect:
 | | **Microsoft SQL Server** | `teshq[mssql]` (`pymssql`) | T-SQL dialect, `TOP` syntax, `@@VERSION` diagnostics |
 | | **Oracle** | `oracledb` | PL/SQL, ROWNUM pagination |
 | | **SQLite** | Built-in | Zero-config, in-memory or file-based |
+| **Distributed SQL** | **CockroachDB** | `cockroachdb` | PostgreSQL-compatible wire protocol, distributed tables |
+| | **Trino / Presto** | `trino-python-client` | ANSI SQL, cross-catalog federated tables |
+| **Universal** | **Any SQLAlchemy Dialect** | Any 3rd party driver | Automatic dialect discovery, ANSI standard fallback |
 | **NoSQL** | **Apache Cassandra** | `cassandra-driver` | CQL (Cassandra Query Language) |
+
+> 📖 **Universal Database Guide:** See [docs/04_database_dialects.md](docs/04_database_dialects.md) for compound URL schemes (`oracle+cx_oracle`, `clickhouse+native`), analytical view reflection, and dynamic connection pools.
 
 ---
 
@@ -441,9 +547,40 @@ teshq health
 # Run configuration and production readiness assessment
 teshq config validate
 
-# Run unit and integration tests (319 tests)
-pytest tests/unit/
+# Run unit and integration tests (400+ tests)
+pytest tests/unit/ tests/integration/
 ```
+
+---
+
+## Testing & Fixture Database (`/testing`)
+
+TESH-Query includes a realistic, Amazon-scale ecommerce testing database fixture (`testing/databases/ecommerce.sqlite`) with **45 normalized relational tables**, **38 explicit secondary indexes**, and **1,123,500+ rows** of synthetic data for testing schema pruning, query generation, complex joins, and cross-database federation.
+
+See [testing/README.md](testing/README.md) for full architecture and schema details.
+
+> 📖 **Testing Fixture Architecture:** See [docs/12_testing_and_benchmarks.md](docs/12_testing_and_benchmarks.md) for full relational taxonomy, schema diagrams, and financial invariant specifications.
+
+### Generate Synthetic Fixture
+```bash
+# Standard profile (~1.12M rows, 93 MB in ~4s)
+python testing/create_database.py --profile standard --seed 42 --force
+
+# Large profile (~10M rows, ~900 MB in ~45s)
+python testing/create_database.py --profile large --seed 42 --force
+```
+
+### Verify Integrity & Financial Invariants
+```bash
+python testing/verify_database.py
+```
+Validates SQLite integrity, 0 foreign-key violations, 45 domain tables, 38 indexes, minimum row counts, synthetic email purity, and 7 business invariants (order totals, payment reconciliation, line total reconciliation, refund ceilings, chronological sequence).
+
+### Run Scalability & Execution Latency Benchmarks
+```bash
+python testing/run_benchmarks.py
+```
+Measures schema introspection time, graph retrieval latency, and query execution times across 32 natural language benchmark queries.
 
 ---
 

@@ -11,9 +11,8 @@ import re
 import time
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import ValidationError
+
 
 from teshq.core.models import QueryPlan
 from teshq.core.retry import retry_with_backoff, API_RETRY_CONFIG

@@ -38,6 +38,12 @@ except ImportError:
     _SUBSCRIBE_AVAILABLE = False
 
 try:
+    from teshq.cli import unsubscribe
+    _UNSUBSCRIBE_AVAILABLE = True
+except ImportError:
+    _UNSUBSCRIBE_AVAILABLE = False
+
+try:
     from teshq.cli import telemetry as telemetry_cmd
     _TELEMETRY_CMD_AVAILABLE = True
 except ImportError:
@@ -104,9 +110,9 @@ def _callback(
         from teshq.cli.ui.banner import print_hero_banner, print_hud
         from teshq.cli.chat import _get_env_summary
         from teshq.cli.ui.theme import console, Colors, Icons
-        from rich.text import Text
 
         print_hero_banner()
+
         db_status, db_type, llm_name, table_count = _get_env_summary()
         print_hud(db_status=db_status, db_type=db_type, llm_model=llm_name, schema_tables_count=table_count)
         console.print()
@@ -156,6 +162,8 @@ if _HEALTH_AVAILABLE:
     app.add_typer(health.app, name="health", help="Check system health and connectivity.")
 if _SUBSCRIBE_AVAILABLE:
     app.add_typer(subscribe.app, name="subscribe", help="Subscribe to TESH-Query updates.")
+if _UNSUBSCRIBE_AVAILABLE:
+    app.add_typer(unsubscribe.app, name="unsubscribe", help="Unsubscribe from TESH-Query updates.")
 if _TELEMETRY_CMD_AVAILABLE:
     app.add_typer(telemetry_cmd.app, name="telemetry", help="Manage anonymous usage telemetry.")
 

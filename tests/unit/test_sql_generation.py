@@ -7,9 +7,8 @@ Mocks the LLM to validate:
 - Integration between retriever and generator
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from teshq.core.models import QueryPlan, SQLQuery
 from teshq.core.retriever import SchemaRetriever

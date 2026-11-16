@@ -6,11 +6,11 @@ and the local in-process GGUF inference backend.
 """
 
 import re
-import json
-from typing import Protocol, Optional, Iterator, Dict, Any, List, Tuple
+from typing import Protocol, Optional, Dict, Any, List, Tuple
 from teshq.core.models import QueryPlan, SQLQuery
-from teshq.core.planner import QueryPlanner, build_planner
-from teshq.core.sql_gen import SQLGenerator, build_sql_generator
+from teshq.core.planner import QueryPlanner
+from teshq.core.sql_gen import SQLGenerator
+
 from teshq.core.inference import InferenceRuntime, InferenceConfig
 from teshq.core.grammar import get_sql_grammar
 from teshq.core.dialect import SQLDialect, detect_dialect, get_dialect_display_name, get_dialect_rules

@@ -100,7 +100,6 @@ def display_config_dashboard():
                 db_status = "[#10B981]● Connected[/#10B981]"
                 db_detail = f"[#C8C8D4]{masked}[/#C8C8D4]"
             else:
-                db_type = backend.upper()
                 db_name = url_obj.database or "—"
                 host = url_obj.host or "localhost"
                 port_str = f":{url_obj.port}" if url_obj.port else ""
@@ -189,11 +188,11 @@ def display_config_dashboard():
 
     # ── Quick Actions ─────────────────────────────────────────────────────
     console.print("  [#8888A0]Quick Actions:[/#8888A0]")
-    console.print(f"    [#6366F1]teshq config --wizard[/#6366F1]   [#5E5E78]Guided setup (DB + AI in 30s)[/#5E5E78]")
-    console.print(f"    [#6366F1]teshq config --db[/#6366F1]       [#5E5E78]Configure database interactively[/#5E5E78]")
-    console.print(f"    [#6366F1]teshq config --ai[/#6366F1]       [#5E5E78]Configure AI provider (Gemini / Azure / Local)[/#5E5E78]")
-    console.print(f"    [#6366F1]teshq config validate[/#6366F1]   [#5E5E78]Test connection & validate[/#5E5E78]")
-    console.print(f"    [#6366F1]teshq config --help[/#6366F1]     [#5E5E78]Show all options & scripting flags[/#5E5E78]")
+    console.print("    [#6366F1]teshq config --wizard[/#6366F1]   [#5E5E78]Guided setup (DB + AI in 30s)[/#5E5E78]")
+    console.print("    [#6366F1]teshq config --db[/#6366F1]       [#5E5E78]Configure database interactively[/#5E5E78]")
+    console.print("    [#6366F1]teshq config --ai[/#6366F1]       [#5E5E78]Configure AI provider (Gemini / Azure / Local)[/#5E5E78]")
+    console.print("    [#6366F1]teshq config validate[/#6366F1]   [#5E5E78]Test connection & validate[/#5E5E78]")
+    console.print("    [#6366F1]teshq config --help[/#6366F1]     [#5E5E78]Show all options & scripting flags[/#5E5E78]")
     console.print()
 
 
@@ -224,7 +223,7 @@ def run_quick_wizard() -> dict:
     db_url = _prompt_for_database_url(indent="  ")
     config_to_save["DATABASE_URL"] = db_url
 
-    console.print(f"  [#10B981]✓[/#10B981] Database configured")
+    console.print("  [#10B981]✓[/#10B981] Database configured")
     console.print()
 
     # ── Step 2: AI Provider ───────────────────────────────────────────────
@@ -271,7 +270,7 @@ def run_quick_wizard() -> dict:
         ))
         config_to_save["LLM_PROVIDER"] = "local"
 
-    console.print(f"  [#10B981]✓[/#10B981] AI provider configured")
+    console.print("  [#10B981]✓[/#10B981] AI provider configured")
     console.print()
 
     return config_to_save

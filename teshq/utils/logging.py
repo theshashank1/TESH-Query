@@ -6,8 +6,8 @@ and structured file output.
 """
 
 import logging
-import os
 import sys
+
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path

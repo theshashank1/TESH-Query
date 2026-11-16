@@ -184,7 +184,6 @@ class SQLGenerator:
         Uses a plain text response (no response_format schema) and manually
         parses the resulting JSON into a SQLQuery model.
         """
-        start = time.time()
         from langchain_core.messages import HumanMessage
 
         dialect_str = str(self._dialect)

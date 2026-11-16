@@ -34,6 +34,9 @@ SECRETS_FILE = TESHQ_DIR / ".teshq.env"
 # YAML configuration file for non-secret settings
 CONFIG_FILE = TESHQ_DIR / "config.yaml"
 
+# YAML file for registered named database connections
+CONNECTIONS_FILE = TESHQ_DIR / "connections.yaml"
+
 # Database schema cache directory
 SCHEMA_DIR = TESHQ_DIR / "schema"
 

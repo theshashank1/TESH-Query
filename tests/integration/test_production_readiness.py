@@ -17,8 +17,8 @@ class TestProductionReadinessIntegration:
     def test_complete_production_configuration_valid(self):
         """Test complete production configuration validation."""
         import tempfile
-        import os
         with tempfile.TemporaryDirectory() as temp_dir:
+
             out_path = Path(temp_dir) / "output"
             file_path = Path(temp_dir) / "files"
             out_path.mkdir()

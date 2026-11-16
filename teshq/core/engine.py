@@ -10,20 +10,18 @@ import atexit
 import hashlib
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from teshq.core.exceptions import (
-    DatabaseConnectionError,
-    ExecutionTimeoutError,
     LLMRateLimitError,
     SchemaIntrospectionError,
     SelfHealingExhaustedError,
     SQLGenerationError,
-    SQLValidationError,
     TeshqConfigurationError,
     classify_llm_error,
 )
+
 from teshq.core.introspect import introspect_db
 from teshq.core.models import QueryPlan, SQLQuery
 from teshq.core.planner import QueryPlanner, build_planner
@@ -98,10 +96,13 @@ class TeshEngine:
         # Bring-Your-Own-Engine & Business Context
         engine: Optional[Any] = None,
         business_context: Optional[Any] = None,
+        # Named connection override
+        connection_name: Optional[str] = None,
     ):
         # Load provider config from settings (caller overrides win)
         cfg = get_llm_config()
 
+        self._connection_name = connection_name
         self._custom_engine = engine
         if engine is not None and not db_url:
             if hasattr(engine, "url"):
@@ -111,19 +112,37 @@ class TeshEngine:
                     self._db_url = str(engine.url)
             else:
                 self._db_url = str(engine)
+        elif db_url:
+            self._db_url = db_url
+        elif connection_name:
+            try:
+                from teshq.core.connection import connection_manager
+                self._db_url = connection_manager.get_named_connection(connection_name).db_url
+            except Exception:
+                self._db_url = get_database_url()
         else:
-            self._db_url = db_url or get_database_url()
+            self._db_url = get_database_url()
+
+        if not self._db_url:
+            try:
+                from teshq.core.connection import connection_manager
+                def_conn = connection_manager.get_named_connection(None)
+                self._db_url = def_conn.db_url
+                self._connection_name = def_conn.name
+            except Exception:
+                pass
 
         if not self._db_url:
             raise TeshqConfigurationError(
                 "Database URL is not configured",
-                detail="Set DATABASE_URL via 'teshq config --db' or pass db_url / engine directly.",
+                detail="Set DATABASE_URL via 'teshq config --db' or pass db_url / engine / connection directly.",
             )
 
         # Register custom engine in connection manager so queries reuse it
         if self._custom_engine is not None:
             from teshq.core.connection import connection_manager
-            connection_manager._engines[f"default:{self._db_url}"] = self._custom_engine
+            reg_name = self._connection_name or "default"
+            connection_manager._engines[f"{reg_name}:{self._db_url}"] = self._custom_engine
 
         self._business_context = business_context
 
@@ -149,6 +168,9 @@ class TeshEngine:
         self._local_runtime: Optional[InferenceRuntime] = None
         self._llm_client: Optional[LLMClient] = None
         self._schema_graph: Optional[SchemaGraph] = None
+        self._schema_graphs: Dict[str, SchemaGraph] = {}
+        self._retrievers: Dict[str, SchemaRetriever] = {}
+        self._sql_gens: Dict[str, SQLGenerator] = {}
 
         # Stored during query() so _execute_with_retry can access them
         self._last_nl_query: Optional[str] = None
@@ -193,11 +215,25 @@ class TeshEngine:
                 api_key=self._api_key,
                 model_name=self._model_name,
                 provider=self._provider,
-                dialect=self._dialect,  # Already detected in __init__
+                dialect=self._dialect,
                 db_url=self._db_url,
                 **self._llm_kwargs(),
             )
         return self._sql_gen
+
+    def _get_sql_gen_for_connection(self, dialect: str, db_url: str) -> SQLGenerator:
+        """Get or build a cached SQLGenerator for a specific dialect and URL."""
+        key = f"{dialect}:{db_url}"
+        if key not in self._sql_gens:
+            self._sql_gens[key] = build_sql_generator(
+                api_key=self._api_key,
+                model_name=self._model_name,
+                provider=self._provider,
+                dialect=dialect,
+                db_url=db_url,
+                **self._llm_kwargs(),
+            )
+        return self._sql_gens[key]
 
     def _get_llm_client(self) -> LLMClient:
         """Return the unified LLM client interface."""
@@ -219,42 +255,59 @@ class TeshEngine:
 
     def _get_schema_graph(self) -> SchemaGraph:
         """Load and cache the SchemaGraph from the live database or disk cache."""
-        if self._schema_graph is None:
-            # Hash the database URL to create a unique cache key
-            db_hash = hashlib.md5(self._db_url.encode()).hexdigest()
-            cache_file = SCHEMA_DIR / f"schema_cache_{db_hash}.json"
-            
-            # 24-hour cache TTL
-            if cache_file.exists() and (time.time() - os.path.getmtime(cache_file) < 86400):
+        conn_name = self._connection_name or "default"
+        return self._get_schema_graph_for_connection(conn_name, self._db_url)
+
+    def _get_schema_graph_for_connection(self, conn_name: str, db_url: str) -> SchemaGraph:
+        """Load and cache the SchemaGraph for a specific named connection."""
+        cache_key = f"{conn_name}:{db_url}"
+        if cache_key in self._schema_graphs:
+            return self._schema_graphs[cache_key]
+
+        db_hash = hashlib.md5(db_url.encode()).hexdigest()
+        cache_file = SCHEMA_DIR / f"schema_cache_{conn_name}_{db_hash}.json"
+        legacy_cache_file = SCHEMA_DIR / f"schema_cache_{db_hash}.json"
+
+        # Check connection-specific cache first, then legacy cache if default
+        for candidate in (cache_file, legacy_cache_file if conn_name == "default" else None):
+            if candidate and candidate.exists() and (time.time() - os.path.getmtime(candidate) < 86400):
                 try:
-                    logger.debug("Loading schema from disk cache", cache_file=str(cache_file))
-                    with open(cache_file, "r", encoding="utf-8") as f:
+                    logger.debug("Loading schema from disk cache", cache_file=str(candidate))
+                    with open(candidate, "r", encoding="utf-8") as f:
                         schema_info = json.load(f)
-                    self._schema_graph = SchemaGraph.from_introspected(schema_info)
-                    return self._schema_graph
+                    graph = SchemaGraph.from_introspected(schema_info)
+                    self._schema_graphs[cache_key] = graph
+                    return graph
                 except Exception as e:
                     logger.warning("Failed to load schema cache, falling back to introspection", error=str(e))
-            
-            logger.info("Loading schema from database…")
+
+        logger.info("Loading schema from database…", connection=conn_name)
+        try:
+            schema_info = introspect_db(db_url=db_url)
+        except Exception as e:
+            raise SchemaIntrospectionError(
+                f"Failed to introspect database schema for connection '{conn_name}'",
+                detail=str(e),
+            ) from e
+
+        # Save to connection-specific cache
+        try:
+            SCHEMA_DIR.mkdir(parents=True, exist_ok=True)
+            temp_cache_file = cache_file.with_name(f".{cache_file.name}.tmp.{os.getpid()}")
+            with open(temp_cache_file, "w", encoding="utf-8") as f:
+                json.dump(schema_info, f)
             try:
-                schema_info = introspect_db(db_url=self._db_url)
-            except Exception as e:
-                raise SchemaIntrospectionError(
-                    "Failed to introspect database schema",
-                    detail=str(e),
-                ) from e
-            
-            # Save to cache
-            try:
-                SCHEMA_DIR.mkdir(parents=True, exist_ok=True)
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    json.dump(schema_info, f)
-                logger.debug("Schema cached to disk", cache_file=str(cache_file))
-            except Exception as e:
-                logger.warning("Failed to write schema cache", error=str(e))
-                
-            self._schema_graph = SchemaGraph.from_introspected(schema_info)
-        return self._schema_graph
+                os.chmod(temp_cache_file, 0o600)
+            except Exception:
+                pass
+            os.replace(temp_cache_file, cache_file)
+            logger.debug("Schema cached to disk", cache_file=str(cache_file))
+        except Exception as e:
+            logger.warning("Failed to write schema cache", error=str(e))
+
+        graph = SchemaGraph.from_introspected(schema_info)
+        self._schema_graphs[cache_key] = graph
+        return graph
 
     # ------------------------------------------------------------------
     # Public API
@@ -269,6 +322,7 @@ class TeshEngine:
         cancellation_token: Optional[Any] = None,
         event_callback: Optional[Callable[[Any], None]] = None,
         context: Optional[str] = None,
+        connection: Optional[str] = None,
     ) -> QueryResult:
         """
         Execute a natural language query end-to-end.
@@ -282,10 +336,22 @@ class TeshEngine:
             cancellation_token: Optional CancellationToken to abort query execution.
             event_callback: Optional callback receiving QueryEvent instances.
             context: Optional domain or business context to steer SQL synthesis.
+            connection: Optional named database connection to target.
 
         Returns:
             A QueryResult with all relevant output.
         """
+        from teshq.core.connection import connection_manager
+        if connection:
+            active_conn = connection_manager.get_named_connection(connection)
+            current_db_url = active_conn.db_url
+            current_dialect = active_conn.dialect
+            active_conn_name = connection
+        else:
+            current_db_url = self._db_url
+            current_dialect = self._dialect
+            active_conn_name = self._connection_name or "default"
+
         def _emit_event(evt_type: str, stage: str, message: str, data: Optional[Dict[str, Any]] = None) -> None:
             if event_callback:
                 try:
@@ -341,29 +407,39 @@ class TeshEngine:
         schema_str = ""
 
         from langchain_core.callbacks.base import BaseCallbackHandler
+
         class TokenTracker(BaseCallbackHandler):
             def __init__(self):
                 self.prompt_tokens = 0
                 self.completion_tokens = 0
+
             def on_llm_end(self, response, **kwargs):
-                if not response.generations: return
+                if not response.generations:
+                    return
                 for gen in response.generations:
                     for chunk in gen:
                         usage = getattr(getattr(chunk, "message", None), "usage_metadata", None)
                         if usage:
                             self.prompt_tokens += usage.get("input_tokens", 0)
                             self.completion_tokens += usage.get("output_tokens", 0)
-        
+
         tracker = TokenTracker()
 
         try:
-            _notify(1, "Analyzing schema", "reading schema graph")
-            graph = schema_graph or self._get_schema_graph()
+            _notify(1, "Analyzing schema", f"reading schema graph for '{active_conn_name}'")
+            graph = schema_graph or self._get_schema_graph_for_connection(active_conn_name, current_db_url)
 
             # Retrieve the most relevant tables via TF-IDF cosine similarity.
             _notify(2, "Selecting relevant tables", "ranking schema entities")
-            retriever = SchemaRetriever(graph)
-            
+            retriever_key = f"{active_conn_name}:{current_db_url}"
+            if schema_graph is not None:
+                retriever = SchemaRetriever(schema_graph)
+            elif retriever_key in self._retrievers:
+                retriever = self._retrievers[retriever_key]
+            else:
+                retriever = SchemaRetriever(graph)
+                self._retrievers[retriever_key] = retriever
+
             # Prune tables and format schema string based on active provider
             if self._provider == "local":
                 budget_tokens = 2500
@@ -379,9 +455,21 @@ class TeshEngine:
                     schema_str = graph.compressed_schema(relevant_tables)
 
             _notify(2, "Selecting relevant tables", f"matched {len(relevant_tables)} table(s)")
-            client = self._get_llm_client()
+            if connection:
+                sql_gen = self._get_sql_gen_for_connection(current_dialect, current_db_url)
+                if self._provider == "local":
+                    client = self._get_llm_client()
+                else:
+                    from teshq.core.llm_client import CloudLLMClient
+                    client = CloudLLMClient(self._get_planner(), sql_gen)
+            else:
+                client = self._get_llm_client()
 
-            provider_label = "Azure OpenAI" if self._provider == "azure" else ("Local GGUF" if self._provider == "local" else "Gemini")
+            provider_label = (
+                "Azure OpenAI"
+                if self._provider == "azure"
+                else ("Local GGUF" if self._provider == "local" else "Gemini")
+            )
 
             # — Stage 1: Query Planning —
             _notify(3, "Generating SQL", f"planning query with {provider_label}")
@@ -402,7 +490,12 @@ class TeshEngine:
 
             sql_text = sql_result.query
             parameters = sql_result.parameters or {}
-            _emit_event("sql_ready", stage="sql_gen", message="SQL synthesized", data={"sql": sql_text, "parameters": parameters})
+            _emit_event(
+                "sql_ready",
+                stage="sql_gen",
+                message="SQL synthesized",
+                data={"sql": sql_text, "parameters": parameters},
+            )
 
             # Guard against empty SQL from the LLM
             if not sql_text or not sql_text.strip():
@@ -417,7 +510,7 @@ class TeshEngine:
 
             # Validate
             _notify(4, "Validating query", "verifying AST & safety rules")
-            validate_sql(sql_text, dialect=str(self._dialect))
+            validate_sql(sql_text, dialect=str(current_dialect))
             _emit_event("validated", stage="validation", message="SQL verified successfully")
 
             # Normalize
@@ -429,19 +522,36 @@ class TeshEngine:
 
             # Execute (unless dry run)
             if not dry_run:
-                dialect_label = str(getattr(self, "_dialect", "database")).upper()
-                _notify(5, "Executing against database", f"running on {dialect_label}")
-                _emit_event("exec_started", stage="execution", message=f"Running against {dialect_label}", data={"sql": sql_text})
+                dialect_label = str(current_dialect).upper()
+                _notify(5, "Executing against database", f"running on {active_conn_name} ({dialect_label})")
+                _emit_event(
+                    "exec_started",
+                    stage="execution",
+                    message=f"Running against {active_conn_name} ({dialect_label})",
+                    data={"sql": sql_text},
+                )
                 t0 = time.time()
-                rows, sql_text, parameters = self._execute_with_retry(sql_text, parameters)
+                rows, sql_text, parameters = self._execute_with_retry(
+                    sql_text, parameters, db_url=current_db_url, engine_name=active_conn_name
+                )
                 exec_ms = int((time.time() - t0) * 1000)
                 _notify(5, "Executing against database", f"returned {len(rows)} row(s)")
-                _emit_event("rows_ready", stage="execution", message=f"Fetched {len(rows)} row(s)", data={"row_count": len(rows)})
+                _emit_event(
+                    "rows_ready",
+                    stage="execution",
+                    message=f"Fetched {len(rows)} row(s)",
+                    data={"row_count": len(rows)},
+                )
             else:
                 _notify(5, "Executing against database", "dry run (skipped)")
                 _emit_event("finished", stage="execution", message="Dry run completed")
 
-            _emit_event("finished", stage="completed", message="Query executed successfully", data={"rows_count": len(rows), "sql": sql_text})
+            _emit_event(
+                "finished",
+                stage="completed",
+                message="Query executed successfully",
+                data={"rows_count": len(rows), "sql": sql_text},
+            )
 
         except Exception as e:
             error = str(e)
@@ -490,11 +600,20 @@ class TeshEngine:
             schema_preview=schema_str,
             success=success,
             error=error,
-            total_tokens=prompt_tokens + completion_tokens,
-            cost_estimate_usd=(prompt_tokens / 1000 * 0.000075) + (completion_tokens / 1000 * 0.0003) if self._provider == "google" else 0.0,
+            cost_estimate_usd=(
+                (prompt_tokens / 1000 * 0.000075) + (completion_tokens / 1000 * 0.0003)
+                if self._provider == "google"
+                else 0.0
+            ),
         )
 
-    def _execute_with_retry(self, sql: str, parameters: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
+    def _execute_with_retry(
+        self,
+        sql: str,
+        parameters: Dict[str, Any],
+        db_url: Optional[str] = None,
+        engine_name: str = "default",
+    ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
         """
         Execute SQL with self-healing retry and exponential backoff.
 
@@ -505,6 +624,8 @@ class TeshEngine:
              the database error message injected as an ``error_hint``.
           3. Validates and normalises the healed SQL and tries execution again.
         """
+        target_db_url = db_url or self._db_url
+
         # --- Transient DB retry with exponential backoff ---
         db_retry_cfg = RetryConfig(
             max_attempts=3,
@@ -516,7 +637,7 @@ class TeshEngine:
         last_db_error: Optional[Exception] = None
         for attempt in range(1, db_retry_cfg.max_attempts + 1):
             try:
-                return execute_sql_query(db_url=self._db_url, query=sql, parameters=parameters), sql, parameters
+                return execute_sql_query(db_url=target_db_url, query=sql, parameters=parameters), sql, parameters
             except Exception as exc:
                 if is_retryable(exc, db_retry_cfg) and attempt < db_retry_cfg.max_attempts:
                     delay = calculate_delay(attempt, db_retry_cfg)
@@ -548,9 +669,6 @@ class TeshEngine:
             raise first_error
 
         # Iterative self-healing: allow multiple rounds so the model can converge.
-        # Small local models may fix one mistake but introduce another, needing 2-3 rounds.
-        # We accumulate ALL previous errors so the model can see the pattern
-        # (e.g., "line_total is on order_items, order_date is on orders → need 3-table join").
         max_heal_rounds = 3
         error_history: List[str] = [str(first_error)]
 
@@ -585,14 +703,20 @@ class TeshEngine:
                 healed_sql = healed_sql_result.query
                 healed_params = healed_sql_result.parameters or parameters
 
-                validate_sql(healed_sql, dialect=str(self._dialect))
+                from teshq.core.dialect import detect_dialect
+                curr_dialect = detect_dialect(target_db_url)
+                validate_sql(healed_sql, dialect=str(curr_dialect))
                 healed_sql = normalize_sql(healed_sql)
 
                 logger.info(
                     f"Self-healing round {heal_round} generated new SQL — retrying execution",
                     sql=healed_sql[:200],
                 )
-                return execute_sql_query(db_url=self._db_url, query=healed_sql, parameters=healed_params), healed_sql, healed_params
+                return (
+                    execute_sql_query(db_url=target_db_url, query=healed_sql, parameters=healed_params),
+                    healed_sql,
+                    healed_params,
+                )
 
             except Exception as retry_error:
                 logger.error(
@@ -639,12 +763,25 @@ class TeshEngine:
                     continue
                 raise
 
-    def get_schema_preview(self, nl_query: str, schema_graph: Optional[SchemaGraph] = None) -> str:
+    def get_schema_preview(
+        self,
+        nl_query: str,
+        schema_graph: Optional[SchemaGraph] = None,
+        connection: Optional[str] = None,
+    ) -> str:
         """
         Return the compressed schema that would be sent to the LLM for *nl_query*.
         Does not call the LLM.
         """
-        graph = schema_graph or self._get_schema_graph()
+        if schema_graph:
+            graph = schema_graph
+        elif connection:
+            from teshq.core.connection import connection_manager
+            conn = connection_manager.get_named_connection(connection)
+            graph = self._get_schema_graph_for_connection(conn.name, conn.db_url)
+        else:
+            graph = self._get_schema_graph()
+
         retriever = SchemaRetriever(graph)
         if self._provider == "local":
             relevant_tables = retriever.retrieve(nl_query, top_k=10, budget_tokens=1500)
@@ -665,6 +802,7 @@ class TeshEngine:
         cancellation_token: Optional[Any] = None,
         event_callback: Optional[Callable[[Any], None]] = None,
         context: Optional[str] = None,
+        connection: Optional[str] = None,
     ) -> QueryResult:
         """Async counterpart of :meth:`query`.
 
@@ -684,5 +822,6 @@ class TeshEngine:
                 cancellation_token=cancellation_token,
                 event_callback=event_callback,
                 context=context,
+                connection=connection,
             ),
         )

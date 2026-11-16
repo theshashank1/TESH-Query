@@ -38,13 +38,28 @@ Example usage:
     print(sql_info['query'])
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, Iterator, List, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
+
 
 if TYPE_CHECKING:
     import pandas as pd
     from teshq.events import CancellationToken, QueryEvent
     from teshq.session import TeshChatSession
+
 
 from .config.paths import SCHEMA_DIR
 from .core.engine import TeshEngine
@@ -136,9 +151,10 @@ class TeshQuery:
         self.auto_save_config = auto_save_config
 
         # Validate required config
-        if not self.db_url and self._custom_engine is None:
+        if not self.db_url and self._custom_engine is None and not (self.azure_api_key or self.gemini_api_key):
             raise ValueError(
-                "Database URL is required (or provide engine=). Provide it via db_url=, engine=, or configure with: teshq config --db"
+                "Database URL is required (or provide engine=). "
+                "Provide it via db_url=, engine=, or configure with: teshq config --db"
             )
 
         if self._provider == "azure":
@@ -185,17 +201,90 @@ class TeshQuery:
             config_data["GEMINI_MODEL"] = self.gemini_model
         return save_config(config_data)
 
+    # ------------------------------------------------------------------
+    # Named Multi-Database Connection API
+    # ------------------------------------------------------------------
+
+    def add_connection(
+        self,
+        name: str,
+        db_url: str,
+        is_default: bool = False,
+        description: str = "",
+        overwrite: bool = False,
+        persist: bool = False,
+    ) -> Any:
+        """
+        Add and register a named database connection.
+
+        Args:
+            name: Unique connection identifier (e.g. 'ecommerce', 'analytics').
+            db_url: Connection URL or URI.
+            is_default: Whether to mark this as default connection.
+            description: Optional description of this database.
+            overwrite: Whether to overwrite if connection with name already exists.
+            persist: Whether to save connection to ~/.teshq/connections.yaml.
+
+        Returns:
+            The created DatabaseConnection instance.
+        """
+        conn = connection_manager.add_connection(
+            name=name,
+            db_url=db_url,
+            is_default=is_default,
+            description=description,
+            overwrite=overwrite,
+            persist=persist,
+        )
+        if not self.db_url or is_default:
+            self.db_url = conn.db_url
+        return conn
+
+    def get_connection(self, name: Optional[str] = None) -> Any:
+        """Retrieve a registered named database connection."""
+        return connection_manager.get_named_connection(name)
+
+    def list_connections(self) -> Dict[str, Dict[str, Any]]:
+        """List all registered named database connections with masked credentials."""
+        return connection_manager.list_connections()
+
+    def remove_connection(self, name: str, persist: bool = False) -> None:
+        """Remove a named database connection and dispose its resources."""
+        connection_manager.remove_connection(name, persist=persist)
+        if connection_manager._default_connection_name:
+            self.db_url = connection_manager.get_named_connection(
+                connection_manager._default_connection_name
+            ).db_url
+        elif not connection_manager._connections:
+            self.db_url = None
+
+    def test_named_connection(self, name: str) -> Tuple[bool, str]:
+        """Test a named database connection, returning (success, message)."""
+        return connection_manager.test_named_connection(name)
+
+    def set_default_connection(self, name: str, persist: bool = False) -> None:
+        """Set the default named database connection."""
+        connection_manager.set_default_connection(name, persist=persist)
+        self.db_url = connection_manager.get_named_connection(name).db_url
+
     @property
     def engine(self) -> TeshEngine:
         """Lazily create and return the TeshEngine instance."""
         if self._engine is None:
+            effective_url = self.db_url
+            if not effective_url and connection_manager._connections:
+                try:
+                    effective_url = connection_manager.get_named_connection(None).db_url
+                except Exception:
+                    pass
+
             common_kwargs = {
                 "engine": self._custom_engine,
                 "business_context": self.business_context,
             }
             if self._provider == "azure":
                 self._engine = TeshEngine(
-                    db_url=self.db_url,
+                    db_url=effective_url,
                     provider="azure",
                     api_key=self.azure_api_key,
                     model_name=self.azure_deployment,
@@ -206,7 +295,7 @@ class TeshQuery:
                 )
             else:
                 self._engine = TeshEngine(
-                    db_url=self.db_url,
+                    db_url=effective_url,
                     provider="google",
                     api_key=self.gemini_api_key,
                     model_name=self.gemini_model,
@@ -214,12 +303,19 @@ class TeshQuery:
                 )
         return self._engine
 
-    def test_connection(self) -> bool:
+    def test_connection(self, connection: Optional[str] = None) -> bool:
         """Test the database connection. Returns True if successful."""
-        return connection_manager.test_connection(self.db_url)
+        target = connection or self.db_url
+        if not target and connection_manager._connections:
+            try:
+                target = connection_manager.get_named_connection(None).db_url
+            except Exception:
+                return False
+        return connection_manager.test_connection(target or "")
 
     def introspect_database(
         self,
+        connection: Optional[str] = None,
         detect_relationships: bool = True,
         include_indexes: bool = True,
         include_sample_data: bool = False,
@@ -240,8 +336,14 @@ class TeshQuery:
             save_to_files=save_to_files,
         )
 
+        target_url = self.db_url
+        if connection:
+            target_url = connection_manager.get_named_connection(connection).db_url
+        elif not target_url and connection_manager._connections:
+            target_url = connection_manager.get_named_connection(None).db_url
+
         schema_info = introspect_db(
-            db_url=self.db_url,
+            db_url=target_url,
             detect_relationships=detect_relationships,
             include_indexes=include_indexes,
             include_sample_data=include_sample_data,
@@ -264,25 +366,35 @@ class TeshQuery:
     def generate_sql(
         self,
         natural_language_query: str,
+        connection: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate SQL from natural language without executing it (dry-run).
 
         Returns dict with keys: 'query' (SQL string) and 'parameters' (dict).
         """
-        result = self.engine.query(natural_language_query, dry_run=True)
+        result = self.engine.query(natural_language_query, dry_run=True, connection=connection)
         if not result.success:
             raise RuntimeError(f"SQL generation failed: {result.error}")
         return {"query": result.sql, "parameters": result.parameters}
 
     def execute_query(
-        self, sql_query: str, parameters: Optional[Dict[str, Any]] = None
+        self,
+        sql_query: str,
+        parameters: Optional[Dict[str, Any]] = None,
+        connection: Optional[str] = None,
     ) -> QueryResult:
         """Execute a raw SQL query and return a QueryResult."""
         from teshq.core.query import execute_sql_query
 
+        target_url = self.db_url
+        if connection:
+            target_url = connection_manager.get_named_connection(connection).db_url
+        elif not target_url and connection_manager._connections:
+            target_url = connection_manager.get_named_connection(None).db_url
+
         raw_results = execute_sql_query(
-            db_url=self.db_url, query=sql_query, parameters=parameters or {}
+            db_url=target_url, query=sql_query, parameters=parameters or {}
         )
         return QueryResult(
             results=raw_results,
@@ -296,9 +408,10 @@ class TeshQuery:
         output_format: str = "dataframe",
         output_path: Optional[str] = None,
         return_sql: bool = False,
-        cancellation_token: Optional[Any] = None,
+        cancellation_token: Optional[CancellationToken] = None,
         event_callback: Optional[Callable[[Any], None]] = None,
         context: Optional[str] = None,
+        connection: Optional[str] = None,
         **kwargs,
     ) -> Any:
         """
@@ -312,6 +425,7 @@ class TeshQuery:
             cancellation_token: Optional CancellationToken to abort query execution.
             event_callback: Optional callback receiving QueryEvent instances.
             context: Optional domain or business context string.
+            connection: Optional named database connection to target.
 
         Returns:
             - ``pd.DataFrame`` when ``output_format="dataframe"``.
@@ -338,6 +452,7 @@ class TeshQuery:
             cancellation_token=cancellation_token,
             event_callback=event_callback,
             context=context,
+            connection=connection,
         )
         if not engine_result.success:
             raise RuntimeError(f"Query failed: {engine_result.error}")
@@ -365,20 +480,20 @@ class TeshQuery:
                 df.to_csv(output_path, index=False)
                 return output_path
             return df.to_csv(index=False)
-        
+
         elif output_format == "excel":
             df = result.dataframe
             if not output_path:
                 raise ValueError("output_path is required when output_format='excel'.")
             df.to_excel(output_path, index=False)
             return output_path
-            
+
         elif output_format == "dict":
             if return_sql:
                 return result.to_dict(include_sql=True)
             return result.results
-            
-        else: # dataframe
+
+        else:  # dataframe
             df = result.dataframe
             if return_sql:
                 return {"sql": result.query, "parameters": result.parameters, "dataframe": df}
@@ -387,6 +502,7 @@ class TeshQuery:
     def query_df(
         self,
         natural_language_query: str,
+        connection: Optional[str] = None,
         cancellation_token: Optional[Any] = None,
         event_callback: Optional[Callable[[Any], None]] = None,
         context: Optional[str] = None,
@@ -406,6 +522,7 @@ class TeshQuery:
             cancellation_token=cancellation_token,
             event_callback=event_callback,
             context=context,
+            connection=connection,
         )
         if not engine_result.success:
             raise RuntimeError(f"Query failed: {engine_result.error}")
@@ -421,6 +538,7 @@ class TeshQuery:
     def query_arrow(
         self,
         natural_language_query: str,
+        connection: Optional[str] = None,
         cancellation_token: Optional[Any] = None,
         context: Optional[str] = None,
         **kwargs,
@@ -433,6 +551,7 @@ class TeshQuery:
         """
         result = self.query_advanced(
             natural_language_query,
+            connection=connection,
             cancellation_token=cancellation_token,
             context=context,
             **kwargs,
@@ -442,6 +561,7 @@ class TeshQuery:
     def query_polars(
         self,
         natural_language_query: str,
+        connection: Optional[str] = None,
         cancellation_token: Optional[Any] = None,
         context: Optional[str] = None,
         **kwargs,
@@ -453,6 +573,7 @@ class TeshQuery:
         """
         result = self.query_advanced(
             natural_language_query,
+            connection=connection,
             cancellation_token=cancellation_token,
             context=context,
             **kwargs,
@@ -462,11 +583,14 @@ class TeshQuery:
     def query_advanced(
         self,
         natural_language_query: str,
+        connection: Optional[str] = None,
         schema: Optional[str] = None,
         schema_file: Optional[Union[str, Path]] = None,
         cancellation_token: Optional[Any] = None,
         event_callback: Optional[Callable[[Any], None]] = None,
         context: Optional[str] = None,
+        on_progress: Optional[Callable[[int, str, Optional[str]], None]] = None,
+        **kwargs: Any,
     ) -> QueryResult:
         """
         Full pipeline returning the rich ``QueryResult`` object.
@@ -477,6 +601,8 @@ class TeshQuery:
             cancellation_token=cancellation_token,
             event_callback=event_callback,
             context=context,
+            on_progress=on_progress,
+            connection=connection,
         )
         if not engine_result.success:
             raise RuntimeError(f"Query failed: {engine_result.error}")
@@ -616,6 +742,40 @@ class TeshQuery:
             "tables": tables_data,
         }
 
+    def query_cross_db(
+        self,
+        natural_language_query: str,
+        target_connections: Optional[List[str]] = None,
+        subqueries: Optional[List[Any]] = None,
+        join_keys: Optional[List[str]] = None,
+        join_type: str = "outer",
+        dry_run: bool = False,
+    ) -> Any:
+        """
+        Execute a cross-database query combining results across multiple connections.
+
+        Args:
+            natural_language_query: Question spanning multiple databases.
+            target_connections: Optional list of named connections to query.
+            subqueries: Optional list of SubquerySpec objects for explicit execution.
+            join_keys: Common join keys across subquery results (e.g. ['month']).
+            join_type: Join method ('outer', 'inner', 'left').
+            dry_run: If True, validate plans without executing SQL.
+
+        Returns:
+            CrossDatabaseResult object containing combined DataFrame, subquery results,
+            and source attribution.
+        """
+        from teshq.core.federation import CrossDatabaseOrchestrator
+        orchestrator = CrossDatabaseOrchestrator(connection_manager)
+        plan = orchestrator.plan_query(
+            nl_query=natural_language_query,
+            target_connections=target_connections,
+            predefined_subqueries=subqueries,
+            join_keys=join_keys,
+            join_type=join_type,
+        )
+        return orchestrator.execute_plan(plan, dry_run=dry_run)
 
     def health_check(self) -> Dict[str, Any]:
         """Run system health checks. Returns a health report dict."""
@@ -631,9 +791,10 @@ class TeshQuery:
         natural_language_query: str,
         output_format: str = "dataframe",
         return_sql: bool = False,
-        cancellation_token: Optional[Any] = None,
+        cancellation_token: Optional[CancellationToken] = None,
         event_callback: Optional[Callable[[Any], None]] = None,
         context: Optional[str] = None,
+        connection: Optional[str] = None,
         **kwargs,
     ) -> Any:
         """Async counterpart of :meth:`query`.
@@ -648,6 +809,7 @@ class TeshQuery:
             cancellation_token: Optional CancellationToken to abort query execution.
             event_callback: Optional callback receiving QueryEvent instances.
             context: Optional domain or business context string.
+            connection: Optional named database connection to target.
 
         Returns:
             - ``pd.DataFrame`` when ``output_format="dataframe"``.
@@ -671,6 +833,8 @@ class TeshQuery:
             query_kwargs["event_callback"] = event_callback
         if context is not None:
             query_kwargs["context"] = context
+        if connection is not None:
+            query_kwargs["connection"] = connection
 
         return await loop.run_in_executor(
             None,

@@ -23,7 +23,8 @@ from __future__ import annotations
 
 import math
 import re
-from collections import Counter, defaultdict
+from collections import Counter
+
 from typing import Dict, List, Optional
 
 from teshq.core.schema_graph import SchemaGraph

@@ -8,7 +8,8 @@ Unit tests for TESH-Query streaming events, cancellation, and client payload uti
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
 import pytest
 
 from teshq.events import CancellationToken, EventType, QueryCancelledError, QueryEvent

@@ -97,13 +97,10 @@ class ModernUI:
             return None
 
     def _detect_unicode(self) -> bool:
-        """Detect Unicode support"""
-        # Attempt to write a known Unicode character
+        """Detect Unicode support without polluting stdout."""
         try:
-            sys.stdout.write("•")
-            # Immediately erase it to avoid universal printing
-            sys.stdout.write("\b")
-            sys.stdout.flush()
+            encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+            "•".encode(encoding)
             return True
         except (UnicodeEncodeError, UnicodeError):
             return False

@@ -1,0 +1,350 @@
+{
+  "benchmark_date": "2026-10-28T09:42:41.395465",
+  "environment": {
+    "python_version": "3.13.13",
+    "os": "Darwin",
+    "architecture": "arm64"
+  },
+  "database": {
+    "path": "/Users/tallurikeshavardhanmojesh/Documents/TESH-Query/testing/databases/ecommerce.sqlite",
+    "size_mb": 93.41,
+    "tables_introspected": 45
+  },
+  "timings": {
+    "total_benchmark_time_sec": 12.91,
+    "schema_introspection_ms": 259.2,
+    "schema_retrieval_ms": 0.03,
+    "simple_query_avg_ms": 2.38,
+    "medium_query_avg_ms": 32.06,
+    "complex_query_avg_ms": 900.84
+  },
+  "memory": {
+    "peak_rss_mb": 198.14,
+    "peak_tracemalloc_mb": 80.83
+  },
+  "llm_inference": {
+    "status": "Skipped (no LLM API key in environment)"
+  },
+  "queries": [
+    {
+      "id": "BM-01",
+      "question": "Count total registered customers.",
+      "complexity": "simple",
+      "category": "Customers",
+      "requires_cross_db": false,
+      "rows_returned": 1,
+      "latency_ms": 4.39,
+      "status": "success"
+    },
+    {
+      "id": "BM-02",
+      "question": "Find the top 20 products by total sales revenue.",
+      "complexity": "medium",
+      "category": "Sales & Catalog",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 164.43,
+      "status": "success"
+    },
+    {
+      "id": "BM-03",
+      "question": "Calculate monthly gross merchandise value for the last year of orders.",
+      "complexity": "medium",
+      "category": "Financial Analytics",
+      "requires_cross_db": false,
+      "rows_returned": 24,
+      "latency_ms": 33.07,
+      "status": "success"
+    },
+    {
+      "id": "BM-04",
+      "question": "Find the top sellers by net revenue after deducting commissions and refunds.",
+      "complexity": "complex",
+      "category": "Marketplace",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 3.66,
+      "status": "success"
+    },
+    {
+      "id": "BM-05",
+      "question": "Calculate average order value by customer segment.",
+      "complexity": "medium",
+      "category": "Customer Analytics",
+      "requires_cross_db": false,
+      "rows_returned": 5,
+      "latency_ms": 23.45,
+      "status": "success"
+    },
+    {
+      "id": "BM-06",
+      "question": "Find products with high ratings (average >= 4.5) and low sales volume (less than 10 units).",
+      "complexity": "complex",
+      "category": "Catalog Performance",
+      "requires_cross_db": false,
+      "rows_returned": 0,
+      "latency_ms": 295.52,
+      "status": "success"
+    },
+    {
+      "id": "BM-07",
+      "question": "Identify customers with multiple returned orders.",
+      "complexity": "medium",
+      "category": "Returns",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 3.94,
+      "status": "success"
+    },
+    {
+      "id": "BM-08",
+      "question": "Calculate the percentage of orders delivered late according to carrier estimates.",
+      "complexity": "medium",
+      "category": "Shipping & Logistics",
+      "requires_cross_db": false,
+      "rows_returned": 1,
+      "latency_ms": 12.75,
+      "status": "success"
+    },
+    {
+      "id": "BM-09",
+      "question": "Find abandoned shopping carts containing valuable products.",
+      "complexity": "medium",
+      "category": "Checkout & Abandonment",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 11.99,
+      "status": "success"
+    },
+    {
+      "id": "BM-10",
+      "question": "Compare marketplace seller performance across product categories.",
+      "complexity": "complex",
+      "category": "Marketplace",
+      "requires_cross_db": false,
+      "rows_returned": 25,
+      "latency_ms": 93.71,
+      "status": "success"
+    },
+    {
+      "id": "BM-11",
+      "question": "Calculate inventory turnover and reserved stock ratio across warehouses.",
+      "complexity": "medium",
+      "category": "Inventory Management",
+      "requires_cross_db": false,
+      "rows_returned": 4,
+      "latency_ms": 5.08,
+      "status": "success"
+    },
+    {
+      "id": "BM-12",
+      "question": "Find products with stock shortages (on hand below reorder point) and recent order demand.",
+      "complexity": "complex",
+      "category": "Supply Chain",
+      "requires_cross_db": false,
+      "rows_returned": 0,
+      "latency_ms": 226.6,
+      "status": "success"
+    },
+    {
+      "id": "BM-13",
+      "question": "Calculate coupon redemption rates and total discounts surrendered.",
+      "complexity": "medium",
+      "category": "Marketing & Promotions",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 5.8,
+      "status": "success"
+    },
+    {
+      "id": "BM-14",
+      "question": "Analyze conversion rates and cost per click by marketing campaign.",
+      "complexity": "complex",
+      "category": "Advertising",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 6961.4,
+      "status": "success"
+    },
+    {
+      "id": "BM-15",
+      "question": "Compare campaign advertising spend with attributed product revenue.",
+      "complexity": "complex",
+      "category": "Marketing ROI",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 2265.64,
+      "status": "success"
+    },
+    {
+      "id": "BM-16",
+      "question": "Find customers with repeated failed payment attempts.",
+      "complexity": "medium",
+      "category": "Payments & Risk",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 11.74,
+      "status": "success"
+    },
+    {
+      "id": "BM-17",
+      "question": "Analyze return volumes and refund amounts by product category.",
+      "complexity": "complex",
+      "category": "Returns & Catalog",
+      "requires_cross_db": false,
+      "rows_returned": 25,
+      "latency_ms": 2.57,
+      "status": "success"
+    },
+    {
+      "id": "BM-18",
+      "question": "Compare average shipping costs and delivery duration across logistics carriers.",
+      "complexity": "medium",
+      "category": "Fulfillment & Carriers",
+      "requires_cross_db": false,
+      "rows_returned": 4,
+      "latency_ms": 15.09,
+      "status": "success"
+    },
+    {
+      "id": "BM-19",
+      "question": "Calculate customer repeat-purchase rates.",
+      "complexity": "complex",
+      "category": "Customer Analytics",
+      "requires_cross_db": false,
+      "rows_returned": 1,
+      "latency_ms": 9.93,
+      "status": "success"
+    },
+    {
+      "id": "BM-20",
+      "question": "Analyze recurring subscription statuses and monthly recurring revenue (MRR).",
+      "complexity": "medium",
+      "category": "Subscriptions",
+      "requires_cross_db": false,
+      "rows_returned": 1,
+      "latency_ms": 1.4,
+      "status": "success"
+    },
+    {
+      "id": "BM-21",
+      "question": "Analyze customer support ticket resolution times by problem category.",
+      "complexity": "medium",
+      "category": "Customer Support",
+      "requires_cross_db": false,
+      "rows_returned": 12,
+      "latency_ms": 7.46,
+      "status": "success"
+    },
+    {
+      "id": "BM-22",
+      "question": "Calculate marketplace seller commission deductions and net payout obligations.",
+      "complexity": "medium",
+      "category": "Marketplace Finance",
+      "requires_cross_db": false,
+      "rows_returned": 12,
+      "latency_ms": 2.05,
+      "status": "success"
+    },
+    {
+      "id": "BM-23",
+      "question": "Identify orders with high refund-to-order ratio.",
+      "complexity": "complex",
+      "category": "Fraud & Risk",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 7.28,
+      "status": "success"
+    },
+    {
+      "id": "BM-24",
+      "question": "Calculate daily orders and net revenue trends from daily sales metrics.",
+      "complexity": "simple",
+      "category": "Executive Reporting",
+      "requires_cross_db": false,
+      "rows_returned": 30,
+      "latency_ms": 0.48,
+      "status": "success"
+    },
+    {
+      "id": "BM-25",
+      "question": "Find top-selling product variants by revenue contribution.",
+      "complexity": "medium",
+      "category": "Product Variants",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 169.9,
+      "status": "success"
+    },
+    {
+      "id": "BM-26",
+      "question": "Compare warehouse storage utilization against capacity.",
+      "complexity": "simple",
+      "category": "Warehousing",
+      "requires_cross_db": false,
+      "rows_returned": 4,
+      "latency_ms": 2.9,
+      "status": "success"
+    },
+    {
+      "id": "BM-27",
+      "question": "Identify brands with the highest customer review ratings (minimum 50 reviews).",
+      "complexity": "medium",
+      "category": "Brand Analytics",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 12.8,
+      "status": "success"
+    },
+    {
+      "id": "BM-28",
+      "question": "Analyze order status transitions and fulfillment completion rate.",
+      "complexity": "simple",
+      "category": "Fulfillment Operations",
+      "requires_cross_db": false,
+      "rows_returned": 4,
+      "latency_ms": 1.74,
+      "status": "success"
+    },
+    {
+      "id": "BM-29",
+      "question": "Calculate customer lifetime value (CLV) defined as total completed spend minus refunds.",
+      "complexity": "complex",
+      "category": "Customer Valuation",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 41.66,
+      "status": "success"
+    },
+    {
+      "id": "BM-30",
+      "question": "Execute multi-domain reconciliation combining customers, orders, order items, products, sellers, payments, and returns.",
+      "complexity": "complex",
+      "category": "Multi-Domain Unified Join",
+      "requires_cross_db": false,
+      "rows_returned": 20,
+      "latency_ms": 1.28,
+      "status": "success"
+    },
+    {
+      "id": "BM-31",
+      "question": "Cross-Database: Compare monthly ecommerce order revenue with corporate finance ledger recognized revenue.",
+      "complexity": "cross-database",
+      "category": "Federation & Cross-DB",
+      "requires_cross_db": true,
+      "rows_returned": null,
+      "latency_ms": null,
+      "status": "federated_skipped_for_single_db"
+    },
+    {
+      "id": "BM-32",
+      "question": "Cross-Database: Reconcile external marketing campaign expenditure with internal product sales revenue.",
+      "complexity": "cross-database",
+      "category": "Federation & Cross-DB",
+      "requires_cross_db": true,
+      "rows_returned": null,
+      "latency_ms": null,
+      "status": "federated_skipped_for_single_db"
+    }
+  ]
+}

@@ -16,7 +16,7 @@ import random
 from datetime import date, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+
 
 
 class SubscriptionState(str, Enum):

@@ -57,6 +57,40 @@ class TestConfigValidator:
         assert not is_valid
         assert "must include hostname" in message
 
+    def test_validate_database_url_compound_oracle_scheme(self):
+        """Test valid compound Oracle scheme with driver name (oracle+cx_oracle)."""
+        is_valid, message = ConfigValidator.validate_database_url("oracle+cx_oracle://user:pass@localhost:1521/XEPDB1")
+        assert is_valid
+        assert "Valid oracle database URL format" in message
+
+    def test_validate_database_url_duckdb(self):
+        """Test valid DuckDB file and in-memory URLs."""
+        is_valid, msg = ConfigValidator.validate_database_url("duckdb:///my.duckdb")
+        assert is_valid
+        assert "Valid duckdb database URL format" in msg
+
+        is_valid_mem, msg_mem = ConfigValidator.validate_database_url("duckdb:///:memory:")
+        assert is_valid_mem
+        assert "Valid duckdb database URL format" in msg_mem
+
+    def test_validate_database_url_all_sqlalchemy_dialects(self):
+        """Test validation across diverse SQLAlchemy-supported databases."""
+        dialects = [
+            ("cockroachdb://root@localhost:26257/defaultdb", "cockroachdb"),
+            ("snowflake://user:pass@account/db/schema", "snowflake"),
+            ("bigquery://my-project/my_dataset", "bigquery"),
+            ("clickhouse://default:@localhost:8123/default", "clickhouse"),
+            ("trino://user@localhost:8080/hive/default", "trino"),
+            ("teradatasql://user:pass@host/database", "teradatasql"),
+            ("sap+hana://user:pass@host:30015/db", "sap"),
+            ("mysql+pymysql://user:pass@localhost:3306/db", "mysql"),
+            ("postgresql+psycopg2://user:pass@localhost:5432/db", "postgresql"),
+        ]
+        for url, expected_type in dialects:
+            valid, msg = ConfigValidator.validate_database_url(url)
+            assert valid, f"Expected {url} to be valid, got: {msg}"
+            assert expected_type in msg.lower()
+
     def test_validate_gemini_api_key_valid(self):
         """Test valid Gemini API key format."""
         valid_key = "AIza" + "A" * 35  # 39 characters total
@@ -176,6 +210,19 @@ class TestCLIValidator:
         is_valid, message = CLIValidator.validate_natural_language_query(dangerous_query)
         assert not is_valid
         assert "dangerous SQL patterns" in message
+
+    def test_validate_natural_language_query_advanced_injection(self):
+        """Test query with advanced injection patterns like ATTACH, pg_read_file, sys_eval."""
+        queries = [
+            "Show users; ATTACH DATABASE '/tmp/db' AS evil; --",
+            "Show users; GRANT ALL PRIVILEGES ON users TO attacker; --",
+            "SELECT pg_read_file('/etc/passwd')",
+            "SELECT sys_eval('whoami')",
+        ]
+        for q in queries:
+            is_valid, message = CLIValidator.validate_natural_language_query(q)
+            assert not is_valid, f"Query '{q}' should have been flagged as dangerous"
+            assert "dangerous SQL patterns" in message
 
     def test_validate_output_format_valid(self):
         """Test valid output formats."""

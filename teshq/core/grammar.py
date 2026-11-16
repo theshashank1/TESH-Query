@@ -5,8 +5,8 @@ Loads and compiles the context-free SQL grammar from sql_grammar.gbnf
 for use with llama-cpp-python to enforce syntactically correct SQL output.
 """
 
-import os
 from pathlib import Path
+
 from teshq.utils.logging import logger
 
 _GRAMMAR_PATH = Path(__file__).parent / "sql_grammar.gbnf"

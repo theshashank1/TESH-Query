@@ -5,8 +5,8 @@ This module provides a standardized interface for connecting to various database
 with optimized configurations and error handling for each database type.
 """
 
-import re
 from abc import ABC, abstractmethod
+
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -20,27 +20,27 @@ from teshq.utils.logging import logger
 
 class DatabaseConnector(ABC):
     """Abstract base class for database connectors."""
-    
+
     @abstractmethod
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get SQLAlchemy engine arguments specific to this database type."""
         pass
-    
+
     @abstractmethod
     def test_connection_query(self) -> str:
         """Get a simple query to test database connectivity."""
         pass
-    
+
     @abstractmethod
     def get_introspection_config(self) -> Dict[str, Any]:
         """Get configuration for database introspection."""
         pass
-    
+
     @abstractmethod
     def normalize_url(self, url: str) -> str:
         """Normalize the database URL for this connector."""
         pass
-    
+
     @abstractmethod
     def get_required_packages(self) -> List[str]:
         """Get list of required packages for this database."""
@@ -49,7 +49,7 @@ class DatabaseConnector(ABC):
 
 class PostgreSQLConnector(DatabaseConnector):
     """PostgreSQL database connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get PostgreSQL-specific engine arguments."""
         return {
@@ -65,10 +65,10 @@ class PostgreSQLConnector(DatabaseConnector):
                 "options": "-c statement_timeout=300000",  # 5 minutes
             }
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT version()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -77,21 +77,21 @@ class PostgreSQLConnector(DatabaseConnector):
             "supports_sequences": True,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         """Ensure proper PostgreSQL URL format."""
         if url.startswith("postgres://"):
             # Update deprecated postgres:// to postgresql://
             url = url.replace("postgres://", "postgresql://", 1)
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["psycopg2-binary"]
 
 
 class MySQLConnector(DatabaseConnector):
     """MySQL database connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get MySQL-specific engine arguments."""
         return {
@@ -108,10 +108,10 @@ class MySQLConnector(DatabaseConnector):
                 "charset": "utf8mb4",
             }
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT VERSION()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -120,7 +120,7 @@ class MySQLConnector(DatabaseConnector):
             "supports_sequences": False,  # MySQL 5.7+ supports sequences but limited
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         """Ensure proper MySQL URL format."""
         # Handle mysql+pymysql:// and mysql+mysqldb:// variants
@@ -128,14 +128,14 @@ class MySQLConnector(DatabaseConnector):
             # Default to mysql+pymysql:// for better compatibility
             url = url.replace("mysql://", "mysql+pymysql://", 1)
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["PyMySQL"]
 
 
 class SQLiteConnector(DatabaseConnector):
     """SQLite database connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get SQLite-specific engine arguments."""
         from sqlalchemy.pool import NullPool
@@ -144,14 +144,14 @@ class SQLiteConnector(DatabaseConnector):
             "poolclass": StaticPool if is_memory else NullPool,
             "echo": config.get("echo", False),
             "connect_args": {
-                "check_same_thread": False if is_memory else True,
+                "check_same_thread": False,
                 "timeout": config.get("connect_timeout", 20),
             }
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT sqlite_version()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,  # If enabled
@@ -160,18 +160,18 @@ class SQLiteConnector(DatabaseConnector):
             "supports_sequences": False,
             "information_schema_available": False,  # Uses pragma statements
         }
-    
+
     def normalize_url(self, url: str) -> str:
         """Ensure proper SQLite URL format."""
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return []  # SQLite is built into Python
 
 
 class OracleConnector(DatabaseConnector):
     """Oracle database connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get Oracle-specific engine arguments."""
         return {
@@ -186,10 +186,10 @@ class OracleConnector(DatabaseConnector):
                 "timeout": config.get("connect_timeout", 10),
             }
         }
-    
+
     def test_connection_query(self) -> str:
-        return "SELECT * FROM v$version WHERE rownum = 1"
-    
+        return "SELECT 1 FROM DUAL"
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -198,21 +198,21 @@ class OracleConnector(DatabaseConnector):
             "supports_sequences": True,
             "information_schema_available": False,  # Uses Oracle data dictionary
         }
-    
+
     def normalize_url(self, url: str) -> str:
         """Ensure proper Oracle URL format."""
         # Handle oracle+cx_oracle:// variants
         if url.startswith("oracle://"):
             url = url.replace("oracle://", "oracle+cx_oracle://", 1)
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["cx_Oracle", "oracledb"]
 
 
 class CassandraConnector(DatabaseConnector):
     """Cassandra database connector (via SQLAlchemy CQL)."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Get Cassandra-specific engine arguments."""
         return {
@@ -221,10 +221,10 @@ class CassandraConnector(DatabaseConnector):
                 "timeout": config.get("connect_timeout", 10),
             }
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT release_version FROM system.local"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": False,
@@ -233,30 +233,30 @@ class CassandraConnector(DatabaseConnector):
             "supports_sequences": False,
             "information_schema_available": False,  # Uses Cassandra system tables
         }
-    
+
     def normalize_url(self, url: str) -> str:
         """Ensure proper Cassandra URL format."""
         if url.startswith("cassandra://"):
             url = url.replace("cassandra://", "cassandra+cqlalchemy://", 1)
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["cassandra-driver", "cqlalchemy"]
 
 
 class BigQueryConnector(DatabaseConnector):
     """Google BigQuery connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy.pool import NullPool
         return {
             "poolclass": NullPool,
             "echo": config.get("echo", False),
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT 1"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": False,
@@ -265,17 +265,17 @@ class BigQueryConnector(DatabaseConnector):
             "supports_sequences": False,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["sqlalchemy-bigquery", "google-cloud-bigquery"]
 
 
 class SnowflakeConnector(DatabaseConnector):
     """Snowflake data warehouse connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy.pool import NullPool
         return {
@@ -285,10 +285,10 @@ class SnowflakeConnector(DatabaseConnector):
                 "client_session_keep_alive": True,
             }
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT CURRENT_VERSION()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -297,27 +297,27 @@ class SnowflakeConnector(DatabaseConnector):
             "supports_sequences": True,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["snowflake-sqlalchemy", "snowflake-connector-python"]
 
 
 class DuckDBConnector(DatabaseConnector):
     """DuckDB embedded analytical database connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy.pool import NullPool
         return {
             "poolclass": NullPool,
             "echo": config.get("echo", False),
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT version()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -326,17 +326,17 @@ class DuckDBConnector(DatabaseConnector):
             "supports_sequences": True,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["duckdb-engine", "duckdb"]
 
 
 class ClickHouseConnector(DatabaseConnector):
     """ClickHouse analytical database connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy.pool import QueuePool
         return {
@@ -345,10 +345,10 @@ class ClickHouseConnector(DatabaseConnector):
             "pool_timeout": config.get("pool_timeout", 30),
             "echo": config.get("echo", False),
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT version()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": False,
@@ -357,19 +357,19 @@ class ClickHouseConnector(DatabaseConnector):
             "supports_sequences": False,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         if url.startswith("clickhouse://"):
             url = url.replace("clickhouse://", "clickhouse+native://", 1)
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["clickhouse-connect", "clickhouse-sqlalchemy"]
 
 
 class RedshiftConnector(DatabaseConnector):
     """Amazon Redshift connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "poolclass": QueuePool,
@@ -382,10 +382,10 @@ class RedshiftConnector(DatabaseConnector):
                 "connect_timeout": config.get("connect_timeout", 10),
             }
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT version()"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -394,19 +394,19 @@ class RedshiftConnector(DatabaseConnector):
             "supports_sequences": False,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         if url.startswith("redshift://"):
             url = url.replace("redshift://", "redshift+psycopg2://", 1)
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["sqlalchemy-redshift", "psycopg2-binary"]
 
 
 class DatabricksConnector(DatabaseConnector):
     """Databricks SQL connector."""
-    
+
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy.pool import QueuePool
         return {
@@ -415,10 +415,10 @@ class DatabricksConnector(DatabaseConnector):
             "pool_pre_ping": config.get("pool_pre_ping", True),
             "echo": config.get("echo", False),
         }
-    
+
     def test_connection_query(self) -> str:
         return "SELECT 1"
-    
+
     def get_introspection_config(self) -> Dict[str, Any]:
         return {
             "supports_foreign_keys": True,
@@ -427,10 +427,10 @@ class DatabricksConnector(DatabaseConnector):
             "supports_sequences": False,
             "information_schema_available": True,
         }
-    
+
     def normalize_url(self, url: str) -> str:
         return url
-    
+
     def get_required_packages(self) -> List[str]:
         return ["databricks-sql-connector", "sqlalchemy-databricks"]
 
@@ -483,15 +483,26 @@ class GenericSQLAlchemyConnector(DatabaseConnector):
     """
 
     def get_engine_args(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "poolclass": QueuePool,
-            "pool_size": config.get("pool_size", 5),
-            "max_overflow": config.get("max_overflow", 10),
-            "pool_timeout": config.get("pool_timeout", 30),
-            "pool_recycle": config.get("pool_recycle", 3600),
-            "pool_pre_ping": config.get("pool_pre_ping", True),
+        from sqlalchemy.pool import NullPool, StaticPool
+        is_embedded = ":memory:" in url or "sqlite" in url or "duckdb" in url
+        pool_cls = StaticPool if ":memory:" in url else (NullPool if is_embedded else QueuePool)
+        args: Dict[str, Any] = {
             "echo": config.get("echo", False),
         }
+        if pool_cls == QueuePool:
+            args.update({
+                "poolclass": QueuePool,
+                "pool_size": config.get("pool_size", 5),
+                "max_overflow": config.get("max_overflow", 10),
+                "pool_timeout": config.get("pool_timeout", 30),
+                "pool_recycle": config.get("pool_recycle", 3600),
+                "pool_pre_ping": config.get("pool_pre_ping", True),
+            })
+        else:
+            args["poolclass"] = pool_cls
+            if "sqlite" in url:
+                args["connect_args"] = {"check_same_thread": False}
+        return args
 
     def test_connection_query(self) -> str:
         return "SELECT 1"
@@ -515,11 +526,11 @@ class GenericSQLAlchemyConnector(DatabaseConnector):
 class UnifiedDatabaseConnector:
     """
     Unified interface for connecting to various database systems.
-    
+
     Provides a consistent API while handling database-specific configurations,
     optimizations, and error handling.
     """
-    
+
     # Registry of supported database connectors (ordered by analytical relevance)
     _connectors = {
         # Tier 1: Cloud Data Warehouses
@@ -527,11 +538,11 @@ class UnifiedDatabaseConnector:
         "snowflake": SnowflakeConnector(),
         "databricks": DatabricksConnector(),
         "redshift": RedshiftConnector(),
-        
+
         # Tier 2: Local & Real-time OLAP
         "duckdb": DuckDBConnector(),
         "clickhouse": ClickHouseConnector(),
-        
+
         # Tier 3: Operational RDBMS
         "postgresql": PostgreSQLConnector(),
         "postgres": PostgreSQLConnector(),  # Alias
@@ -539,12 +550,12 @@ class UnifiedDatabaseConnector:
         "mssql": MSSQLConnector(),
         "sqlserver": MSSQLConnector(),      # Alias
         "oracle": OracleConnector(),
-        
+
         # Tier 4: Local development & NoSQL
         "sqlite": SQLiteConnector(),
         "cassandra": CassandraConnector(),
     }
-    
+
     @classmethod
     def get_categorized_connectors(cls) -> Dict[str, List[str]]:
         """Get supported databases grouped by category."""
@@ -554,84 +565,78 @@ class UnifiedDatabaseConnector:
             "Relational Databases": ["postgresql", "mysql", "mssql", "oracle", "sqlite"],
             "NoSQL & Specialized": ["cassandra"],
         }
-    
+
     @classmethod
     def get_supported_databases(cls) -> List[str]:
         """Get list of supported database types."""
         return list(cls._connectors.keys())
-    
+
     @classmethod
     def detect_database_type(cls, url: str) -> str:
-        """Detect database type from URL."""
-        # Handle edge case where some compound schemes aren't recognized by urlparse
-        if "+" in url and "://" in url:
-            # Extract scheme manually for compound schemes
-            scheme_part = url.split("://")[0].lower()
-            if "+" in scheme_part:
-                scheme = scheme_part.split("+")[0]
+        """Detect database type from URL for any SQLAlchemy database."""
+        try:
+            from sqlalchemy.engine import make_url
+            scheme = make_url(url).get_backend_name().lower()
+        except Exception:
+            if "://" in url:
+                scheme = url.split("://")[0].lower().split("+")[0]
             else:
-                scheme = scheme_part
-        else:
-            # Use standard parsing
-            parsed = urlparse(url)
-            scheme = parsed.scheme.lower()
-            
-            # Handle compound schemes like mysql+pymysql
-            if "+" in scheme:
-                scheme = scheme.split("+")[0]
-        
+                scheme = urlparse(url).scheme.lower().split("+")[0]
+
         # Handle aliases
-        if scheme == "postgres":
+        if scheme in ("postgres", "cockroachdb"):
             scheme = "postgresql"
-        elif scheme == "sqlserver":
+        elif scheme in ("sqlserver", "mssql"):
             scheme = "mssql"
-            
+        elif scheme == "mariadb":
+            scheme = "mysql"
+
         return scheme
-    
+
     @classmethod
     def get_connector(cls, url: str) -> DatabaseConnector:
         """Get appropriate connector for database URL.
-        
+
         Returns the optimized connector for known database types, or a
         GenericSQLAlchemyConnector for any unknown database — allowing
         SQLAlchemy-supported databases to work out of the box.
         """
         db_type = cls.detect_database_type(url)
-        
+
         if db_type not in cls._connectors:
             logger.info(
                 f"No optimized connector for '{db_type}' — using generic SQLAlchemy defaults. "
                 f"Install the appropriate SQLAlchemy dialect driver for full support."
             )
             return GenericSQLAlchemyConnector()
-        
+
         return cls._connectors[db_type]
-    
+
     @classmethod
     def create_engine(
-        cls, 
-        url: str, 
+        cls,
+        url: str,
         config: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Engine:
         """
         Create a SQLAlchemy engine with database-specific optimizations.
-        
+
         Args:
             url: Database connection URL
             config: Configuration dictionary
             **kwargs: Additional engine arguments
-            
+
         Returns:
             Configured SQLAlchemy engine
-            
+
         Raises:
             ValueError: If database type is not supported
             ImportError: If required database driver is not installed
         """
         config = config or {}
         connector = cls.get_connector(url)
-        
+
         # Check for required packages
         required_packages = connector.get_required_packages()
         for package in required_packages:
@@ -642,50 +647,62 @@ class UnifiedDatabaseConnector:
                     f"Optional database driver not installed: {package}. "
                     f"Install with: pip install {package}"
                 )
-        
+
         # Normalize URL
         normalized_url = connector.normalize_url(url)
-        
+
         # Get database-specific engine arguments
         engine_args = connector.get_engine_args(normalized_url, config)
-        
+
         # Merge with any additional kwargs
         engine_args.update(kwargs)
-        
+
         logger.info(
             "Creating database engine",
             database_type=cls.detect_database_type(url),
             pool_class=engine_args.get("poolclass", "default").__name__ if engine_args.get("poolclass") else "default"
         )
-        
+
         return create_engine(normalized_url, **engine_args)
-    
+
     @classmethod
     def test_connection(cls, url: str, config: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
         """
         Test database connectivity.
-        
+
         Args:
             url: Database connection URL
             config: Configuration dictionary
-            
+
         Returns:
             Tuple of (success: bool, message: str)
         """
         try:
             connector = cls.get_connector(url)
             engine = cls.create_engine(url, config)
-            
+
             test_query = connector.test_connection_query()
-            
+
             with engine.connect() as conn:
-                result = conn.execute(text(test_query))
-                version_info = result.fetchone()
-                
+                try:
+                    result = conn.execute(text(test_query))
+                    version_info = result.fetchone()
+                except Exception:
+                    # Fallback to alternative dialect test queries
+                    for fallback in ("SELECT 1 FROM DUAL", "SELECT 1", "SELECT version()", "SELECT sqlite_version()"):
+                        try:
+                            result = conn.execute(text(fallback))
+                            version_info = result.fetchone()
+                            break
+                        except Exception:
+                            continue
+                    else:
+                        raise
+
             engine.dispose()
-            
+
             return True, f"Connection successful. Database version: {version_info[0] if version_info else 'Unknown'}"
-            
+
         except ValueError as e:
             return False, f"Configuration error: {e}"
         except ImportError as e:
@@ -694,20 +711,20 @@ class UnifiedDatabaseConnector:
             return False, f"Database connection failed: {e}"
         except Exception as e:
             return False, f"Unexpected error: {e}"
-    
+
     @classmethod
     def get_introspection_capabilities(cls, url: str) -> Dict[str, Any]:
         """Get introspection capabilities for the database type."""
         connector = cls.get_connector(url)
         return connector.get_introspection_config()
-    
+
     @classmethod
     def get_database_info(cls, url: str) -> Dict[str, Any]:
         """Get comprehensive information about the database and connection."""
         try:
             db_type = cls.detect_database_type(url)
             connector = cls.get_connector(url)
-            
+
             return {
                 "database_type": db_type,
                 "supported": True,
@@ -719,6 +736,6 @@ class UnifiedDatabaseConnector:
             return {
                 "database_type": cls.detect_database_type(url),
                 "supported": False,
-                "error": f"Database type not supported",
+                "error": "Database type not supported",
                 "supported_types": cls.get_supported_databases(),
             }

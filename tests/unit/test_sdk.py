@@ -7,8 +7,8 @@ Validates:
 - TeshEngine.aquery() async execution
 """
 
-import asyncio
 from unittest.mock import MagicMock, patch
+
 
 import pytest
 

@@ -294,3 +294,16 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=1.0",
+    "flake8>=6.0",
+    "isort>=5.12",
+    "autopep8>=2.0",
+    "pre-commit>=3.0",
+    "build",
+    "mkdocs-material",
+]

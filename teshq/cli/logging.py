@@ -221,9 +221,8 @@ class CLILogger:
 
 def add_logging_option(func):
     """Decorator to add --log option to CLI commands."""
-    import typer
-    
     def wrapper(*args, **kwargs):
+
         # Extract log parameter if present
         log_param = kwargs.pop('log', None)
         

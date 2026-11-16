@@ -10,9 +10,8 @@ Covers:
 
 import pytest
 
-from teshq.core.validation import ConfigValidator, ValidationError
 from teshq.core.sql_validator import validate_sql
-
+from teshq.core.validation import ConfigValidator, ValidationError
 
 # ---------------------------------------------------------------------------
 # ConfigValidator — Gemini API key regex (relaxed in Bug #3 fix)
@@ -59,6 +58,16 @@ class TestGeminiApiKeyRegex:
     def test_none_like_fails(self):
         valid, msg = self._validate("not-a-real-key")
         assert not valid
+
+    def test_aq_prefix_key_passes(self):
+        key = "AQ." + "Ab8" + "x" * 45  # ~50 chars with AQ. prefix
+        valid, msg = self._validate(key)
+        assert valid, f"Expected valid but got: {msg}"
+
+    def test_aq_prefix_with_dots_and_dashes_passes(self):
+        key = "AQ.Ab8-test_token.sample123456789"
+        valid, msg = self._validate(key)
+        assert valid, f"Expected valid but got: {msg}"
 
 
 # ---------------------------------------------------------------------------
@@ -170,3 +179,19 @@ class TestSqlValidatorAst:
         """Empty SQL is handled upstream; validator should pass silently."""
         validate_sql("")
         validate_sql("   ")
+
+    def test_copy_statement_blocked(self):
+        with pytest.raises(ValidationError, match="COPY"):
+            validate_sql("COPY users TO '/tmp/users.csv'")
+
+    def test_shutdown_statement_blocked(self):
+        with pytest.raises(ValidationError, match="SHUTDOWN"):
+            validate_sql("SHUTDOWN")
+
+    def test_attach_statement_blocked(self):
+        with pytest.raises(ValidationError, match="ATTACH"):
+            validate_sql("ATTACH DATABASE '/tmp/other.db' AS other")
+
+    def test_detach_statement_blocked(self):
+        with pytest.raises(ValidationError, match="DETACH"):
+            validate_sql("DETACH DATABASE other")

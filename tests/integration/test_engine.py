@@ -2,12 +2,11 @@
 Integration tests for the TeshEngine (2-stage AI SQL Compiler).
 """
 
-import os
 import pytest
 from sqlalchemy import create_engine, text
 
 from teshq.core.engine import TeshEngine
-from teshq.core.models import QueryResult
+
 
 # Mock the LLM factory builds to avoid actual API calls during CI/CD
 class MockPlanner:
@@ -20,6 +19,7 @@ class MockPlanner:
             joins_needed=[]
         )
 
+
 class MockSQLGen:
     def generate(self, nl_query, schema_str, plan, error_hint=None, callbacks=None, **kwargs):
         from teshq.core.models import SQLQuery
@@ -29,12 +29,14 @@ class MockSQLGen:
             explanation="Counts all users."
         )
 
+
 @pytest.fixture
 def mock_engine_llm(monkeypatch):
     """Mocks the LLM builders to prevent API calls."""
     import teshq.core.engine
     monkeypatch.setattr(teshq.core.engine, "build_planner", lambda **kw: MockPlanner())
     monkeypatch.setattr(teshq.core.engine, "build_sql_generator", lambda **kw: MockSQLGen())
+
 
 @pytest.fixture
 def test_db_url(tmp_path):
@@ -54,6 +56,7 @@ def test_db_url(tmp_path):
         conn.execute(text("INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com')"))
     return db_url
 
+
 def test_tesh_engine_end_to_end(mock_engine_llm, test_db_url):
     """
     Test the full 2-stage engine pipeline:
@@ -68,25 +71,24 @@ def test_tesh_engine_end_to_end(mock_engine_llm, test_db_url):
 
     result = engine.query("How many users are there?", dry_run=False)
 
-    print(result)
-
     assert result.success is True
     assert result.error is None
     assert result.sql == "SELECT COUNT(*) AS COUNT\nFROM users"
-    
+
     # 2 rows were inserted, so count is 2
     assert len(result.rows) == 1
     assert result.rows[0]["COUNT"] == 2
-    
+
     assert result.plan is not None
     assert result.plan.tables == ["users"]
-    
+
     assert result.plan_latency_ms >= 0
     assert result.sql_latency_ms >= 0
     assert result.exec_latency_ms >= 0
-    
+
     # Check that schema was successfully extracted from SQLite
     assert "users" in result.schema_preview.lower()
+
 
 def test_tesh_engine_dry_run(mock_engine_llm, test_db_url):
     """Test that dry_run=True skips execution and returns empty rows."""

@@ -12,11 +12,11 @@ import json
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from teshq.api import TeshQuery
-    from teshq.events import QueryEvent
+
 
 
 FOLLOW_UP_TRIGGERS = (

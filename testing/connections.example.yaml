@@ -1,0 +1,32 @@
+# TESH-Query Named Multi-Database Configuration Example
+# Save this file to ~/.teshq/connections.yaml or reference it in application configuration.
+
+default_connection: "ecommerce"
+
+connections:
+  ecommerce:
+    name: "ecommerce"
+    url: "sqlite:///testing/databases/ecommerce.sqlite"
+    dialect: "sqlite"
+    description: "Primary Amazon-scale retail ecommerce database with 45 tables"
+    pool_size: 5
+    max_overflow: 10
+    timeout: 30
+
+  analytics:
+    name: "analytics"
+    url: "postgresql://${ANALYTICS_DB_USER:-analyst}:${ANALYTICS_DB_PASS:-secret}@${ANALYTICS_DB_HOST:-localhost}:5432/${ANALYTICS_DB_NAME:-warehouse}"
+    dialect: "postgresql"
+    description: "Enterprise analytics and business intelligence data mart"
+    pool_size: 5
+    max_overflow: 10
+    timeout: 45
+
+  finance:
+    name: "finance"
+    url: "postgresql://${FINANCE_DB_USER:-fin_app}:${FINANCE_DB_PASS:-secret}@${FINANCE_DB_HOST:-localhost}:5432/${FINANCE_DB_NAME:-fin_ledger}"
+    dialect: "postgresql"
+    description: "General ledger, recognized revenue, and statutory accounting"
+    pool_size: 5
+    max_overflow: 5
+    timeout: 30
